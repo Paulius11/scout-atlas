@@ -1,0 +1,5 @@
+# Official promotional art, fetched by fetch_portraits.py for personal use. Never commit it.
+*.jpg
+*.jpeg
+*.png
+*.webp

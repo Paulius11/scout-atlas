@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141f19">
+  <meta name="description" content="An unofficial, episode-aware Attack on Titan atlas. Explore the places, people and events you have already watched.">
+  <title>Scout Atlas · Attack on Titan companion</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="data.js" defer></script>
+  <script src="portraits/portraits.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <svg class="icon-definitions" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+    <clipPath id="avatar-glyph-clip"><circle cx="20" cy="20" r="17.4"/></clipPath>
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.7 8.3-2.1 5.3-5.3 2.1 2.1-5.3Z"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2Zm6-2v16m6-14v16"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5c-3-2-6-2-10-1v15c4-1 7-1 10 1 3-2 6-2 10-1V4c-4-1-7-1-10 1Zm0 0v15"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 2 8 3v7c0 5-8 10-8 10S4 17 4 12V5Z"/><path d="m8 11 3 3 5-6"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10" r="2"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-16a3 3 0 0 1 0 6m3 10v-3a6 6 0 0 0-2-4"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M15 3H5v18h14V9M15 3v6h4m-4-6 4 6M8 13h8m-8 4h6"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 1 8M3 4v6h6"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-wall" viewBox="0 0 24 24"><path d="M3 20V8h3V5h3v3h6V5h3v3h3v12Zm0-6h18"/></symbol>
+  </defs></svg>
+  <a class="skip-link" href="#atlas-map">Skip to the map</a>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Atlas navigation">
+      <a class="brand" href="index.html">
+        <span class="brand-emblem" aria-hidden="true"><svg class="icon"><use href="#i-compass"/></svg></span>
+        <span class="brand-text"><strong>Scout Atlas</strong><span>An Attack on Titan companion</span></span>
+      </a>
+      <nav class="primary-nav" aria-label="Views">
+        <button class="nav-item active" data-view="map" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span>Map</span></button>
+        <button class="nav-item" data-view="recap"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span class="label-long">The story so far</span><span class="label-short">Story</span></button>
+        <button class="nav-item" data-view="characters"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg><span class="label-long">Characters</span><span class="label-short">People</span><span id="character-count" class="count">0</span></button>
+        <button class="nav-item" data-view="notes"><svg class="icon" aria-hidden="true"><use href="#i-note"/></svg><span class="label-long">Field notes</span><span class="label-short">Notes</span><span id="note-count" class="count">0</span></button>
+      </nav>
+
+      <section class="progress-section" aria-labelledby="progress-heading">
+        <div class="section-heading"><h2 id="progress-heading">Watch progress</h2><button class="text-button" id="edit-progress">Change</button></div>
+        <p class="progress-title"><span class="status-dot" aria-hidden="true"></span><span id="cutoff-label">Watched through episode 1</span></p>
+        <div class="progress-track" aria-hidden="true"><div id="progress-fill"></div></div>
+        <p class="progress-meta" id="season-label"></p>
+      </section>
+
+      <section class="layer-section" aria-labelledby="layers-heading">
+        <div class="section-heading"><h2 id="layers-heading">Map layers</h2></div>
+        <label class="layer-toggle"><span><svg class="icon" aria-hidden="true"><use href="#i-pin"/></svg>Places</span><input id="layer-locations" type="checkbox" checked><span class="switch" aria-hidden="true"></span></label>
+        <label class="layer-toggle"><span><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>People on the map</span><input id="layer-groups" type="checkbox" checked><span class="switch" aria-hidden="true"></span></label>
+        <label class="layer-toggle"><span><svg class="icon" aria-hidden="true"><use href="#i-wall"/></svg>Wall names</span><input id="layer-walls" type="checkbox" checked><span class="switch" aria-hidden="true"></span></label>
+      </section>
+
+      <div class="sidebar-bottom">
+        <button class="about-button" id="about-button"><svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>How to read this atlas</button>
+        <p class="unofficial">An unofficial fan project. Works offline; nothing leaves this browser.</p>
+      </div>
+    </aside>
+
+    <main>
+      <header class="page-heading">
+        <div class="heading-text">
+          <h1 id="page-title">Find your bearings.</h1>
+          <p id="page-description">The places, the people, and the pieces coming together.</p>
+        </div>
+        <div class="heading-controls">
+          <div class="episode-control">
+            <label for="episode-select">Show the world as of</label>
+            <div class="stepper">
+              <button id="prev-milestone" class="step-button" aria-label="Previous milestone"><svg class="icon" aria-hidden="true"><use href="#i-prev"/></svg></button>
+              <div class="select-wrap"><select id="episode-select"></select></div>
+              <button id="next-milestone" class="step-button" aria-label="Next milestone"><svg class="icon" aria-hidden="true"><use href="#i-next"/></svg></button>
+            </div>
+          </div>
+          <button id="spoiler-button" class="spoiler-badge" aria-label="Change your spoiler limit"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><span id="spoiler-label">Safe through E1</span></button>
+        </div>
+      </header>
+
+      <section id="map-view" class="map-view" aria-label="Interactive atlas">
+        <div class="map-toolbar">
+          <h2 class="map-title"><svg class="icon" aria-hidden="true"><use href="#i-map"/></svg>The walled territory<span class="schematic-badge">Schematic</span></h2>
+          <div class="search-wrap"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="location-search" placeholder="Find a place, person or event" aria-label="Find a place, person or event" autocomplete="off"><kbd>/</kbd><div id="search-results" class="search-results" hidden></div></div>
+        </div>
+        <div class="atlas-body">
+          <div class="map-stage" id="map-stage">
+            <p class="map-caption">The world within the walls<small>Distances are approximate. Context is everything.</small></p>
+            <svg id="atlas-map" viewBox="0 0 1200 920" role="group" tabindex="0" aria-label="Schematic map of the three walls. Select a place to explore its story. Arrow keys move the map, plus and minus zoom.">
+              <defs>
+                <pattern id="map-grid" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0H0V80" fill="none" stroke="#afc2ab" stroke-opacity=".045"/></pattern>
+                <pattern id="forest-pattern" width="43" height="40" patternUnits="userSpaceOnUse"><path d="m13 8-8 15h5l-7 9h20l-7-9h5Zm19 16-5 9h10Z" fill="#111e19" stroke="#70846c" stroke-opacity=".2" stroke-width=".7"/></pattern>
+                <pattern id="town-pattern" width="17" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(-14)"><rect x="3" y="3" width="8" height="6" rx=".7" fill="#819077" opacity=".4"/></pattern>
+                <filter id="paper-grain"><feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+                <radialGradient id="map-light"><stop offset="0" stop-color="#657853" stop-opacity=".15"/><stop offset="1" stop-color="#071410" stop-opacity=".25"/></radialGradient>
+                <filter id="marker-shadow"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#060e0a" flood-opacity=".7"/></filter>
+                <symbol id="mountain" viewBox="0 0 80 50"><path d="m4 46 23-32 12 17L52 5l26 41M27 14l4 28M52 5l6 39m-13-25 7-2 7 7" fill="none" stroke="#8c9c80" stroke-opacity=".27" stroke-width="1.2"/></symbol>
+              </defs>
+              <g id="map-camera">
+                <rect x="-2400" y="-2400" width="6000" height="6000" fill="#1e3027"/>
+                <rect width="1200" height="920" fill="url(#map-grid)"/>
+                <g class="terrain-contours" fill="none" stroke="#768369" stroke-opacity=".12" stroke-width="1">
+                  <path d="M-20 107C109 20 184 64 241 107S372 223 398 164 490 30 616 46 802 11 888 93 1060 64 1240 83M-20 124C100 35 180 80 232 122S377 246 414 177 495 45 615 61 807 31 881 111 1059 80 1240 105M-20 145C104 59 169 98 225 141S386 266 433 192 510 64 623 78 809 57 875 130 1063 101 1240 129"/>
+                  <path d="M-50 596C97 544 179 627 208 715S381 842 428 799 540 806 578 875 750 945 843 900M-50 619C99 567 156 636 184 724S377 866 441 820 519 822 559 892 750 963 843 923M-50 644C75 587 134 650 163 738S363 890 450 842 498 847 538 913"/>
+                  <path d="M984 283C1078 242 1105 299 1082 390S974 520 1016 585 1156 568 1238 647M1002 303C1092 276 1081 315 1064 389S950 521 998 599 1146 593 1228 668M1018 326C1084 303 1066 337 1045 399S927 520 979 613 1137 616 1219 690"/>
+                  <path d="M378 319C322 368 362 420 310 442S239 535 304 557 421 513 449 575M395 328C342 369 383 434 326 461S257 521 316 538 434 499 470 575"/>
+                  <path d="M700 256C801 224 852 254 818 305S779 350 826 373M706 273C787 246 830 261 801 299S759 352 811 390"/>
+                </g>
+                <g fill="url(#forest-pattern)" opacity=".74">
+                  <path d="M250 242q85-56 141 11t-4 87q-76 45-99-7t-38-91Z"/>
+                  <path d="M825 464q52-55 120-15t35 110q-80 48-102-15t-53-80Z"/>
+                  <path d="M339 571q43-38 80 3t-24 67q-88 17-56-70Z"/>
+                  <path d="M661 644q77-37 115 33t-29 76q-65 8-86-109Z"/>
+                  <path d="M475 175q40-30 69 1t-13 56q-43 13-56-57Z"/>
+                </g>
+                <g opacity=".75"><use href="#mountain" x="131" y="341" width="112" height="70"/><use href="#mountain" x="120" y="386" width="100" height="63"/><use href="#mountain" x="170" y="429" width="95" height="59"/><use href="#mountain" x="965" y="649" width="105" height="65"/><use href="#mountain" x="1009" y="694" width="90" height="56"/><use href="#mountain" x="776" y="133" width="85" height="53"/></g>
+                <g fill="none"><path d="M599 306c-48 80 43 108 8 173s-35 107-6 148-1 95-5 199" stroke="#11241f" stroke-width="9"/><path d="M599 306c-48 80 43 108 8 173s-35 107-6 148-1 95-5 199" stroke="#658a83" stroke-opacity=".5" stroke-width="3"/></g>
+                <g id="wall-geometry" fill="none">
+                  <ellipse cx="600" cy="405" rx="440" ry="365" fill="#84916d" fill-opacity=".025" stroke="#0a1610" stroke-width="13"/>
+                  <ellipse cx="600" cy="405" rx="440" ry="365" stroke="#889477" stroke-width="5"/>
+                  <ellipse cx="600" cy="405" rx="440" ry="365" stroke="#364831" stroke-width="9" stroke-dasharray="2 8"/>
+                  <ellipse cx="600" cy="405" rx="298" ry="246" fill="#92a879" fill-opacity=".035" stroke="#0a1610" stroke-width="12"/>
+                  <ellipse cx="600" cy="405" rx="298" ry="246" stroke="#a1a98b" stroke-width="5"/>
+                  <ellipse cx="600" cy="405" rx="298" ry="246" stroke="#3a4e36" stroke-width="9" stroke-dasharray="2 8"/>
+                  <ellipse cx="600" cy="405" rx="162" ry="131" fill="#b5bc8a" fill-opacity=".035" stroke="#0a1610" stroke-width="11"/>
+                  <ellipse cx="600" cy="405" rx="162" ry="131" stroke="#b0b599" stroke-width="5"/>
+                  <ellipse cx="600" cy="405" rx="162" ry="131" stroke="#435139" stroke-width="9" stroke-dasharray="2 8"/>
+                </g>
+                <g id="district-art"></g>
+                <rect width="1200" height="920" fill="url(#map-light)" pointer-events="none"/>
+                <rect width="1200" height="920" filter="url(#paper-grain)" opacity=".04" pointer-events="none"/>
+                <g id="wall-labels" class="wall-labels" text-anchor="middle"><text x="600" y="102">WALL MARIA</text><text x="600" y="213">WALL ROSE</text><text x="600" y="330">WALL SINA</text></g>
+                <g id="location-markers"></g>
+              </g>
+            </svg>
+            <div class="compass-rose" aria-hidden="true"><span>N</span><svg viewBox="0 0 60 60"><path d="m30 5 6 19 19 6-19 6-6 19-6-19-19-6 19-6Z" fill="none" stroke="currentColor"/><path d="m30 5 6 19-6 6-6-6Z" fill="currentColor"/><circle cx="30" cy="30" r="2" fill="currentColor"/></svg></div>
+            <div class="map-legend" aria-hidden="true"><span><i class="legend-pin"></i>Place</span><span><i class="legend-person"></i>Last recorded here</span></div>
+            <div class="zoom-controls" role="group" aria-label="Map controls"><button id="zoom-in" aria-label="Zoom in">+</button><span id="zoom-level">100%</span><button id="zoom-out" aria-label="Zoom out">−</button><div></div><button id="reset-map" aria-label="Reset map"><svg class="icon" aria-hidden="true"><use href="#i-reset"/></svg></button></div>
+            <p id="map-hint" class="map-hint" role="status" aria-live="polite"></p>
+            <div id="person-card" class="person-card" hidden></div>
+          </div>
+          <aside id="location-panel" class="location-panel" aria-label="Selected place"></aside>
+        </div>
+        <div class="timeline">
+          <div class="timeline-heading"><h2><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Connect the moments<span>Key events, in episode order</span></h2><span id="timeline-count" class="timeline-count"></span></div>
+          <div class="timeline-track" id="timeline-track"></div>
+        </div>
+      </section>
+
+      <section id="recap-view" class="secondary-view" hidden aria-label="The story so far"></section>
+      <section id="characters-view" class="secondary-view" hidden aria-label="Characters"></section>
+      <section id="notes-view" class="secondary-view" hidden aria-label="Your field notes"></section>
+      <footer class="page-footer"><span><span class="status-dot" aria-hidden="true"></span><span id="footer-cutoff"></span></span><button id="map-guide">How to read this map</button></footer>
+    </main>
+  </div>
+
+  <dialog id="progress-dialog" aria-labelledby="progress-title">
+    <form id="progress-form">
+      <div class="dialog-heading"><p class="dialog-kicker">Your pace, your world</p><button type="button" class="icon-button close-dialog" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <h2 id="progress-title">Where are you in the story?</h2>
+      <p>Choose the last episode you <strong>finished</strong>, counted from the very first episode of the series.</p>
+      <label for="cutoff-input">Last completed episode</label>
+      <input id="cutoff-input" type="number" min="1" required>
+      <p class="input-hint" id="cutoff-hint" aria-live="polite"></p>
+      <p class="input-hint" id="edition-hint"></p>
+      <button class="primary-button" type="submit">Set my spoiler limit<svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg></button>
+    </form>
+  </dialog>
+  <dialog id="about-dialog" aria-labelledby="about-title">
+    <div class="dialog-heading"><p class="dialog-kicker">A note from the cartographer</p><button class="icon-button close-dialog" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+    <h2 id="about-title">A guide, not a crystal ball.</h2>
+    <p>This unofficial fan atlas connects the geography, people and selected events you have already watched. <span id="about-ceiling"></span></p>
+    <div class="guide-list">
+      <p><strong><span class="knowledge-dot confirmed"></span>Confirmed</strong> Established by the episode you are viewing.</p>
+      <p><strong><span class="knowledge-dot belief"></span>Character belief</strong> What a character says or supposes at that point, not necessarily a fact.</p>
+      <p><strong><span class="knowledge-dot approximate"></span>Approximate</strong> Map positions, distances, terrain, and the river are illustrative. This is not an official map.</p>
+    </div>
+    <p>A portrait on the map means <strong>last recorded here</strong>, not a live location. Names and descriptions change as the story reveals more, and only up to the episode you are viewing.</p>
+    <p>Main characters show official art from the anime’s site, matched to the season you are viewing; everyone else has a drawn silhouette in their regiment’s colour. To add your own pictures, put them in the <strong>portraits</strong> folder and list them in <strong>portraits/portraits.js</strong>, using images from episodes you have already watched.</p>
+    <p>Notes and watch progress are saved in this browser. Source references are in the project’s data file; external pages may contain later spoilers.</p>
+    <button class="primary-button close-dialog">Back to exploring</button>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <noscript><div class="noscript">This interactive atlas needs JavaScript enabled.</div></noscript>
+</body>
+</html>
