@@ -26,7 +26,7 @@ const place = Object.fromEntries(d.locations.map(l => [l.id, l]));
 const person = Object.fromEntries(d.characters.map(c => [c.id, c]));
 const positions = d.characters.flatMap(c => (c.positions || []).map(p => ({ ...p, owner: c })));
 const VERSIONED = ['name', 'role', 'faction'];
-const KINDS = ['district', 'village', 'castle', 'forest', 'wall', 'field', 'chapel', 'capital'];
+const KINDS = ['district', 'village', 'castle', 'forest', 'wall', 'field', 'chapel', 'capital', 'sea'];
 const FACTIONS = ['civilian', 'cadet', 'survey', 'garrison', 'mp', 'central', 'crown', 'shifter', 'titan'];
 // Wall ellipses from index.html (#wall-geometry). ring() is 1 on the wall and < 1 inside it.
 const walls = { maria: [440, 365], rose: [298, 246], sina: [162, 131] };
@@ -180,6 +180,13 @@ check('status records: known targets and states, visible in time, sourced', bad 
     } else if (item.target !== 'belt:maria-rose' || !['lost', 'held'].includes(item.state)) bad(`${item.target}: unknown target or state`);
     if (item.from > d.maxEpisode) bad(`${item.target} past the ceiling`);
     if (!/^https:\/\//.test(item.sourceUrl || '')) bad(`${item.target} has no https source`);
+  });
+});
+check('the sea: at most one, and its desert within the ceiling', bad => {
+  const seas = d.locations.filter(l => l.kind === 'sea');
+  if (seas.length > 1) bad(`${seas.length} places of kind sea; the map draws one coast`);
+  seas.filter(l => l.desertFrom !== undefined).forEach(l => {
+    if (!Number.isInteger(l.desertFrom) || l.desertFrom < l.firstEpisode || l.desertFrom > d.maxEpisode) bad(`${l.id} desertFrom ${l.desertFrom}`);
   });
 });
 check('areas stay on the canvas', bad => {

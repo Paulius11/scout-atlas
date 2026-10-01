@@ -1,4 +1,4 @@
-/* Scout Atlas: curated anime milestones through overall episode 47 only.
+/* Scout Atlas: curated anime milestones through overall episode 59 only.
  * All coordinates and map geometry are schematic, not measured geography.
  * Every episode number here (firstEpisode, positions[].episode, from, revealedAs.episode)
  * is an OVERALL anime episode number. Nothing from an episode after maxEpisode is bundled.
@@ -72,6 +72,18 @@
     "Outside the Walls of Orvud District",
     "Ruler of the Walls",
     "Friends",
+    "Bystander",
+    "Night of the Battle to Retake the Wall",
+    "The Town Where Everything Began",
+    "Thunder Spears",
+    "Descent",
+    "Perfect Game",
+    "Hero",
+    "Midnight Sun",
+    "The Basement",
+    "That Day",
+    "Attack Titan",
+    "The Other Side of the Wall",
   ].map((title, index) => ({
     number: index + 1, title,
     sourceUrl: `https://en.wikipedia.org/wiki/Attack_on_Titan_season_${index < 25 ? 1 : index < 37 ? 2 : 3}`
@@ -86,13 +98,13 @@
     };
   }
   window.ATLAS_DATA = {
-    maxEpisode: 47,
+    maxEpisode: 59,
     episodeTitles,
-    // Season boundaries in overall numbers. The current season has no `last` until it is complete.
+    // Season boundaries in overall numbers. A season still in progress has no `last` until it is complete.
     seasons: [
       { season: 1, first: 1, last: 25 },
       { season: 2, first: 26, last: 37 },
-      { season: 3, first: 38 }
+      { season: 3, first: 38, last: 59 }
     ],
     episodes: [
       chapter(1, "Shiganshina", "Start at the southern district of Wall Maria, where Eren, Mikasa, and Armin live.", official(1), [
@@ -183,6 +195,73 @@
       chapter(47, "The true ruler", "Rod’s Titan falls at Orvud, and Kenny, badly hurt, meets Levi one last time.", sources.s3, [
         { locationId: "orvud", people: ["historia", "rod"], title: "Historia’s final blow", summary: "Rod’s Titan is brought down. Historia deals the final blow herself and, in front of residents and soldiers, declares that she is the true ruler.", connection: "The fight ends at Orvud’s wall, not inside the district." },
         { locationId: "reiss-chapel", people: ["kenny", "levi"], title: "Kenny and Levi", summary: "Kenny lies badly wounded after escaping the collapsed chapel and remembers his life. Levi finds him, and Kenny takes out a syringe holding the Titan drug. Before he dies, he tells Levi he was his mother’s brother.", connection: "This answers the question of how Levi and Kenny were connected, raised in episode 39.", sourceUrl: sources.s3summary }
+      ]),
+      chapter(48, "After the coronation", "Two months after Historia is crowned, Eren’s hardening is put to work and he places a face from his father’s memory.", sources.s3summary, [
+        { locationId: null, people: ["historia"], title: "The cowherd goddess", summary: "Two months after her coronation, Historia looks after orphans on a farm. People there fondly call her the cowherd goddess.", connection: "The farm is not named, so it is not pinned.", sourceUrl: sources.s3 },
+        { locationId: null, people: ["eren", "hange"], title: "A weapon from hardening", summary: "Eren masters hardening, and Hange builds a weapon from it that kills Titans without putting soldiers at risk. The experiments wear Eren down, but he accepts the cost.", connection: "Hardening was meant to seal Wall Maria (episode 38). Now it also arms the Scouts." },
+        { locationId: null, people: ["keith", "grisha", "eren"], kind: "belief", title: "Keith remembers Grisha", summary: "Eren recognises the Scout in his father’s memory as Keith Shadis, the Training Corps instructor. Keith says he met Grisha outside Wall Maria twenty years ago, a man who said he remembered nothing of his past. After the fall, Grisha led Eren into the woods, and Keith later found the boy alone with the key around his neck.", connection: "This is Keith’s account. It says how Grisha arrived, not where he came from." }
+      ]),
+      chapter(49, "The night before", "The operation to retake Wall Maria is set for two days later, and Erwin insists on leading it.", sources.s3summary, [
+        { locationId: null, people: ["erwin", "levi"], title: "The drug and the commander", summary: "The Titan drug from Kenny’s syringe cannot be analysed. Erwin gives it to Levi, to use if someone has to be turned into a Titan. Levi asks the injured Erwin to stay behind; Erwin refuses, saying he must be there when the truth of the world comes to light.", connection: "Erwin expects that truth in the Yeager family’s basement in Shiganshina." },
+        { locationId: "trost", people: ["eren", "mikasa", "armin"], title: "A send-off at Trost", summary: "After a night of feasting in the barracks, the Scouts set out. Trost’s people gather to cheer them, which surprises soldiers more used to being resented.", connection: "The expedition leaves from Trost, bound for Shiganshina." },
+        { locationId: null, people: ["reiner", "bertholdt"], title: "Waiting on Wall Maria", summary: "Reiner and Bertholdt stand guard on top of Wall Maria.", connection: "Which stretch of the wall they watch is not shown, so it is not pinned." }
+      ]),
+      chapter(50, "Back to Shiganshina", "The Scouts ride into Wall Maria by night and reach Shiganshina, the town where it all began.", sources.s3summary, [
+        { locationId: "shiganshina", people: ["eren", "armin"], title: "The outer gate is sealed", summary: "Eren’s hardened Titan plugs the hole in Shiganshina’s outer gate with surprising ease. The district is strangely empty of Titans.", connection: "The gate broken in episode 1 is closed again." },
+        { locationId: "shiganshina", people: ["armin", "reiner", "armored"], title: "Out of the wall", summary: "Armin finds a fresh campsite and has the soldiers search the wall for hollows. Reiner bursts out of one and becomes the Armored Titan.", connection: "The enemy was waiting inside the wall itself." },
+        { locationId: "shiganshina-inner", people: ["beast"], title: "Surrounded", summary: "The Beast Titan appears with an army of Titans and blocks Shiganshina’s inner gate with a boulder. The Scouts are surrounded.", connection: "The Beast Titan was first seen in episode 26. Where it comes from is still unexplained." }
+      ]),
+      chapter(51, "Thunder spears", "Surrounded, the Scouts protect their horses and throw everything at the Armored Titan.", sources.s3summary, [
+        { locationId: "shiganshina-inner", people: ["beast", "erwin", "levi"], title: "Guard the horses", summary: "The Beast Titan sends smaller Titans after the Scouts’ horses, their only way home. Erwin commits most of the squads to protecting them.", connection: "Without the horses, the Scouts would be stranded in Wall Maria." },
+        { locationId: "shiganshina", people: ["eren", "hange", "armored"], title: "Spears for the Armored Titan", summary: "Eren lures the Armored Titan away and holds it with hardened fists. Hange’s squad strikes with thunder spears, new weapons made for this enemy, blinding it and blasting open its nape.", connection: "The Scouts believe they have stopped it." }
+      ]),
+      chapter(52, "Bertholdt arrives", "The Armored Titan stirs again, and the Colossal Titan comes down on Shiganshina.", sources.s3summary, [
+        { locationId: "trost", people: ["bertholdt", "reiner", "annie"], title: "What Marco heard", summary: "Bertholdt remembers the battle of Trost: their fellow cadet Marco overheard him, Reiner and Annie talking about being Titans, and they left him to be eaten.", connection: "A memory of the fighting in Trost (episodes 5–13). The pin marks where it happened, not where Bertholdt is now." },
+        { locationId: "shiganshina", people: ["armored", "beast", "bertholdt", "armin"], title: "A barrel over the wall", summary: "The Armored Titan rises and roars. The Beast Titan throws a barrel into the district with Bertholdt inside. Armin tries to talk to him, but Bertholdt means to kill them all." },
+        { locationId: "shiganshina", people: ["colossal", "hange", "armin"], title: "The blast", summary: "Bertholdt transforms into the Colossal Titan, and the explosion engulfs Hange’s squad. Armin cannot decide whether to attack or retreat as the Colossal Titan advances." }
+      ]),
+      chapter(53, "Two fronts", "Shiganshina burns, and the Scouts are split between the district and the ground outside it.", sources.s3summary, [
+        { locationId: "shiganshina", people: ["colossal", "armin", "jean", "eren"], title: "A sea of fire", summary: "The Colossal Titan sets Shiganshina ablaze. Armin hands command to Jean. Eren tries to stop the Colossal Titan and is knocked unconscious.", connection: "One group of Scouts fights inside the district, the other outside it.", sourceUrl: sources.s3 },
+        { locationId: "shiganshina-inner", people: ["beast", "erwin", "levi"], title: "A rain of stones", summary: "The Beast Titan hurls barrages of rock at the Scouts guarding the horses, and the losses mount." },
+        { locationId: "shiganshina-inner", people: ["erwin", "levi"], title: "Erwin’s last order", summary: "Erwin proposes a charge: he and the recruits will draw the Beast Titan’s fire so Levi can reach it. Knowing it means their deaths, he says farewell to Levi, tells the recruits their lives and deaths will have meaning, and leads the charge into the stones." }
+      ]),
+      chapter(54, "The charge", "Erwin’s recruits ride at the Beast Titan while Armin plans against the Colossal Titan.", sources.s3summary, [
+        { locationId: "shiganshina-inner", people: ["erwin", "beast"], title: "The charge", summary: "Erwin is struck down early. The recruits ride on until the Beast Titan’s stones wipe them out." },
+        { locationId: "shiganshina-inner", people: ["levi", "beast", "four-legged-titan"], title: "Levi reaches the Beast Titan", summary: "Using the distraction, Levi cuts the Beast Titan apart and pulls out the bearded, blond man inside. He means to use the drug so that one of their own, Erwin if possible, can eat the man and take his power. A four-legged Titan snatches the man away first.", connection: "Who the man is, and where the four-legged Titan came from, are not explained." },
+        { locationId: "shiganshina", people: ["hange", "reiner", "armored"], title: "Reiner blown out", summary: "Hange survived the blast because Moblit gave his life for her. With the others she blows Reiner out of the Armored Titan." },
+        { locationId: "shiganshina", people: ["armin", "eren", "bertholdt", "colossal"], title: "Armin’s plan", summary: "Armin sees that the Colossal Titan stands still while it vents steam, and offers himself as the distraction. He holds on while the steam burns him. Eren, whose Titan only seemed knocked out, catches Bertholdt by surprise and tears him out of the Colossal Titan." }
+      ]),
+      chapter(55, "One dose", "With Armin and Erwin both dying, Levi has the drug for only one of them.", sources.s3summary, [
+        { locationId: "shiganshina", people: ["eren", "armin", "bertholdt"], title: "On the rooftop", summary: "Eren is alone on a roof with Armin, burned almost to death, and the unconscious Bertholdt.", sourceUrl: sources.s3 },
+        { locationId: "shiganshina", people: ["four-legged-titan", "beast", "eren"], kind: "belief", title: "A promise to Eren", summary: "The four-legged Titan arrives with the blond man from the Beast Titan. He says Eren’s father lied, promises a bewildered Eren that he will save him, and leaves.", connection: "What he means is not explained." },
+        { locationId: "shiganshina", people: ["reiner", "hange", "four-legged-titan"], title: "Reiner escapes", summary: "Hange is about to finish Reiner when the four-legged Titan rescues him too." },
+        { locationId: "shiganshina", people: ["levi", "armin", "erwin", "eren", "mikasa"], title: "Armin or Erwin", summary: "Levi is about to inject Armin when Floch, the only recruit to survive the charge, brings in the dying Erwin. Levi chooses Erwin, and Eren and Mikasa turn on him until Hange leads them away. Alone, Levi remembers a conversation with Erwin, lets him rest, and injects Armin instead." },
+        { locationId: "shiganshina", people: ["armin", "bertholdt", "colossal", "erwin"], title: "Armin returns", summary: "Armin becomes a Titan and eats Bertholdt, gaining the Colossal Titan’s power. The squad pulls him out of the Titan body, healed, while Levi and Hange mourn Erwin.", connection: "This is the exchange Levi planned for the Beast Titan’s man in episode 54." }
+      ]),
+      chapter(56, "The basement", "Few Scouts are left on Shiganshina’s wall. Eren finally goes down to his family’s basement.", sources.s3summary, [
+        { locationId: "shiganshina", people: ["armin", "levi"], title: "Nine left", summary: "Armin wakes on the wall to learn that nine Scouts are all that remain. He struggles with being chosen over Erwin; Levi says he does not regret it." },
+        { locationId: "shiganshina", people: ["eren", "mikasa", "levi", "hange", "grisha"], title: "The key", summary: "Eren, Mikasa, Levi and Hange go down into the Yeager house’s basement. Grisha’s key does not open the door; it opens a desk drawer holding three books.", connection: "This is the basement Erwin hoped would hold the truth of the world." },
+        { locationId: "shiganshina", people: ["grisha"], title: "A photograph", summary: "One book holds a picture of Grisha with a woman and a child who are not Carla and Eren. A note calls it a photograph, made with a technique from beyond the walls.", connection: "Who they are is not explained in this episode." },
+        { locationId: null, people: ["grisha"], title: "Grisha’s first pages", summary: "After the credits, Grisha’s book recalls his boyhood beyond the walls: with his little sister Faye, he slipped out of their walled district to watch an airship land.", connection: "Where that district lies is not shown, so it is not pinned." }
+      ]),
+      chapter(57, "Grisha’s memories", "Held in the stockade, Eren relives his father’s life as the books from the basement record it.", sources.s3summary, [
+        { locationId: null, people: ["eren", "mikasa"], title: "In the stockade", summary: "Eren and Mikasa are held in the stockade for defying Levi in Shiganshina. In a dream, Eren lives through his father’s memories.", connection: "The stockade is not placed on this map.", sourceUrl: sources.s3 },
+        { locationId: null, people: ["grisha", "kruger"], title: "Liberio", summary: "As a boy, Grisha is caught with his sister Faye outside the Liberio internment zone by two officers, Kruger and Gross. Gross has Faye killed in secret. Grisha’s father teaches him their people’s history and how the nation of Marley despises them.", connection: "Liberio is in Marley, across the sea from the walls. It is not on this map." },
+        { locationId: null, people: ["grisha", "dina", "zeke"], title: "The Restorationists", summary: "As a man, Grisha joins the Eldian Restoration movement, helped by an informant in the Marleyan military known as the Owl. He marries Dina Fritz, the last Eldian of royal blood on the mainland, and they have a son, Zeke. Raised to infiltrate the Marleyan army, Zeke turns his parents in." },
+        { locationId: "sea", people: ["grisha", "dina", "smiling-titan"], title: "The wall on Paradis", summary: "Grisha, Dina and the other Restorationists are taken to the wall of Paradis Island, the island where the walls stand, to be turned into mindless Titans. Marley calls Eldians monsters because they can become Titans. Dina becomes the smiling Titan that later kills Carla.", connection: "This happens on the island’s coast. Where along it is not established; the sea marker stands for the whole coast." },
+        { locationId: null, people: ["kruger", "grisha"], title: "The Owl", summary: "Kruger suddenly kills Gross, reveals that he is the Owl and a Titan shifter, transforms and wipes out the Marleyan security soldiers." }
+      ]),
+      chapter(58, "Kruger’s task", "Armin writes down what Kruger told Grisha, and the government learns what the books say.", sources.s3summary, [
+        { locationId: null, people: ["kruger", "grisha", "armin", "eren"], title: "Kruger’s task", summary: "Kruger tells Grisha that anyone who holds a Titan power lives only thirteen years, and explains the Coordinate. He sends Grisha behind the walls of Paradis to take the Founding Titan from the royal family and to start a new family there, then has him injected. He also mentions Mikasa and Armin, names neither man can place.", connection: "Armin records this as Eren recounts it." },
+        { locationId: null, people: ["hange"], title: "What the books say", summary: "At a government conference, Hange sets out what Grisha’s books reveal: everyone inside the walls is an Eldian, a Subject of Ymir, one of a people who can turn into Titans and are persecuted by the world outside.", connection: "Where the conference meets is not shown, so it is not pinned." },
+        { locationId: "rescue-field", people: ["eren", "smiling-titan", "dina", "historia"], kind: "belief", title: "Why the Titans obeyed", summary: "Eren concludes that he could command mindless Titans because he touched Dina’s Titan, which carried royal blood. He keeps it to himself, fearing what the military might do to Historia.", connection: "This is Eren’s explanation of episode 37. The pin marks where he struck the smiling Titan’s hand." }
+      ]),
+      chapter(59, "To the sea", "The truth is made public, the survivors are honoured, and a year later the Scouts ride to the sea.", sources.s3summary, [
+        { locationId: null, people: ["historia"], title: "The truth told", summary: "Historia decides the people must hear what was hidden for a hundred years: the fall of Wall Maria began an invasion planned by Marley to take the island’s resources, and the king a century ago erased everyone’s memories so they would believe the rest of humanity was gone.", connection: "The announcement is not tied to one place." },
+        { locationId: null, people: ["historia", "eren"], title: "Medals", summary: "At a ceremony for the fallen, Historia gives medals to the nine surviving Scouts. When Eren touches her hand, a memory floods in.", connection: "Where the ceremony is held is not shown, so it is not pinned." },
+        { locationId: "reiss-chapel", people: ["grisha", "eren"], title: "Grisha and the royal family", summary: "The memory Eren sees through Historia’s hand shows his father confronting the royal family.", connection: "The royal family is the Reiss family, and in episode 43 Rod said Grisha took his family from him. The pin marks their chapel." },
+        { locationId: null, people: ["scouts"], title: "Wall Maria is cleared", summary: "It takes a year to kill every Titan inside Wall Maria. Refugees go back to their hometowns, and the Scouts resume expeditions beyond the walls.", connection: "The land between Walls Maria and Rose is held again; the map stops marking it as lost." },
+        { locationId: "sea", people: ["scouts", "eren", "armin", "mikasa"], title: "The sea", summary: "Riding far enough, across desert, the Scouts reach the wall where Eren knows his father became a Titan, and see the ocean for the first time. While the others play in the water, Eren asks whether they will be free once they kill their enemies across the sea.", connection: "This is the coast from Grisha’s memory in episode 57. Which way the Scouts rode is not established: the map draws the desert all round, and the sea marker stands for the whole coast." }
       ])
     ],
     // Held and lost ground, and the state of district gates, as of the viewing episode.
@@ -191,9 +270,13 @@
       { target: "gate:shiganshina", from: 1, state: "breached", note: "The Colossal Titan breaks the outer gate.", sourceUrl: official(1) },
       { target: "belt:maria-rose", from: 2, state: "lost", note: "Wall Maria’s inner gate falls; the land between Wall Maria and Wall Rose is abandoned to the Titans.", sourceUrl: official(2) },
       { target: "gate:trost", from: 5, state: "breached", note: "The Colossal Titan breaks Trost’s outer gate.", sourceUrl: official(5) },
-      { target: "gate:trost", from: 13, state: "sealed", note: "Eren’s Titan seals the gate with a boulder.", sourceUrl: official(13) }
+      { target: "gate:trost", from: 13, state: "sealed", note: "Eren’s Titan seals the gate with a boulder.", sourceUrl: official(13) },
+      { target: "gate:shiganshina", from: 50, state: "sealed", note: "Eren’s hardened Titan plugs the hole in the outer gate.", sourceUrl: sources.s3summary },
+      { target: "belt:maria-rose", from: 59, state: "held", note: "Over a year, every Titan inside Wall Maria is killed and refugees return home.", sourceUrl: sources.s3summary }
     ],
-    // kind: district | village | castle | forest | wall | field | chapel | capital
+    // kind: district | village | castle | forest | wall | field | chapel | capital | sea
+    // A visible place of kind "sea" also draws the coastline and the water around the whole island, and from
+    // its `desertFrom` episode a desert band before the coast.
     // area: approximate places are drawn as a dashed area of these radii (map units), not a point.
     // label.side: right (default) | left | below. Aliases are searched but never shown on the map.
     locations: [
@@ -220,7 +303,11 @@
       { id: "reiss-chapel", name: "Reiss family chapel", subtitle: "A cavern beneath · Approximate area", x: 470, y: 250, kind: "chapel", firstEpisode: 43, label: { side: "left" }, area: { rx: 40, ry: 30 },
         summary: "A chapel of the Reiss family, with a cavern beneath it where Eren is held in chains.", why: "The Reiss family’s secrets are kept here, underground and out of sight.", geography: "Placed between Wall Sina and Wall Rose for orientation. Its real position and distances are not established here.", tags: ["Between Sina and Rose", "Approximate area"], sourceUrl: sources.s3 },
       { id: "orvud", name: "Orvud District", subtitle: "Northern district · Wall Sina", x: 600, y: 274, kind: "district", firstEpisode: 45, aliases: ["Orvud", "Wall Sheena"],
-        summary: "A district projecting from the northern side of Wall Sina, the innermost wall.", why: "It moves the story to the north of the walls, far from the southern districts where it began.", geography: "Northern Wall Sina is established. The district outline and distances are schematic.", tags: ["Wall Sina", "Northern district"], sourceUrl: sources.orvud }
+        summary: "A district projecting from the northern side of Wall Sina, the innermost wall.", why: "It moves the story to the north of the walls, far from the southern districts where it began.", geography: "Northern Wall Sina is established. The district outline and distances are schematic.", tags: ["Wall Sina", "Northern district"], sourceUrl: sources.orvud },
+      { id: "shiganshina-inner", name: "Beyond Shiganshina’s inner gate", mapLabel: "Beyond the inner gate", subtitle: "Inside Wall Maria · Approximate area", x: 556, y: 714, kind: "field", firstEpisode: 50, area: { rx: 50, ry: 20 },
+        summary: "Open ground inside Wall Maria, outside Shiganshina’s inner gate, where the Beast Titan gathers its Titans. This is a descriptive label, not a canonical place name.", why: "It keeps the fighting outside the district apart from the battle in Shiganshina’s streets.", geography: "Just north of Shiganshina, in the land between Walls Maria and Rose. Position and extent are approximate.", tags: ["Between the walls", "Approximate area"], sourceUrl: sources.s3summary },
+      { id: "sea", name: "The sea", subtitle: "Around Paradis Island · Coast", x: 172, y: 776, kind: "sea", firstEpisode: 57, desertFrom: 59, aliases: ["Ocean", "Coast", "Paradis Island"],
+        summary: "The walls stand on Paradis Island, and the sea surrounds it. Grisha’s memories show a wall on its coast.", why: "The world does not end at Wall Maria: Grisha’s memories place Marley across the sea.", geography: "The coastline is schematic and drawn not far beyond Wall Maria to fit the map. The marker stands for the whole coast; the direction and distance of any one stretch are not established.", tags: ["Beyond Wall Maria", "Coast"], sourceUrl: sources.s3summary }
     ],
     // type: person | titan | group. Every versioned list (name, role, faction) uses the entry with the
     // latest `from` at or before the viewing episode. `notes` are dated facts shown once watched.
@@ -236,7 +323,15 @@
           { episode: 38, text: "Hange tests whether his Titan body can harden, to seal Wall Maria." },
           { episode: 43, text: "A buried memory of his father and the Reiss family surfaces." },
           { episode: 44, text: "Rod Reiss says the power the Reiss family handed down is inside him." },
-          { episode: 45, text: "Chooses to trust himself again and gets his friends through the chapel’s collapse." }
+          { episode: 45, text: "Chooses to trust himself again and gets his friends through the chapel’s collapse." },
+          { episode: 48, text: "Masters hardening; Hange builds a Titan-killing weapon from it." },
+          { episode: 50, text: "Seals Shiganshina’s outer gate with his hardened Titan." },
+          { episode: 54, text: "Tears Bertholdt out of the Colossal Titan." },
+          { episode: 55, text: "Turns on Levi to win the drug for Armin." },
+          { episode: 56, text: "Opens his father’s desk drawer in the basement and finds three books." },
+          { episode: 57, text: "Held in the stockade with Mikasa; relives his father’s memories in a dream." },
+          { episode: 58, text: "Concludes that touching Dina’s Titan let him command Titans, and keeps it to himself to protect Historia." },
+          { episode: 59, text: "Sees his father confront the royal family through Historia’s hand; at the sea, asks if killing their enemies would make them free." }
         ],
         positions: [
           { episode: 1, locationId: "shiganshina", note: "Observed in his home district during the attack. This is a recorded observation, not continuous tracking.", sourceUrl: official(1) },
@@ -251,7 +346,12 @@
           { episode: 38, locationId: null, note: "With the new Levi squad at a hidden location this map does not place.", sourceUrl: sources.s3 },
           { episode: 39, locationId: null, note: "Carried off with Historia after the wagon is attacked.", sourceUrl: sources.s3 },
           { episode: 43, locationId: "reiss-chapel", note: "Wakes chained beneath the chapel.", sourceUrl: sources.s3 },
-          { episode: 46, locationId: "orvud", note: "Takes part in the stand against Rod’s Titan at Orvud.", sourceUrl: sources.s3summary }
+          { episode: 46, locationId: "orvud", note: "Takes part in the stand against Rod’s Titan at Orvud.", sourceUrl: sources.s3summary },
+          { episode: 49, locationId: "trost", note: "Sets out from Trost with the expedition.", sourceUrl: sources.s3summary },
+          { episode: 50, locationId: "shiganshina", note: "Back in his home district to seal the outer gate.", sourceUrl: sources.s3summary },
+          { episode: 56, locationId: "shiganshina", note: "Goes down into his family’s basement.", sourceUrl: sources.s3summary },
+          { episode: 57, locationId: null, note: "Held in the stockade, which this map does not place.", sourceUrl: sources.s3summary },
+          { episode: 59, locationId: "sea", note: "Reaches the sea with the Scouts. Where along the coast is not established.", sourceUrl: sources.s3summary }
         ], sourceUrl: official(1) },
       { id: "mikasa", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Mikasa Ackerman" }],
         faction: [{ from: 1, key: "civilian" }, { from: 4, key: "cadet" }, { from: 16, key: "survey" }],
@@ -259,15 +359,26 @@
         notes: [
           { episode: 1, text: "Lives with Eren’s family in Shiganshina and watches out for him." },
           { episode: 22, text: "Pursues the Female Titan with Levi to get Eren back." },
-          { episode: 31, text: "Attacks Reiner and Bertholdt after they reveal themselves." }
+          { episode: 31, text: "Attacks Reiner and Bertholdt after they reveal themselves." },
+          { episode: 55, text: "Turns on Levi with Eren to win the drug for Armin." },
+          { episode: 56, text: "One of the nine surviving Scouts; goes into the basement with Eren." },
+          { episode: 57, text: "Held in the stockade with Eren for defying Levi." },
+          { episode: 59, text: "Receives a medal from Historia and reaches the sea with the Scouts." }
         ], sourceUrl: official(1) },
       { id: "armin", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Armin Arlert" }],
         faction: [{ from: 1, key: "civilian" }, { from: 4, key: "cadet" }, { from: 16, key: "survey" }],
-        role: [{ from: 1, text: "Eren’s childhood friend" }, { from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }],
+        role: [{ from: 1, text: "Eren’s childhood friend" }, { from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }, { from: 55, text: "Survey Corps, holds the Colossal Titan’s power" }],
         notes: [
           { episode: 1, text: "Eren’s childhood friend in Shiganshina, more thinker than fighter." },
           { episode: 8, text: "Proposes the plan that gets the soldiers to the supply headquarters in Trost." },
-          { episode: 13, text: "Reaches Eren’s Titan so the boulder can be carried to the gate." }
+          { episode: 13, text: "Reaches Eren’s Titan so the boulder can be carried to the gate." },
+          { episode: 50, text: "Finds a fresh campsite and has the walls searched." },
+          { episode: 53, text: "Freezes as the district burns and hands command to Jean." },
+          { episode: 54, text: "Offers himself as the distraction; the Colossal Titan’s steam burns him almost to death." },
+          { episode: 55, text: "Given the drug, he eats Bertholdt as a Titan and gains the Colossal Titan’s power." },
+          { episode: 56, text: "Struggles with being chosen over Erwin." },
+          { episode: 58, text: "Writes down Eren’s account of what Kruger told Grisha." },
+          { episode: 59, text: "Sees the ocean with the Scouts." }
         ], sourceUrl: official(3) },
       { id: "levi", type: "person", firstEpisode: 14, name: [{ from: 14, text: "Levi" }],
         faction: [{ from: 14, key: "survey" }],
@@ -276,7 +387,10 @@
           { episode: 14, text: "Known as humanity’s strongest soldier." },
           { episode: 22, text: "Frees Eren from the Female Titan." },
           { episode: 39, text: "Recognises Kenny, a man from his past, and fights him." },
-          { episode: 47, text: "Kenny tells him before dying that he was his mother’s brother." }
+          { episode: 47, text: "Kenny tells him before dying that he was his mother’s brother." },
+          { episode: 49, text: "Erwin entrusts him with the Titan drug." },
+          { episode: 54, text: "Cuts down the Beast Titan, but a four-legged Titan carries off the man inside." },
+          { episode: 55, text: "Gives the one dose to Armin instead of Erwin." }
         ],
         positions: [
           { episode: 18, locationId: "giant-forest", note: "Leads his squad in the expedition’s central column.", sourceUrl: official(18) },
@@ -284,7 +398,12 @@
           { episode: 38, locationId: null, note: "Leads the new squad at a hidden location this map does not place.", sourceUrl: sources.s3 },
           { episode: 39, locationId: null, note: "Fights Kenny after the wagon ambush.", sourceUrl: sources.s3 },
           { episode: 45, locationId: "reiss-chapel", note: "Storms the chapel with the Scouts to rescue Eren and Historia.", sourceUrl: sources.s3 },
-          { episode: 47, locationId: "reiss-chapel", note: "Finds Kenny near the collapsed chapel.", sourceUrl: sources.s3 }
+          { episode: 47, locationId: "reiss-chapel", note: "Finds Kenny near the collapsed chapel.", sourceUrl: sources.s3 },
+          { episode: 50, locationId: "shiganshina", note: "Reaches Shiganshina with the expedition.", sourceUrl: sources.s3summary },
+          { episode: 51, locationId: "shiganshina-inner", note: "With Erwin’s group protecting the horses outside the district.", sourceUrl: sources.s3summary },
+          { episode: 54, locationId: "shiganshina-inner", note: "Cuts down the Beast Titan during the charge.", sourceUrl: sources.s3summary },
+          { episode: 55, locationId: "shiganshina", note: "Decides who receives the drug.", sourceUrl: sources.s3summary },
+          { episode: 56, locationId: "shiganshina", note: "Goes down into the Yeager basement.", sourceUrl: sources.s3summary }
         ], sourceUrl: official(15) },
       { id: "erwin", type: "person", firstEpisode: 14, name: [{ from: 14, text: "Erwin Smith" }],
         faction: [{ from: 14, key: "survey" }], role: [{ from: 14, text: "Commander of the Survey Corps" }],
@@ -292,7 +411,10 @@
           { episode: 16, text: "Leads the 57th expedition out through Karanes." },
           { episode: 40, text: "Tells Pixis he means to change the course of humanity’s history." },
           { episode: 42, text: "Stands a final trial in the king’s hall; the government falls instead." },
-          { episode: 46, text: "Keeps Orvud’s residents in place so Rod’s Titan is stopped outside Wall Sina." }
+          { episode: 46, text: "Keeps Orvud’s residents in place so Rod’s Titan is stopped outside Wall Sina." },
+          { episode: 49, text: "Refuses to stay behind and gives Levi the Titan drug." },
+          { episode: 53, text: "Leads the recruits in a charge to draw the Beast Titan’s fire." },
+          { episode: 55, text: "Dies after Levi gives the drug to Armin." }
         ], sourceUrl: official(16) },
       { id: "hange", type: "person", firstEpisode: 15, name: [{ from: 15, text: "Hange Zoë" }],
         faction: [{ from: 15, key: "survey" }], role: [{ from: 15, text: "Survey Corps squad leader, studies Titans" }],
@@ -300,41 +422,55 @@
           { episode: 15, text: "Studies captured Titans and explains the experiments to Eren." },
           { episode: 37, text: "Presents a theory that Ragako’s residents became Titans, without proof." },
           { episode: 38, text: "Runs the hardening experiments and concludes the Central Military Police killed Pastor Nick." },
-          { episode: 40, text: "Learns the Reiss family’s secret from a captured Military Police officer." }
+          { episode: 40, text: "Learns the Reiss family’s secret from a captured Military Police officer." },
+          { episode: 48, text: "Builds a Titan-killing weapon from Eren’s hardening." },
+          { episode: 51, text: "Her squad’s thunder spears bring down the Armored Titan." },
+          { episode: 54, text: "Survives the Colossal Titan’s blast thanks to Moblit, then blows Reiner out of the Armored Titan." },
+          { episode: 56, text: "One of the nine surviving Scouts; goes into the basement." },
+          { episode: 58, text: "Presents what Grisha’s books reveal to a government conference." }
         ], sourceUrl: official(15) },
       { id: "jean", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Jean Kirstein" }],
         faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }], role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }],
         notes: [
           { episode: 8, text: "Leads a group of soldiers to the supply headquarters in Trost." },
-          { episode: 41, text: "Levi leaves the captured Military Police officers in his charge." }
+          { episode: 41, text: "Levi leaves the captured Military Police officers in his charge." },
+          { episode: 53, text: "Takes command of the squad from Armin." },
+          { episode: 56, text: "One of the nine surviving Scouts." }
         ], sourceUrl: official(7) },
       { id: "connie", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Connie Springer" }],
         faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }], role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }],
         notes: [
           { episode: 28, text: "Finds his home village, Ragako, wrecked, with no bodies." },
-          { episode: 29, text: "Ymir takes his knife before she transforms." }
+          { episode: 29, text: "Ymir takes his knife before she transforms." },
+          { episode: 56, text: "One of the nine surviving Scouts." }
         ], sourceUrl: official(6) },
       { id: "sasha", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Sasha Blouse" }],
         faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }], role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }],
-        notes: [{ episode: 26, text: "Waiting with the 104th in southern Wall Rose when Titans are reported inside the wall." }],
+        notes: [
+          { episode: 26, text: "Waiting with the 104th in southern Wall Rose when Titans are reported inside the wall." },
+          { episode: 56, text: "One of the nine surviving Scouts." }
+        ],
         sourceUrl: sources.s2 },
       { id: "historia", type: "person", firstEpisode: 16, aliases: ["Krista", "Krista Lenz"],
         name: [{ from: 16, text: "Krista Lenz" }, { from: 30, text: "Historia" }, { from: 40, text: "Historia Reiss" }],
-        faction: [{ from: 16, key: "survey" }],
-        role: [{ from: 16, text: "Survey Corps, 104th" }, { from: 38, text: "Survey Corps, Levi squad" }, { from: 47, text: "Declared herself the true ruler" }],
+        faction: [{ from: 16, key: "survey" }, { from: 48, key: "crown" }],
+        role: [{ from: 16, text: "Survey Corps, 104th" }, { from: 38, text: "Survey Corps, Levi squad" }, { from: 47, text: "Declared herself the true ruler" }, { from: 48, text: "Queen" }],
         notes: [
           { episode: 16, text: "A 104th recruit known as Krista, kind to everyone and close to Ymir." },
           { episode: 30, text: "Her real name is Historia." },
           { episode: 40, text: "Rod Reiss says he is her father." },
           { episode: 44, text: "Declares it her duty to take the Reiss family’s power." },
           { episode: 45, text: "Defies Rod and tries to escape with Eren." },
-          { episode: 47, text: "Deals the final blow to Rod’s Titan and declares that she is the true ruler." }
+          { episode: 47, text: "Deals the final blow to Rod’s Titan and declares that she is the true ruler." },
+          { episode: 48, text: "Queen for two months; cares for orphans on a farm, where she is called the cowherd goddess." },
+          { episode: 59, text: "Decides the people must be told the truth, and gives medals to the nine surviving Scouts." }
         ],
         positions: [
           { episode: 38, locationId: null, note: "Hidden with the new Levi squad.", sourceUrl: sources.s3 },
           { episode: 39, locationId: null, note: "Carried off with Eren after the wagon is attacked.", sourceUrl: sources.s3 },
           { episode: 43, locationId: "reiss-chapel", note: "Stands with Rod beneath the chapel.", sourceUrl: sources.s3 },
-          { episode: 47, locationId: "orvud", note: "Brings down Rod’s Titan and declares herself the true ruler.", sourceUrl: sources.s3 }
+          { episode: 47, locationId: "orvud", note: "Brings down Rod’s Titan and declares herself the true ruler.", sourceUrl: sources.s3 },
+          { episode: 48, locationId: null, note: "On a farm this map does not place.", sourceUrl: sources.s3 }
         ], sourceUrl: sources.s2 },
       { id: "ymir", type: "person", firstEpisode: 16, name: [{ from: 16, text: "Ymir" }],
         faction: [{ from: 16, key: "survey" }, { from: 29, key: "shifter" }],
@@ -350,14 +486,22 @@
         notes: [
           { episode: 4, text: "A dependable leader among the cadets." },
           { episode: 31, text: "Reveals that he is the Armored Titan." },
-          { episode: 37, text: "Ymir leaves with him and Bertholdt." }
+          { episode: 37, text: "Ymir leaves with him and Bertholdt." },
+          { episode: 49, text: "Stands guard on Wall Maria with Bertholdt." },
+          { episode: 50, text: "Bursts from the wall at Shiganshina and becomes the Armored Titan." },
+          { episode: 54, text: "Blown out of the Armored Titan by Hange’s team." },
+          { episode: 55, text: "Rescued by the four-legged Titan." }
         ], sourceUrl: sources.e31 },
       { id: "bertholdt", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Bertholdt Hoover" }],
         faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }, { from: 31, key: "shifter" }],
         role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }, { from: 31, text: "The Colossal Titan" }],
         notes: [
           { episode: 4, text: "A quiet cadet, usually at Reiner’s side." },
-          { episode: 31, text: "Revealed as the Colossal Titan." }
+          { episode: 31, text: "Revealed as the Colossal Titan." },
+          { episode: 49, text: "Stands guard on Wall Maria with Reiner." },
+          { episode: 52, text: "Remembers leaving Marco to be eaten in Trost; drops into Shiganshina and becomes the Colossal Titan." },
+          { episode: 54, text: "Eren tears him out of the Colossal Titan." },
+          { episode: 55, text: "Eaten by Armin’s Titan." }
         ], sourceUrl: sources.e31 },
       { id: "annie", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Annie Leonhart" }],
         faction: [{ from: 4, key: "cadet" }, { from: 23, key: "mp" }, { from: 24, key: "shifter" }],
@@ -365,7 +509,8 @@
         notes: [
           { episode: 4, text: "A cadet with outstanding hand-to-hand skill." },
           { episode: 24, text: "Transforms into the Female Titan when Armin’s plan closes in on her." },
-          { episode: 25, text: "Seals herself inside a crystal after the battle in Stohess." }
+          { episode: 25, text: "Seals herself inside a crystal after the battle in Stohess." },
+          { episode: 52, text: "Bertholdt remembers her with him and Reiner when Marco overheard them in Trost." }
         ], sourceUrl: sources.s2 },
       { id: "hannes", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Hannes" }],
         faction: [{ from: 1, key: "garrison" }], role: [{ from: 1, text: "Garrison" }],
@@ -406,12 +551,39 @@
       { id: "hitch", type: "person", firstEpisode: 41, name: [{ from: 41, text: "Hitch" }],
         faction: [{ from: 41, key: "mp" }], role: [{ from: 41, text: "Military Police" }],
         notes: [{ episode: 41, text: "On patrol with Marlo when the two stumble onto the hiding Scouts." }], sourceUrl: sources.s3 },
+      { id: "keith", type: "person", firstEpisode: 3, name: [{ from: 3, text: "Keith Shadis" }],
+        faction: [{ from: 3, key: "cadet" }],
+        role: [{ from: 3, text: "Chief instructor, Training Corps" }, { from: 48, text: "Chief instructor, once Survey Corps commander" }],
+        notes: [
+          { episode: 3, text: "Drills the new 104th recruits without mercy." },
+          { episode: 48, text: "Says he met Grisha outside Wall Maria twenty years ago, and that he handed command of the Survey Corps to Erwin." }
+        ], sourceUrl: official(3) },
       { id: "grisha", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Grisha Yeager" }],
-        faction: [{ from: 1, key: "civilian" }], role: [{ from: 1, text: "Eren’s father, a doctor" }],
+        faction: [{ from: 1, key: "civilian" }], role: [{ from: 1, text: "Eren’s father, a doctor" }, { from: 56, text: "Eren’s father, a doctor; grew up beyond the walls" }, { from: 57, text: "Eren’s father; an Eldian from Marley" }],
         notes: [
           { episode: 1, text: "A doctor in Shiganshina, away when the district falls." },
-          { episode: 43, text: "Rod Reiss says he took the Reiss family from him five years ago." }
+          { episode: 43, text: "Rod Reiss says he took the Reiss family from him five years ago." },
+          { episode: 48, text: "Keith Shadis says he met him outside Wall Maria twenty years ago, claiming to remember nothing of his past." },
+          { episode: 56, text: "His basement drawer holds three books and a photograph; his own account begins with a boyhood beyond the walls." },
+          { episode: 57, text: "Grew up in Liberio, joined the Eldian Restorationists, married Dina Fritz and had a son, Zeke, who turned them in." },
+          { episode: 58, text: "Kruger sends him behind the walls to take the Founding Titan from the royal family, then has him injected." },
+          { episode: 59, text: "Eren sees him confronting the royal family." }
         ], sourceUrl: sources.s3 },
+      { id: "dina", type: "person", firstEpisode: 57, name: [{ from: 57, text: "Dina Fritz" }],
+        faction: [{ from: 57, key: "crown" }], role: [{ from: 57, text: "Grisha’s first wife, of royal blood" }],
+        notes: [
+          { episode: 57, text: "The last Eldian of royal blood on the mainland. Turned into a mindless Titan on Paradis, she becomes the smiling Titan." },
+          { episode: 58, text: "Eren concludes that her royal blood is why touching her Titan let him command others." }
+        ], sourceUrl: sources.s3summary },
+      { id: "zeke", type: "person", firstEpisode: 57, name: [{ from: 57, text: "Zeke" }],
+        faction: [{ from: 57, key: "civilian" }], role: [{ from: 57, text: "Grisha and Dina’s son" }],
+        notes: [{ episode: 57, text: "Raised to infiltrate the Marleyan army, he turns his parents in instead." }], sourceUrl: sources.s3summary },
+      { id: "kruger", type: "person", firstEpisode: 57, name: [{ from: 57, text: "Kruger" }, { from: 58, text: "Eren Kruger" }],
+        faction: [{ from: 57, key: "shifter" }], role: [{ from: 57, text: "Marleyan officer, secretly the Owl" }],
+        notes: [
+          { episode: 57, text: "Catches young Grisha outside Liberio; years later reveals he is the Owl and a Titan shifter." },
+          { episode: 58, text: "Tells Grisha a Titan power leaves thirteen years to live, and sends him to take the Founding Titan." }
+        ], sourceUrl: sources.s3summary },
       { id: "carla", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Carla Yeager" }],
         faction: [{ from: 1, key: "civilian" }], role: [{ from: 1, text: "Eren’s mother" }],
         notes: [{ episode: 1, text: "Killed by a Titan when the district is overrun." }], sourceUrl: official(2) },
@@ -419,11 +591,18 @@
         faction: [{ from: 1, key: "titan" }], role: [{ from: 1, text: "Titan" }],
         notes: [
           { episode: 1, text: "Towers over the wall and breaks Shiganshina’s outer gate." },
-          { episode: 5, text: "Breaks Trost’s outer gate, then vanishes in steam." }
+          { episode: 5, text: "Breaks Trost’s outer gate, then vanishes in steam." },
+          { episode: 52, text: "Bertholdt transforms over Shiganshina; the blast sets the district ablaze." },
+          { episode: 55, text: "Armin gains its power by eating Bertholdt." }
         ], sourceUrl: official(1) },
       { id: "armored", type: "titan", firstEpisode: 2, name: [{ from: 2, text: "Armored Titan" }], revealedAs: { episode: 31, id: "reiner" },
         faction: [{ from: 2, key: "titan" }], role: [{ from: 2, text: "Titan" }],
-        notes: [{ episode: 2, text: "Charges through Wall Maria’s inner gate." }], sourceUrl: official(2) },
+        notes: [
+          { episode: 2, text: "Charges through Wall Maria’s inner gate." },
+          { episode: 50, text: "Reappears at Shiganshina." },
+          { episode: 51, text: "Blinded and stopped by thunder spears." },
+          { episode: 54, text: "Hange’s team blows Reiner out of it." }
+        ], sourceUrl: official(2) },
       { id: "female-titan", type: "titan", firstEpisode: 17, name: [{ from: 17, text: "Female Titan" }], revealedAs: { episode: 24, id: "annie" },
         faction: [{ from: 17, key: "titan" }], role: [{ from: 17, text: "Titan" }],
         notes: [
@@ -432,19 +611,36 @@
         ], sourceUrl: official(18) },
       { id: "beast", type: "titan", firstEpisode: 26, name: [{ from: 26, text: "Beast Titan" }],
         faction: [{ from: 26, key: "titan" }], role: [{ from: 26, text: "Titan" }],
-        notes: [{ episode: 26, text: "A tall, fur-covered Titan that can speak. Where it comes from is unexplained." }], sourceUrl: sources.s2 },
-      { id: "smiling-titan", type: "titan", firstEpisode: 1, name: [{ from: 1, text: "The smiling Titan" }],
+        notes: [
+          { episode: 26, text: "A tall, fur-covered Titan that can speak. Where it comes from is unexplained." },
+          { episode: 50, text: "Appears at Shiganshina with an army of Titans and blocks the inner gate." },
+          { episode: 53, text: "Hurls barrages of rock at the Scouts." },
+          { episode: 54, text: "Levi cuts it apart and pulls out a bearded, blond man; a four-legged Titan carries him away." },
+          { episode: 55, text: "The man tells Eren his father lied and promises to save him." }
+        ], sourceUrl: sources.s2 },
+      { id: "four-legged-titan", type: "titan", firstEpisode: 54, name: [{ from: 54, text: "Four-legged Titan" }],
+        faction: [{ from: 54, key: "titan" }], role: [{ from: 54, text: "Titan" }],
+        notes: [
+          { episode: 54, text: "Snatches the man from the Beast Titan away from Levi." },
+          { episode: 55, text: "Rescues Reiner from Hange." }
+        ], sourceUrl: sources.s3summary },
+      { id: "smiling-titan", type: "titan", firstEpisode: 1, name: [{ from: 1, text: "The smiling Titan" }], revealedAs: { episode: 57, id: "dina" },
         faction: [{ from: 1, key: "titan" }], role: [{ from: 1, text: "Titan" }],
         notes: [
           { episode: 1, text: "The Titan that kills Carla Yeager in Shiganshina." },
-          { episode: 37, text: "Eren strikes its hand and nearby Titans turn on it." }
+          { episode: 37, text: "Eren strikes its hand and nearby Titans turn on it." },
+          { episode: 57, text: "Revealed as Dina Fritz, Grisha’s first wife, turned into a Titan on Paradis." }
         ], sourceUrl: sources.e37detail },
       { id: "scouts", type: "group", firstEpisode: 1, name: [{ from: 1, text: "Survey Corps" }], aliases: ["Scouts", "Scout Regiment"],
         faction: [{ from: 1, key: "survey" }], role: [{ from: 1, text: "Regiment that fights beyond the walls" }],
         notes: [
           { episode: 16, text: "Leaves Karanes on its 57th expedition." },
           { episode: 41, text: "Framed for a civilian’s murder and forced into hiding." },
-          { episode: 42, text: "Survives when the government that condemned it falls." }
+          { episode: 42, text: "Survives when the government that condemned it falls." },
+          { episode: 49, text: "Trost’s people cheer the expedition on its way to retake Wall Maria." },
+          { episode: 54, text: "The recruits fall in Erwin’s charge against the Beast Titan." },
+          { episode: 56, text: "Nine Scouts survive Shiganshina." },
+          { episode: 59, text: "The survivors receive medals; a year later the Corps reaches the sea." }
         ],
         positions: [
           { episode: 16, locationId: "karanes", note: "Expedition departure. The Corps divides into groups; a single pin does not represent every member.", sourceUrl: sources.e16 },
@@ -458,7 +654,12 @@
           { episode: 41, locationId: null, note: "In hiding in a forest this map does not place.", sourceUrl: sources.s3 },
           { episode: 42, locationId: "capital", note: "Erwin stands trial in the king’s hall; the rest of the Corps is in hiding.", sourceUrl: sources.s3 },
           { episode: 45, locationId: "reiss-chapel", note: "The Scouts storm the chapel to rescue Eren and Historia.", sourceUrl: sources.s3 },
-          { episode: 46, locationId: "orvud", note: "Prepares to stop Rod’s Titan outside Orvud.", sourceUrl: sources.s3 }
+          { episode: 46, locationId: "orvud", note: "Prepares to stop Rod’s Titan outside Orvud.", sourceUrl: sources.s3 },
+          { episode: 49, locationId: "trost", note: "The expedition sets out from Trost.", sourceUrl: sources.s3summary },
+          { episode: 50, locationId: "shiganshina", note: "Arrives to retake Wall Maria.", sourceUrl: sources.s3summary },
+          { episode: 53, locationId: "shiganshina", note: "Split between the district and the ground outside it; the pin marks the district.", sourceUrl: sources.s3 },
+          { episode: 56, locationId: "shiganshina", note: "The nine survivors gather on Shiganshina’s wall.", sourceUrl: sources.s3summary },
+          { episode: 59, locationId: "sea", note: "The Corps reaches the sea. Where along the coast is not established.", sourceUrl: sources.s3summary }
         ], sourceUrl: sources.e16 }
     ]
   };

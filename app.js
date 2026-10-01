@@ -37,7 +37,13 @@
     }
   } catch { /* Exploration also works when browser storage is unavailable. */ }
 
-  const cutoff = episodeNumber(stored.cutoff ?? MAX_EPISODE);
+  // `edition` is the atlas's ceiling when this browser last saved. The ceiling only rises once the viewer
+  // has watched further, so a viewer who had reached the old ceiling follows it up. Saves from before the
+  // field existed come from the episode-47 edition.
+  const LEGACY_EDITION = 47;
+  const savedEdition = Number.isInteger(stored.edition) ? stored.edition : LEGACY_EDITION;
+  const extended = stored.cutoff !== undefined && MAX_EPISODE > savedEdition && Math.trunc(Number(stored.cutoff)) >= savedEdition;
+  const cutoff = extended ? MAX_EPISODE : episodeNumber(stored.cutoff ?? MAX_EPISODE);
   const state = {
     cutoff,
     viewing: Math.min(cutoff, episodeNumber(stored.viewing ?? cutoff)),
@@ -62,7 +68,7 @@
     try {
       let current = {};
       try { current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch { current = {}; }
-      const saved = { cutoff: state.cutoff, viewing: state.viewing, selected: state.selected, mapStyle: state.mapStyle, layers: state.layers };
+      const saved = { cutoff: state.cutoff, edition: MAX_EPISODE, viewing: state.viewing, selected: state.selected, mapStyle: state.mapStyle, layers: state.layers };
       // Preserve legacy notes without exposing a removed feature or erasing existing user data.
       if (Object.prototype.hasOwnProperty.call(current, 'notes')) saved.notes = current.notes;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
@@ -101,7 +107,7 @@
   // Held/lost ground and gate states, as of the viewing episode.
   const statusHistory = target => (data.status || []).filter(item => item.target === target && item.from <= state.viewing).sort((a, b) => a.from - b.from);
   const statusOf = target => statusHistory(target).pop() || null;
-  const KIND_LABEL = { district: 'District', village: 'Village', castle: 'Castle', capital: 'Seat of the king', forest: 'Approximate area', field: 'Approximate area', chapel: 'Approximate area', wall: 'Approximate sector' };
+  const KIND_LABEL = { district: 'District', village: 'Village', castle: 'Castle', capital: 'Seat of the king', forest: 'Approximate area', field: 'Approximate area', chapel: 'Approximate area', wall: 'Approximate sector', sea: 'Around the island' };
   const knowledgeLabel = kind => ({ confirmed: 'Confirmed', belief: 'Character belief', approximate: 'Approximate geography' }[kind] || 'Approximate');
   const knowledgeBadge = kind => `<span class="knowledge-badge"><i class="knowledge-dot ${escapeHTML(kind)}"></i>${knowledgeLabel(kind)}</span>`;
   function ensureSelection() {
@@ -247,6 +253,30 @@
     const belt = statusOf('belt:maria-rose');
     $('#territory-art').innerHTML = belt?.state === 'lost'
       ? `<path class="lost-ground" fill-rule="evenodd" d="${ellipsePath(RINGS.maria)} ${ellipsePath(RINGS.rose)}"><title>Lost to the Titans since episode ${belt.from}</title></path>`
+      : '';
+  }
+  // The coast and the desert before it: gently irregular rings beyond Wall Maria and Shiganshina's outline.
+  // The sea fills everything past the coast. Drawn only once a place of kind "sea" is visible; the desert
+  // band only from that place's `desertFrom` episode. Distances are schematic.
+  const wobblyRing = (rx, ry, waves) => {
+    const points = [];
+    for (let degrees = 0; degrees < 360; degrees += 4) {
+      const t = degrees * Math.PI / 180;
+      const scale = 1 + waves.reduce((sum, [amplitude, frequency, phase]) => sum + amplitude * Math.sin(frequency * t + phase), 0);
+      points.push(`${(600 + rx * scale * Math.cos(t)).toFixed(1)} ${(405 + ry * scale * Math.sin(t)).toFixed(1)}`);
+    }
+    return `M${points.join('L')}Z`;
+  };
+  const COAST = wobblyRing(530, 455, [[0.012, 5, 0.6], [0.008, 11, 2.1]]);
+  const DESERT_EDGE = wobblyRing(482, 414, [[0.016, 4, 1.7], [0.01, 9, 0.3]]);
+  function renderSea() {
+    const sea = visibleLocations().find(location => location.kind === 'sea');
+    const water = `M-2400 -2400H3600V3600H-2400Z ${COAST}`;
+    const desert = sea && Number.isInteger(sea.desertFrom) && sea.desertFrom <= state.viewing
+      ? `<path class="desert" fill-rule="evenodd" d="${COAST} ${DESERT_EDGE}"><title>Desert before the coast, from episode ${sea.desertFrom}</title></path><path class="desert-dunes" fill-rule="evenodd" d="${COAST} ${DESERT_EDGE}"/>`
+      : '';
+    $('#sea-art').innerHTML = sea
+      ? `${desert}<path class="sea-water" fill-rule="evenodd" d="${water}"/><path class="sea-waves" fill-rule="evenodd" d="${water}"/><path class="coastline" d="${COAST}"/>`
       : '';
   }
   function renderAreas() {
@@ -492,6 +522,7 @@
     wall: '<path d="M0 40H300V120H0Z" fill="var(--scene-wall)"/><path d="M0 36h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14" fill="none" stroke="var(--scene-light)" stroke-width="5"/><path d="M0 56H300M0 72H300M0 88H300M0 104H300M40 40v16m60 0v16m-30 0v16m90-32v16m60 0v16m-30 0v16m60-48v16" stroke="var(--scene-dark)" stroke-width="1.2"/>',
     field: '<path d="M0 80Q150 70 300 82V120H0Z" fill="var(--scene-ground)"/><g fill="var(--scene-dark)"><path d="M20 80q6-14 12 0Zm18 1q5-10 10 0Zm210-2q6-13 12 0Zm18 1q5-10 10 0Z"/></g><path d="M20 100q10-4 20 0m30 6q10-4 20 0m40-10q10-4 20 0m40 8q10-4 20 0m30-6q10-4 20 0" stroke="var(--scene-wall)" stroke-width="1.5" fill="none" opacity=".7"/>',
     chapel: '<path d="M0 84H300V120H0Z" fill="var(--scene-ground)"/><g stroke="var(--scene-light)" stroke-width="4" opacity=".3"><path d="M40 84V20m220 64V26"/></g><path d="M128 84V58l22-18 22 18v26Z" fill="var(--scene-mid)" stroke="var(--scene-dark)"/><path d="M144 44V28l6-9 6 9v16" fill="var(--scene-mid)" stroke="var(--scene-dark)"/><path d="M145 84V70a5 5 0 0 1 10 0v14" fill="var(--scene-dark)"/><path d="M104 120q46-30 92 0Z" fill="var(--scene-dark)"/><path d="M120 116l9-8 6 5 10-9 8 7 9-6 8 7" stroke="var(--scene-reflection)" stroke-width="1.4" fill="none" opacity=".45"/>',
+    sea: '<path d="M0 70H300V120H0Z" fill="var(--scene-reflection)" opacity=".35"/><path d="M0 64h10v8h10v-8h10v8h10v-8h10v8h10v-8h10v8h10V76H0Z" fill="var(--scene-wall)"/><g fill="none" stroke="var(--scene-light)" stroke-width="2" stroke-linecap="round" opacity=".55"><path d="M120 84q10-7 20 0t20 0 20 0M200 96q10-7 20 0t20 0 20 0M110 104q10-7 20 0t20 0M230 78q8-6 16 0t16 0M40 98q10-7 20 0t20 0"/></g>',
     capital: '<path d="M0 88H300V120H0Z" fill="var(--scene-ground)"/><g fill="var(--scene-mid)" stroke="var(--scene-dark)"><path d="M14 110V86h22v24Zm28 0V78h18v32Zm26 0V90h20v20Zm120 0V82h20v28Zm26 0V88h24v22Zm30 0V80h18v30Z"/><path d="M110 110V66h80v44Z"/><path d="M122 66V50l28-16 28 16v16Z"/><path d="M146 34V20l4-6 4 6v14"/></g><g fill="var(--scene-light)" opacity=".5"><path d="M130 80h6v8h-6Zm18 0h6v8h-6Zm18 0h6v8h-6Z"/></g>'
   };
   function illustration(location) {
@@ -622,6 +653,7 @@
     closeCard();
     ensureSelection();
     updateHeader();
+    renderSea();
     renderTerritory();
     renderDistrictArt();
     renderAreas();
@@ -1143,4 +1175,5 @@
   applyCamera();
   $('#map-legend').addEventListener('toggle', scheduleLayout);
   if (unreadableCopy) toast('Saved data could not be read. A copy was kept in this browser and the atlas started fresh.');
+  else if (extended) toast(`The atlas now reaches episode ${MAX_EPISODE}, and your watch progress followed.`);
 })();

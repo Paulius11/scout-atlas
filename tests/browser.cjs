@@ -125,7 +125,8 @@ async function main() {
       }
       await setCutoff(titled, 3);
       assert.equal(await titled.locator('#episode-select option').count(), 3);
-      const allowed = await titled.locator('#episode-select').innerText();
+      // Compare whole titles: a later title can be a prefix of an earlier one ("That Day").
+      const allowed = await titled.locator('#episode-select option').evaluateAll(items => items.map(item => item.textContent.replace(/^E\d+\s+/, '')));
       for (const item of data.episodeTitles.filter(item => item.number > 3)) assert.ok(!allowed.includes(item.title), `E${item.number} title is beyond the cutoff`);
     });
 
@@ -176,8 +177,10 @@ async function main() {
         assert.equal(await gallery.locator('body').evaluate(element => element.classList.contains('gallery-expanded')), false);
         await gallery.locator('#character-filter').fill('');
         await gallery.locator('#expand-gallery').click();
-        await gallery.locator('#character-eren .character-about > summary').click();
-        const placeLink = gallery.locator('#character-eren [data-open-place]');
+        // Someone whose latest recorded position at the ceiling has a place on the map.
+        const pinned = data.characters.find(c => c.type !== 'group' && (c.positions || []).filter(p => p.episode <= MAX).sort((a, b) => b.episode - a.episode)[0]?.locationId);
+        await gallery.locator(`#character-${pinned.id} .character-about > summary`).click();
+        const placeLink = gallery.locator(`#character-${pinned.id} [data-open-place]`);
         const id = await placeLink.getAttribute('data-open-place');
         await placeLink.click();
         assert.equal(await gallery.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), false);
@@ -668,7 +671,8 @@ async function main() {
         await page.locator('#zoom-in').click();
         await page.locator('#zoom-in').click();
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        assert.match(await page.locator('[data-location="trost"] .marker-caption').textContent(), /^Episodes 5, 8, 13, 38$/);
+        const trostEpisodes = data.episodes.filter(e => e.events.some(ev => ev.locationId === 'trost')).map(e => e.number);
+        assert.equal(await page.locator('[data-location="trost"] .marker-caption').textContent(), `Episodes ${trostEpisodes.join(', ')}`);
         await page.locator('#reset-map').click();
         await episode(page, 42);
         await page.locator('#next-milestone').click();
@@ -750,6 +754,57 @@ async function main() {
       await page.locator('#cutoff-input').fill(String(MAX));
       await page.locator('#progress-form [type="submit"]').click();
       await episode(page, MAX);
+    });
+
+    await test('a viewer caught up with an older edition follows the ceiling up; others keep their limit', async () => {
+      const open = saved => createPage(undefined, `if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify(saved))}); }`);
+      const cases = [
+        // [saved state, expected cutoff, expect the "progress followed" toast]
+        [{ cutoff: 47, viewing: 40 }, MAX, MAX > 47],   // saved before `edition` existed: the episode-47 edition
+        [{ cutoff: 47, edition: 47, viewing: 47 }, MAX, MAX > 47],
+        [{ cutoff: 13, viewing: 13 }, 13, false],
+        [{ cutoff: 46, edition: 47, viewing: 46 }, 46, false],
+        [{ cutoff: MAX, edition: MAX, viewing: MAX }, MAX, false]
+      ];
+      for (const [saved, expected, followed] of cases) {
+        const p = await open(saved);
+        const label = JSON.stringify(saved);
+        assert.equal(await p.locator('#cutoff-label').innerText(), `Watched through episode ${expected}`, label);
+        assert.equal(await p.locator('#episode-select option').count(), expected, label);
+        assert.equal(await p.locator('#episode-select').inputValue(), String(Math.min(saved.viewing, expected)), `${label}: the viewing episode stays put`);
+        assert.equal(await p.locator('#toast').evaluate(el => el.classList.contains('visible')), followed, `${label}: toast`);
+        if (followed) assert.match(await p.locator('#toast').innerText(), new RegExp(`episode ${MAX}\\b`));
+        const stored = await p.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
+        assert.deepEqual([stored.cutoff, stored.edition], [expected, MAX], `${label}: saved`);
+        await p.close();
+      }
+    });
+
+    await test('the sea and coastline appear only from the episode that reveals them', async () => {
+      const sea = data.locations.find(location => location.kind === 'sea');
+      try {
+        await episode(page, sea.firstEpisode - 1);
+        assert.equal(await page.locator('#sea-art path').count(), 0, 'no sea before it is revealed');
+        assert.equal(await page.locator(`[data-location="${sea.id}"]`).count(), 0);
+        await episode(page, sea.firstEpisode);
+        assert.equal(await page.locator('#sea-art .coastline').count(), 1);
+        assert.equal(await page.locator(`[data-location="${sea.id}"]`).count(), 1);
+        // The marker must sit in the water, outside the coastline.
+        const inWater = await page.evaluate(id => {
+          const coast = document.querySelector('#sea-art .coastline');
+          const marker = document.querySelector(`[data-location="${id}"]`).transform.baseVal.consolidate().matrix;
+          return !coast.isPointInFill(new DOMPoint(marker.e, marker.f));
+        }, sea.id);
+        assert.ok(inWater, 'the sea marker sits outside the coastline');
+        if (sea.desertFrom) {
+          await episode(page, sea.desertFrom - 1);
+          assert.equal(await page.locator('#sea-art .desert').count(), 0, 'no desert before its episode');
+          await episode(page, sea.desertFrom);
+          assert.equal(await page.locator('#sea-art .desert').count(), 1, 'the desert appears at its episode');
+        }
+      } finally {
+        await episode(page, MAX);
+      }
     });
 
     await test('search covers places, aliases, people and events', async () => {

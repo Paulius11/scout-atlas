@@ -217,6 +217,11 @@ main { flex: 1; min-width: 0; padding: 0 32px 20px; max-width: 2000px; }
   --carto-contour: #768369;
   --carto-river-bank: #11241f;
   --carto-river: #658a83;
+  --carto-sea: #19323a;
+  --carto-sea-wave: #7fa8a4;
+  --carto-coast: #9fb093;
+  --carto-sand: #3a3927;
+  --carto-dune: #a59c6c;
   --carto-wall-wash: #a1a98b;
   --carto-wall-shadow: #0a1610;
   --carto-wall: #a1a98b;
@@ -252,6 +257,11 @@ main { flex: 1; min-width: 0; padding: 0 32px 20px; max-width: 2000px; }
   --carto-contour: #807049;
   --carto-river-bank: #c5c1a0;
   --carto-river: #63877d;
+  --carto-sea: #b8c7b4;
+  --carto-sea-wave: #4f7770;
+  --carto-coast: #6d6a49;
+  --carto-sand: #ead7a2;
+  --carto-dune: #96773f;
   --carto-wall-wash: #8c845d;
   --carto-wall-shadow: #b9a783;
   --carto-wall: #5f634c;
@@ -279,6 +289,12 @@ main { flex: 1; min-width: 0; padding: 0 32px 20px; max-width: 2000px; }
 #atlas-map:focus-visible { outline-offset: -3px; }
 #atlas-map.dragging { cursor: grabbing; }
 .wall-labels { font-family: var(--serif); font-size: calc(17px * var(--wall-scale, 1)); letter-spacing: calc(8px * var(--wall-scale, 1)); fill: var(--carto-ink); opacity: .76; pointer-events: none; }
+/* The sea around the island, from the episode that reveals it */
+.sea-water { fill: var(--carto-sea); }
+.sea-waves { fill: url(#sea-waves); }
+.desert { fill: var(--carto-sand); }
+.desert-dunes { fill: url(#dunes); }
+.coastline { fill: none; stroke: var(--carto-coast); stroke-width: 2.2; stroke-opacity: .8; stroke-linejoin: round; }
 /* Held and lost ground, gates, approximate areas */
 .lost-ground { fill: url(#lost-ground); }
 .district-gate.gate-breached { stroke: var(--carto-breached); stroke-dasharray: 7 4; }

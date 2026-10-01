@@ -2,9 +2,9 @@
 
 An interactive, local Attack on Titan map companion built with HTML, CSS, JavaScript, and SVG. No build step, account, external dependency, or API key is required, and the page makes no network requests (a Content-Security-Policy enforces it).
 
-**This edition stops at overall episode 47 (Season 3, episode 10).** It is configured for a viewer who has finished episode 47. Nothing from episode 48 or later is bundled: no later titles, places, people, identities, explanations, or images.
+**This edition stops at overall episode 59, the end of Season 3.** It is configured for a viewer who has finished episode 59. Nothing from episode 60 or later is bundled: no later titles, places, people, identities, explanations, or images.
 
-The content is a **selective recap of 22 milestones**, not a complete episode guide: overall episodes 1, 5, 8, 13, 16, 18, 22, 25, 28, 29, 31, 37 and every episode from 38 to 47. The viewing episode decides what the interface reveals; your completed-episode cutoff limits how far you can advance.
+The content is a **selective recap of 34 milestones**, not a complete episode guide: overall episodes 1, 5, 8, 13, 16, 18, 22, 25, 28, 29, 31, 37 and every episode from 38 to 59. The viewing episode decides what the interface reveals; your completed-episode cutoff limits how far you can advance.
 
 ## Run it
 
@@ -20,13 +20,13 @@ Then visit <http://127.0.0.1:8765>. Check first whether a server is already runn
 ## What it does
 
 - **Reading layout.** A compact heading aligns the title, episode picker and spoiler badge on one desktop row, with responsive controls on smaller screens. Place events use fine dividers; Story features the latest recorded moment above its supporting entries. On phones, **Map / Story / People** navigation stays at the bottom, with room beneath content and above system gestures.
-- **Episode titles.** Full English titles for every episode from 1 to 47 appear in the episode picker, milestone timeline and recap heading. Titles are catalogued separately from the 22 mapped milestones, so episodes without a recap still have their real names.
+- **Episode titles.** Full English titles for every episode from 1 to 59 appear in the episode picker, milestone timeline and recap heading. Titles are catalogued separately from the 34 mapped milestones, so episodes without a recap still have their real names.
 - **Expanded map.** The expand icon beside the zoom and reset controls opens the map across the window, with episode controls, search and selected-place details. **Layers & style** holds the existing switches and palette choices. Pan, zoom, portraits and milestone shortcuts continue to work. Use **Back to atlas** or Escape to return; the selected place, episode and zoom are kept. Escape dismisses an open menu, search result or portrait card first. On a tall phone screen, the drawing fills the available height and can be panned across.
 - **Place details.** Desktop panels collapse with **Hide details**, giving the map more room. On a phone, the selected place appears in a compact bottom panel with its latest recorded event. Tap **More** or swipe up for the full story; tap **Less** or swipe down to continue exploring. The full panel scrolls independently and leaves part of the map visible.
 - **Map overview and detail.** Zooming out simplifies secondary names and portraits; keyboard focus still exposes a place's name. Zooming in reveals full episode captions. A small overview inset shows the visible area inside the walls when zoomed in or cropped by a tall expanded window. Click it to reset the view.
 - **Changes this episode.** Highlight the current episode's recorded events, newly known places and gate or territory changes. A compact list explains each item and opens established places. Events without a known location stay unpinned; episodes with no recorded changes say so explicitly.
 - **Map styles.** Choose **Parchment** for warm paper and ink details, or **Night** for a dark field map. The place panel, decorative drawings, timeline, Story and People views follow the same palette. The switch is in the map toolbar on desktop and phone. The initial style follows your system preference, and your choice is saved in this browser. Switching preserves the selected place, zoom and episode. Open **Key** when you need the legend.
-- **Map.** Twelve places across the three walls, filling the stage. It follows the story: choosing an episode selects the place where it happens, rings it in brass and steps everything else back. Approximate places are dashed areas rather than precise pins. The land between Wall Maria and Wall Rose is hatched as lost from episode 2, and district gates show as breached or sealed at the right episodes. Wall names run along their walls. Pins, labels and portraits keep one on-screen size; labels move, drop their caption or hide rather than overlap, and never leave the map. Zoomed in, each place lists the episodes it appears in. Hovering a milestone in the timeline lights up its places, and new places fade in when you step episodes.
+- **Map.** Fourteen places across the three walls and the coast, filling the stage. From episode 57, when the walls turn out to stand on an island, the sea and a coastline surround everything, and from episode 59 a band of desert lies before the coast. The one **The sea** marker stands for the whole coast: the show never says which way the Scouts rode, so the desert is drawn all round and every distance is schematic. It follows the story: choosing an episode selects the place where it happens, rings it in brass and steps everything else back. Approximate places are dashed areas rather than precise pins. The land between Wall Maria and Wall Rose is hatched as lost from episode 2 until it is cleared in episode 59, and district gates show as breached or sealed at the right episodes. Wall names run along their walls. Pins, labels and portraits keep one on-screen size; labels move, drop their caption or hide rather than overlap, and never leave the map. Zoomed in, each place lists the episodes it appears in. Hovering a milestone in the timeline lights up its places, and new places fade in when you step episodes.
 - **Portrait cards.** Point at a portrait on the map for a larger picture, where and when that person was recorded, and what happens there involving them. Click the portrait to pin the card (Escape or a click elsewhere closes it); on a phone, tap it. The card links to the full character card.
 - **Characters.** Compact portrait cards for everyone the atlas knows about as of the viewing episode, grouped by regiment. Five columns fit a typical desktop gallery; phones use two. Open **About** for the full role, dated story observations and recorded place links, and **Earlier** for longer histories. **Expand gallery** opens the Characters tab across the window with the same search and group filters. Use **Back to gallery** or Escape to return; filters and keyboard focus are preserved. Names and identities change at the episode that reveals them (for example, a Titan card shows who it turned out to be only from that episode on).
 - **Portraits.** A picture next to every name: on the map, in event cards and in the character list. Main characters show official art that changes with the season; everyone else a drawn silhouette. See [Portraits](#portraits).
@@ -39,15 +39,16 @@ The map separates **confirmed events**, **characters' beliefs**, and **approxima
 
 ## Local storage
 
-Map style and viewing/cutoff preferences use this browser's local storage, key `scout-atlas:v1`. Nothing is transmitted or synced between devices. Opening `index.html` directly and opening it through the local server use different storage. If the saved value cannot be read, it is kept under `scout-atlas:v1:unreadable:<time>` and the atlas starts fresh. Exploration still works when storage is unavailable. The Field notes tab and place-note editors have been removed; existing notes remain in storage without being displayed or modified.
+Map style and viewing/cutoff preferences use this browser's local storage, key `scout-atlas:v1`. When a new edition extends the atlas, a browser that was caught up with the previous edition moves its cutoff up to the new last episode and says so; one set to an earlier episode keeps its limit. Nothing is transmitted or synced between devices. Opening `index.html` directly and opening it through the local server use different storage. If the saved value cannot be read, it is kept under `scout-atlas:v1:unreadable:<time>` and the atlas starts fresh. Exploration still works when storage is unavailable. The Field notes tab and place-note editors have been removed; existing notes remain in storage without being displayed or modified.
 
 ## Portraits
 
-26 of the 28 people and Titans have a picture.
+26 of the 33 people and Titans have a picture.
 - **Main characters:** official character art from the anime's site, cropped to round portraits. Season 2 art is used up to episode 37 and Season 3 art from episode 38.
 - **Supporting cast and three Titans:** Carla, Hannes, Pixis, Grisha, and the Colossal, Female and Beast Titans are cropped from official episode stills. Each still shows only from its own episode, so Grisha's (from episode 44) appears only from 44.
 - **Faces the official pages never show up close:** Pastor Nick, Kenny, Rod, Marlo and Hitch use their character portraits from MyAnimeList or AniList.
 - **No picture:** the Armored Titan and the smiling Titan keep a drawn Titan silhouette. No usable image exists without risking who they turn out to be.
+- **Not yet pictured:** Keith Shadis, Dina, Zeke and Kruger keep their emblems, and the four-legged Titan (from episode 54) a silhouette. The official Season 3 character list has no art for them, and Titans are never looked up by name.
 
 The pictures are official or fan-database art kept for personal use, committed in `portraits/` (the scripts repo is private), so a fresh clone has them and nothing needs downloading. To re-create or re-crop them:
 
@@ -57,7 +58,7 @@ python3 scripts/etc/js/scout-atlas/portraits/fetch_portraits.py   # only to refr
 
 The script writes the images and [`portraits/portraits.js`](portraits/portraits.js). Each id maps to a file, or to a list of `{ from, file }` versions chosen by the viewing episode. To add your own picture, put it in `portraits/` and add a line, for example `rod: "rod.jpg"`. Supported: `.jpg`, `.jpeg`, `.png`, `.webp`, file names only; a file that fails to load falls back to the silhouette. **Use pictures from episodes you have already watched.** The data lint rejects season art listed before its season starts.
 
-Character ids: `eren`, `mikasa`, `armin`, `levi`, `erwin`, `hange`, `jean`, `connie`, `sasha`, `historia`, `ymir`, `reiner`, `bertholdt`, `annie`, `hannes`, `pixis`, `nick`, `kenny`, `rod`, `marlo`, `hitch`, `grisha`, `carla`, `colossal`, `armored`, `female-titan`, `beast`, `smiling-titan`.
+Character ids: `eren`, `mikasa`, `armin`, `levi`, `erwin`, `hange`, `jean`, `connie`, `sasha`, `historia`, `ymir`, `reiner`, `bertholdt`, `annie`, `hannes`, `pixis`, `nick`, `kenny`, `rod`, `marlo`, `hitch`, `keith`, `grisha`, `dina`, `zeke`, `kruger`, `carla`, `colossal`, `armored`, `female-titan`, `beast`, `four-legged-titan`, `smiling-titan`.
 
 ## Sources and spoiler boundaries
 
@@ -65,7 +66,7 @@ Summaries are short, original paraphrases. Season 1 milestones draw on the anime
 
 **External sources are not bounded by this app's spoiler cutoff.** They can contain later information. The app does not fetch or embed their contents.
 
-Place cards contain only what is known at the episode they first appear. `firstEpisode` is this edition's visibility threshold, not a claim that something first appears in that exact episode. All curated content through episode 47 remains inspectable in the JavaScript source.
+Place cards contain only what is known at the episode they first appear. `firstEpisode` is this edition's visibility threshold, not a claim that something first appears in that exact episode. All curated content through episode 59 remains inspectable in the JavaScript source.
 
 ## Files
 
@@ -85,8 +86,8 @@ Place cards contain only what is known at the episode they first appear. `firstE
 ## Checks
 
 ```bash
-node scripts/etc/js/scout-atlas/tests/data-lint.cjs    # 22 checks, ~30 ms, no browser
-node scripts/etc/js/scout-atlas/tests/browser.cjs      # 43 checks, headless Chrome
+node scripts/etc/js/scout-atlas/tests/data-lint.cjs    # 23 checks, ~30 ms, no browser
+node scripts/etc/js/scout-atlas/tests/browser.cjs      # 45 checks, headless Chrome
 ATLAS_URL=http://127.0.0.1:8765 node scripts/etc/js/scout-atlas/tests/browser.cjs
 ```
 
@@ -100,8 +101,8 @@ Every episode number is an **overall anime episode number**.
 
 ```js
 {
-  maxEpisode: 47,
-  seasons: [{ season: 1, first: 1, last: 25 }, { season: 2, first: 26, last: 37 }, { season: 3, first: 38 }],
+  maxEpisode: 59,
+  seasons: [{ season: 1, first: 1, last: 25 }, { season: 2, first: 26, last: 37 }, { season: 3, first: 38, last: 59 }],   // a season in progress has no `last`
   episodes: [{
     id: "episode-43", number: 43, title: "Sin", shortTitle: "Under the chapel",
     description: "An episode-specific orientation.", sourceUrl: "https://…",
@@ -118,7 +119,7 @@ Every episode number is an **overall anime episode number**.
   locations: [{
     id: "orvud", name: "Orvud District", subtitle: "Northern district · Wall Sina",
     x: 600, y: 274, firstEpisode: 45,
-    kind: "district",   // district | village | castle | forest | wall | field | chapel | capital
+    kind: "district",   // district | village | castle | forest | wall | field | chapel | capital | sea
     label: { side: "left" },   // optional: right (default) | left | below
     area: { rx: 40, ry: 30 },  // optional: approximate places are drawn as a dashed area (map units)
     aliases: ["Orvud"],        // searched, never shown

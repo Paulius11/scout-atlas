@@ -118,6 +118,8 @@
                 <filter id="paper-grain"><feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
                 <radialGradient id="map-light" gradientUnits="userSpaceOnUse" cx="600" cy="405" r="720"><stop offset="0" stop-color="var(--carto-light)" stop-opacity=".15"/><stop offset="1" stop-color="var(--carto-shade)" stop-opacity=".25"/></radialGradient>
                 <filter id="marker-shadow"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="var(--carto-shadow)" flood-opacity=".7"/></filter>
+                <pattern id="sea-waves" width="34" height="18" patternUnits="userSpaceOnUse"><path d="M2 10q5-5 10 0t10 0M19 3q4-3.5 8 0" fill="none" stroke="var(--carto-sea-wave)" stroke-opacity=".5" stroke-width="1.1" stroke-linecap="round"/></pattern>
+                <pattern id="dunes" width="42" height="24" patternUnits="userSpaceOnUse"><path d="M3 16q9-8 18 0M24 8q6-5 12 0" fill="none" stroke="var(--carto-dune)" stroke-opacity=".55" stroke-width="1.1" stroke-linecap="round"/></pattern>
                 <symbol id="mountain" viewBox="0 0 80 50"><path d="m4 46 23-32 12 17L52 5l26 41M27 14l4 28M52 5l6 39m-13-25 7-2 7 7" fill="none" stroke="var(--carto-mountain)" stroke-opacity=".27" stroke-width="1.2"/></symbol>
               </defs>
               <g id="map-camera">
@@ -139,6 +141,7 @@
                 </g>
                 <g opacity=".45"><use href="#mountain" x="131" y="341" width="112" height="70"/><use href="#mountain" x="120" y="386" width="100" height="63"/><use href="#mountain" x="170" y="429" width="95" height="59"/><use href="#mountain" x="965" y="649" width="105" height="65"/><use href="#mountain" x="1009" y="694" width="90" height="56"/><use href="#mountain" x="776" y="133" width="85" height="53"/></g>
                 <g fill="none"><path d="M599 306c-48 80 43 108 8 173s-35 107-6 148-1 95-5 199" stroke="var(--carto-river-bank)" stroke-width="9"/><path d="M599 306c-48 80 43 108 8 173s-35 107-6 148-1 95-5 199" stroke="var(--carto-river)" stroke-opacity=".38" stroke-width="3"/></g>
+                <g id="sea-art"></g>
                 <g id="territory-art"></g>
                 <g id="wall-geometry" fill="none">
                   <ellipse cx="600" cy="405" rx="440" ry="365" fill="var(--carto-wall-wash)" fill-opacity=".025" stroke="var(--carto-wall-shadow)" stroke-opacity=".5" stroke-width="8"/>
