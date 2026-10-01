@@ -19,7 +19,7 @@ Then visit <http://127.0.0.1:8765>. Check first whether a server is already runn
 
 ## What it does
 
-- **Map.** Twelve places across the three walls. District outlines, labels and portraits appear only once the viewing episode has reached them. Pins, labels and portraits keep one on-screen size at every zoom, and labels move or hide themselves instead of overlapping.
+- **Map.** Twelve places across the three walls, filling the stage. It follows the story: choosing an episode selects the place where it happens, rings it in brass and steps everything else back. Approximate places are dashed areas rather than precise pins. The land between Wall Maria and Wall Rose is hatched as lost from episode 2, and district gates show as breached or sealed at the right episodes. Wall names run along their walls. Pins, labels and portraits keep one on-screen size; labels move, drop their caption or hide rather than overlap, and never leave the map. Zoomed in, each place lists the episodes it appears in. Hovering a milestone in the timeline lights up its places, and new places fade in when you step episodes.
 - **Portrait cards.** Point at a portrait on the map for a larger picture, where and when that person was recorded, and what happens there involving them. Click the portrait to pin the card (Escape or a click elsewhere closes it); on a phone, tap it. The card links to the full character card.
 - **Characters.** Everyone the atlas knows about as of the viewing episode, grouped by regiment, with dated notes. Names and identities change at the episode that reveals them (for example, a Titan card shows who it turned out to be only from that episode on).
 - **Portraits.** A picture next to every name: on the map, in event cards and in the character list. Main characters show official art that changes with the season; everyone else a drawn silhouette. See [Portraits](#portraits).
@@ -75,8 +75,8 @@ Place cards contain only what is known at the episode they first appear. `firstE
 ## Checks
 
 ```bash
-node scripts/etc/js/scout-atlas/tests/data-lint.cjs    # 18 checks, ~30 ms, no browser
-node scripts/etc/js/scout-atlas/tests/browser.cjs      # 26 checks, ~25 s, headless Chrome
+node scripts/etc/js/scout-atlas/tests/data-lint.cjs    # 20 checks, ~30 ms, no browser
+node scripts/etc/js/scout-atlas/tests/browser.cjs      # 31 checks, ~30 s, headless Chrome
 ATLAS_URL=http://127.0.0.1:8765 node scripts/etc/js/scout-atlas/tests/browser.cjs
 ```
 
@@ -104,11 +104,13 @@ Every episode number is an **overall anime episode number**.
       sourceUrl: "https://…"
     }]
   }],
+  status: [{ target: "gate:trost", from: 5, state: "breached", note: "…", sourceUrl: "https://…" }],  // or target "belt:maria-rose", state "lost"
   locations: [{
     id: "orvud", name: "Orvud District", subtitle: "Northern district · Wall Sina",
     x: 600, y: 274, firstEpisode: 45,
     kind: "district",   // district | village | castle | forest | wall | field | chapel | capital
     label: { side: "left" },   // optional: right (default) | left | below
+    area: { rx: 40, ry: 30 },  // optional: approximate places are drawn as a dashed area (map units)
     aliases: ["Orvud"],        // searched, never shown
     summary: "…", why: "…", geography: "…", tags: ["Wall Sina"], sourceUrl: "https://…"
   }],
@@ -127,7 +129,7 @@ Every episode number is an **overall anime episode number**.
 }
 ```
 
-Versioned lists (`name`, `role`, `faction`) use the entry with the latest `from` at or before the viewing episode. Coordinates use a `1200 × 920` canvas; wall ellipses are centred at `(600, 405)` with horizontal/vertical radii `440/365`, `298/246` and `162/131`.
+Versioned lists (`name`, `role`, `faction`) use the entry with the latest `from` at or before the viewing episode. Coordinates use a `1200 × 920` canvas (the map shows the part around the walls, x 120–1080, y 0–832); wall ellipses are centred at `(600, 405)` with horizontal/vertical radii `440/365`, `298/246` and `162/131`.
 
 ## Extending it
 

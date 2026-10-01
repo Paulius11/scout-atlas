@@ -42,13 +42,16 @@
   const state = {
     cutoff,
     viewing: Math.min(cutoff, episodeNumber(stored.viewing ?? cutoff)),
-    selected: typeof stored.selected === 'string' ? stored.selected : 'shiganshina',
+    // A first visit opens where the current episode happens; later visits keep the last place.
+    selected: typeof stored.selected === 'string' ? stored.selected
+      : data.episodes.find(entry => entry.number === Math.min(cutoff, episodeNumber(stored.viewing ?? cutoff)))?.events.find(event => event.locationId)?.locationId || 'shiganshina',
     view: 'map',
-    layers: { locations: true, groups: true, walls: true, ...(stored.layers && typeof stored.layers === 'object' ? stored.layers : {}) },
+    layers: { locations: true, groups: true, territory: true, walls: true, ...(stored.layers && typeof stored.layers === 'object' ? stored.layers : {}) },
     notes: readNotes(stored.notes),
     activeEvent: null,
     focusCharacter: null,
     characterFilter: '',
+    characterFaction: 'all',
     card: null,
     zoom: 1,
     panX: 0,
@@ -107,6 +110,9 @@
     const [episode, locationId] = key.split(':');
     return Number(episode) <= state.viewing && Number(episode) >= 1 && note.trim() && getLocation(locationId);
   });
+  // Held/lost ground and gate states, as of the viewing episode.
+  const statusHistory = target => (data.status || []).filter(item => item.target === target && item.from <= state.viewing).sort((a, b) => a.from - b.from);
+  const statusOf = target => statusHistory(target).pop() || null;
   const KIND_LABEL = { district: 'District', village: 'Village', castle: 'Castle', capital: 'Seat of the king', forest: 'Approximate area', field: 'Approximate area', chapel: 'Approximate area', wall: 'Approximate sector' };
   const knowledgeLabel = kind => ({ confirmed: 'Confirmed', belief: 'Character belief', approximate: 'Approximate geography' }[kind] || 'Approximate');
   const knowledgeBadge = kind => `<span class="knowledge-badge"><i class="knowledge-dot ${escapeHTML(kind)}"></i>${knowledgeLabel(kind)}</span>`;
@@ -143,9 +149,9 @@
     if (src) return `<img class="${classes}" src="${escapeHTML(src)}" alt="" data-portrait="${escapeHTML(`${character.id}/${src.slice(10)}`)}">`;
     return `<svg class="${classes}" viewBox="0 0 40 40" aria-hidden="true"><circle class="avatar-disc" cx="20" cy="20" r="18"/><g clip-path="url(#avatar-glyph-clip)">${GLYPHS[character.type] || GLYPHS.person}</g></svg>`;
   }
-  function mapAvatar(character, x, y) {
+  function mapAvatar(character, x, y, entering = false) {
     const src = portraitOf(character.id);
-    return `<g class="map-person faction-${factionOf(character)} type-${character.type}" data-person="${escapeHTML(character.id)}" transform="translate(${x} ${y})"><circle class="avatar-disc" r="11.5"/>${src
+    return `<g class="map-person faction-${factionOf(character)} type-${character.type}${entering ? ' enter' : ''}" data-person="${escapeHTML(character.id)}" transform="translate(${x} ${y})"><circle class="avatar-disc" r="11.5"/>${src
       ? `<image data-portrait="${escapeHTML(`${character.id}/${src.slice(10)}`)}" href="${escapeHTML(src)}" x="-10.5" y="-10.5" width="21" height="21" clip-path="url(#avatar-clip)" preserveAspectRatio="xMidYMid slice"/>`
       : `<g transform="translate(-10.5 -10.5) scale(.525)" clip-path="url(#avatar-glyph-clip)">${GLYPHS[character.type] || GLYPHS.person}</g>`}</g>`;
   }
@@ -186,8 +192,9 @@
     $('#next-milestone').disabled = !numbers.some(number => number > state.viewing);
     $('#note-count').textContent = availableNotes().length;
     $('#character-count').textContent = visibleCharacters().filter(character => character.type !== 'group').length;
+    const milestone = data.episodes.find(entry => entry.number === state.viewing);
     const headings = {
-      map: ['Find your bearings.', 'The places, the people, and the pieces coming together.'],
+      map: ['Find your bearings.', milestone ? `Episode ${milestone.number}, “${milestone.title}”: ${milestone.description}` : `Episode ${state.viewing} has no milestone of its own; the map shows everything known by then.`],
       recap: ['Connect the pieces.', `A briefing built only from what is known through episode ${state.viewing}.`],
       characters: ['Who’s who.', `Everyone the atlas knows about as of episode ${state.viewing}, and only what is known by then.`],
       notes: ['Keep your own record.', 'Your observations. Your questions. Your theories.']
@@ -212,15 +219,33 @@
     const [angle, radius] = [[0, 25], [-62, 25], [62, 25], [0, 46]][index];
     return [Math.cos((base + angle) * Math.PI / 180) * radius, Math.sin((base + angle) * Math.PI / 180) * radius].map(n => Math.round(n * 10) / 10);
   };
+  // The drawing area (viewBox) hugs the walls, so the rings fill the stage.
+  const VIEW = { x: 120, y: 0, width: 960, height: 832, cx: 600, cy: 416 };
+  const RINGS = { maria: [440, 365], rose: [298, 246], sina: [162, 131] };
+  const ellipsePath = ([rx, ry]) => `M${600 - rx} 405a${rx} ${ry} 0 1 0 ${2 * rx} 0a${rx} ${ry} 0 1 0 ${-2 * rx} 0Z`;
+  // Markers, portraits and outlines that were not on screen in the previous render fade in once.
+  let shownBefore = null;
+  function renderTerritory() {
+    const belt = statusOf('belt:maria-rose');
+    $('#territory-art').innerHTML = belt?.state === 'lost'
+      ? `<path class="lost-ground" fill-rule="evenodd" d="${ellipsePath(RINGS.maria)} ${ellipsePath(RINGS.rose)}"><title>Lost to the Titans since episode ${belt.from}</title></path>`
+      : '';
+  }
+  function renderAreas() {
+    $('#area-art').innerHTML = visibleLocations().filter(location => location.area).map(location =>
+      `<ellipse class="place-area${location.id === state.selected ? ' selected' : ''}" data-area="${escapeHTML(location.id)}" cx="${location.x}" cy="${location.y}" rx="${Number(location.area.rx)}" ry="${Number(location.area.ry)}"/>`).join('');
+  }
   function renderDistrictArt() {
     $('#district-art').innerHTML = visibleLocations().map(location => {
-      if (location.kind === 'capital') return `<ellipse class="district-town" cx="${location.x}" cy="${location.y}" rx="30" ry="24"/>`;
+      const fresh = shownBefore && !shownBefore.has(location.id) ? ' enter' : '';
+      if (location.kind === 'capital') return `<ellipse class="district-town${fresh}" cx="${location.x}" cy="${location.y}" rx="30" ry="24"/>`;
       const wall = location.kind === 'district' && WALLS[location.tags.find(tag => WALLS[tag])];
       if (!wall) return '';
       const angle = Math.atan2(location.y - 405, location.x - 600) * 180 / Math.PI;
       const half = wall.width / 2;
       const outline = `M${wall.start} ${-half}h${wall.depth}q${wall.bulge} ${half} 0 ${wall.width}h${-wall.depth}Z`;
-      return `<g transform="translate(${location.x} ${location.y}) rotate(${angle.toFixed(1)})"><path class="district-gate" d="${outline}"/><path class="district-town" d="${outline}"/></g>`;
+      const gate = statusOf(`gate:${location.id}`);
+      return `<g class="district${fresh}" transform="translate(${location.x} ${location.y}) rotate(${angle.toFixed(1)})">${gate ? `<title>Gate ${gate.state} in episode ${gate.from}</title>` : ''}<path class="district-gate${gate ? ` gate-${gate.state}` : ''}" d="${outline}"/><path class="district-town" d="${outline}"/></g>`;
     }).join('');
   }
   function renderMarkers() {
@@ -229,19 +254,22 @@
       const side = SIDES[location.label?.side] ? location.label.side : 'right';
       const [labelX, labelY, anchor] = SIDES[side];
       const fresh = location.firstEpisode === state.viewing && state.viewing > 1;
-      const caption = selected ? 'Exploring' : fresh ? 'New in this episode' : KIND_LABEL[location.kind] || 'Place';
+      const now = visibleEvents().some(event => event.locationId === location.id && event.episode === state.viewing);
+      // Areas say "approximate" with their dashed outline, so they need no caption of their own.
+      const caption = selected ? 'Exploring' : now ? 'This episode' : fresh ? 'New in this episode' : location.area ? '' : KIND_LABEL[location.kind] || 'Place';
+      const episodes = [...new Set(visibleEvents().filter(event => event.locationId === location.id).map(event => event.episode))];
       const here = peopleAt(location.id);
       const shown = here.slice(0, 3);
       // Portraits hug their own pin on a small arc, first on the side away from the label;
       // layoutChips() turns the arc if that side is taken by a neighbour.
       const base = side === 'left' ? 0 : side === 'below' ? -90 : 180;
-      const chips = shown.map(({ character }, index) => mapAvatar(character, ...chipOffset(base, index))).join('');
+      const chips = shown.map(({ character }, index) => mapAvatar(character, ...chipOffset(base, index), shownBefore && !shownBefore.has(`${character.id}@${location.id}`))).join('');
       const more = here.length > 3 ? `<text class="people-more" transform="translate(${chipOffset(base, 3).join(' ')})" y="4" text-anchor="middle">+${here.length - 3}</text>` : '';
       const peopleText = here.map(({ character, position }) => `${nameOf(character)}, last recorded in episode ${position.episode}`).join('; ');
       const label = location.mapLabel || location.name;
-      const busy = visibleEvents().some(event => event.locationId === location.id && event.episode === state.viewing);
-      const rank = selected ? 0 : busy ? 1 : here.length ? 2 : ['district', 'capital'].includes(location.kind) ? 3 : 4;
-      return `<g class="map-marker kind-${escapeHTML(location.kind)}${selected ? ' selected' : ''}${fresh ? ' fresh' : ''}" data-location="${escapeHTML(location.id)}" data-side="${side}" data-rank="${rank}" transform="translate(${Number(location.x)} ${Number(location.y)})" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escapeHTML(`Explore ${location.name}${peopleText ? `. Last recorded here: ${peopleText}` : ''}`)}">
+      const rank = selected ? 0 : now ? 1 : here.length ? 2 : ['district', 'capital'].includes(location.kind) ? 3 : 4;
+      const classes = ['map-marker', `kind-${location.kind}`, selected && 'selected', fresh && 'fresh', now && 'now', location.area && 'is-area', shownBefore && !shownBefore.has(location.id) && 'enter'].filter(Boolean).join(' ');
+      return `<g class="${escapeHTML(classes)}" data-location="${escapeHTML(location.id)}" data-side="${side}" data-rank="${rank}" data-caption="${escapeHTML(caption)}" data-episodes="${episodes.join(', ')}" transform="translate(${Number(location.x)} ${Number(location.y)})" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escapeHTML(`Explore ${location.name}${peopleText ? `. Last recorded here: ${peopleText}` : ''}`)}">
         <g class="pin"><g class="pin-mark"><title>${escapeHTML(`${location.name} — ${location.subtitle}`)}</title><circle class="marker-hit" r="20"/><circle class="marker-pulse" r="16"/><circle class="marker-ring" r="7.5"/><circle class="marker-center" r="2.5"/></g>
           ${here.length ? `<g class="pin-people">${chips}${more}</g>` : ''}
           <text class="marker-label" x="${labelX}" y="${labelY}" text-anchor="${anchor}">${escapeHTML(label)}</text>
@@ -249,12 +277,18 @@
         </g>
       </g>`;
     }).join('');
+    $('#location-markers').classList.toggle('has-now', Boolean($('#location-markers .map-marker.now')));
+    shownBefore = new Set([...visibleLocations().map(location => location.id), ...visibleLocations().flatMap(location => peopleAt(location.id).map(({ character }) => `${character.id}@${location.id}`))]);
   }
   function syncLayers() {
     $('#location-markers').classList.toggle('hide-places', !state.layers.locations);
+    $('#area-art').style.display = state.layers.locations ? '' : 'none';
     $('#location-markers').classList.toggle('hide-people', !state.layers.groups);
+    $('#territory-art').style.display = state.layers.territory ? '' : 'none';
+    $('#district-art').classList.toggle('no-status', !state.layers.territory);
+    $('.legend-lost-item').hidden = !(state.layers.territory && statusOf('belt:maria-rose')?.state === 'lost');
     $('#wall-labels').style.display = state.layers.walls ? '' : 'none';
-    for (const name of ['locations', 'groups', 'walls']) $(`#layer-${name}`).checked = Boolean(state.layers[name]);
+    for (const name of ['locations', 'groups', 'territory', 'walls']) $(`#layer-${name}`).checked = Boolean(state.layers[name]);
   }
 
   // Labels keep a constant screen size, so crowded places compete for room. Place the most
@@ -297,13 +331,22 @@
     // A label may touch its own pin but never any portrait, its own included.
     const obstacles = markers.flatMap(marker => [
       { owner: marker, rect: inflate($('.marker-ring', marker).getBoundingClientRect(), 2) },
-      ...$$('.map-person, .people-more', marker).map(shape => ({ owner: null, rect: inflate(shape.getBoundingClientRect(), 2) }))
+      ...$$('.map-person, .people-more', marker).map(shape => ({ owner: null, chipsOf: marker, rect: inflate(shape.getBoundingClientRect(), 2) }))
     ]);
     // The overlays drawn on top of the map count as occupied too.
-    for (const overlay of $$('.map-stage > .zoom-controls, .map-stage > .map-legend, .map-stage > .compass-rose, .map-stage > .map-caption')) {
+    for (const overlay of $$('.map-stage > .zoom-controls, .map-stage > .map-legend, .map-stage > .compass-rose')) {
       const rect = overlay.getBoundingClientRect();
       if (rect.width) obstacles.push({ owner: null, rect: inflate(rect, 4) });
     }
+    // Zoomed in, a place's caption lists the episodes it appears in (the map as a story index).
+    const zoomed = state.zoom >= 1.5;
+    for (const marker of markers) {
+      const eps = marker.dataset.episodes;
+      $('.marker-caption', marker).textContent = zoomed && eps ? `${eps.includes(',') ? 'Episodes' : 'Episode'} ${eps}` : marker.dataset.caption;
+    }
+    // Labels must stay inside the map.
+    const stage = inflate($('#map-stage').getBoundingClientRect(), -4);
+    const outside = rect => rect.left < stage.left || rect.right > stage.right || rect.top < stage.top || rect.bottom > stage.bottom;
     const placed = [];
     for (const marker of markers) {
       const label = $('.marker-label', marker);
@@ -311,24 +354,50 @@
       if (getComputedStyle(label).display === 'none') continue;
       const preferred = marker.dataset.side;
       const sides = [preferred, ...Object.keys(SIDES).filter(side => side !== preferred)];
-      const blocked = rect => placed.some(other => overlaps(other, rect)) || obstacles.some(other => other.owner !== marker && overlaps(other.rect, rect));
+      // Strict first; then a label may touch its own portraits rather than disappear.
+      const blockedBy = loose => rect => outside(rect) || placed.some(other => overlaps(other, rect))
+        || obstacles.some(other => other.owner !== marker && !(loose && other.chipsOf === marker) && overlaps(other.rect, rect));
       let done = false;
-      for (const withCaption of [true, false]) {
+      for (const [loose, withCaption] of [[false, true], [false, false], [true, true], [true, false]]) {
         marker.classList.toggle('caption-hidden', !withCaption);
         for (const side of sides) {
           placeLabel(marker, side);
           const rects = [label, ...(withCaption ? [caption] : [])].map(text => inflate(text.getBoundingClientRect(), 1));
-          if (!rects.some(blocked)) { placed.push(...rects); done = true; break; }
+          if (!rects.some(blockedBy(loose))) { placed.push(...rects); done = true; break; }
         }
         if (done) break;
       }
       if (!done) {
-        placeLabel(marker, preferred);
         if (marker.classList.contains('selected')) {
+          // The selected place always keeps its name: take the first side that stays inside the map.
           marker.classList.remove('caption-hidden');
+          const inside = sides.find(side => { placeLabel(marker, side); return ![label, caption].some(text => outside(text.getBoundingClientRect())); }) || preferred;
+          placeLabel(marker, inside);
           placed.push(...[label, caption].map(text => text.getBoundingClientRect()));
-        } else marker.classList.add('label-hidden');
+        } else { placeLabel(marker, preferred); marker.classList.add('label-hidden'); }
       }
+    }
+    layoutWallNames([...placed, ...obstacles.map(other => other.rect)]);
+  }
+  // Wall names run along their wall. Each takes the first spot along the arc that no label,
+  // pin or portrait is using, and grows with zoom at half the rate (√zoom).
+  const WALL_SPOTS = [['', 19, '50%'], ['', 19, '36%'], ['', 19, '64%'], ['-low', -8, '50%'], ['-low', -8, '36%'], ['-low', -8, '64%'], ['', 19, '24%'], ['', 19, '76%']];
+  function layoutWallNames(taken) {
+    for (const text of $$('#wall-labels text')) {
+      const path = $('textPath', text);
+      const base = path.getAttribute('href').replace(/-low$/, '');
+      // Top of the arc first, then the bottom; the first spot nothing else uses wins.
+      const fits = WALL_SPOTS.find(([suffix, dy, offset]) => {
+        path.setAttribute('href', base + suffix);
+        text.setAttribute('dy', dy);
+        path.setAttribute('startOffset', offset);
+        const rect = text.getBoundingClientRect();
+        return !taken.some(other => overlaps(other, rect));
+      }) || WALL_SPOTS[0];
+      path.setAttribute('href', base + fits[0]);
+      text.setAttribute('dy', fits[1]);
+      path.setAttribute('startOffset', fits[2]);
+      taken.push(text.getBoundingClientRect());
     }
   }
 
@@ -416,6 +485,10 @@
     const events = visibleEvents().filter(event => event.locationId === location.id);
     // Put the selected event first while keeping the other recorded events available.
     events.sort((a, b) => (state.activeEvent ? (b.id === state.activeEvent) - (a.id === state.activeEvent) : 0) || b.episode - a.episode);
+    const thisEpisode = events.filter(event => event.episode === state.viewing);
+    const earlierEvents = events.filter(event => event.episode !== state.viewing);
+    const gates = statusHistory(`gate:${location.id}`);
+    const lost = statusOf('belt:maria-rose')?.state === 'lost' && location.tags.some(tag => tag === 'Between the walls' || tag === 'Beyond Wall Rose') ? statusOf('belt:maria-rose') : null;
     const here = peopleAt(location.id);
     const note = state.notes[`${state.viewing}:${location.id}`] || '';
     const earlier = availableNotes()
@@ -423,14 +496,15 @@
       .sort((a, b) => Number(b[0].split(':')[0]) - Number(a[0].split(':')[0]));
     $('#location-panel').innerHTML = `${illustration(location)}<div class="panel-content">
       <p class="panel-kicker">As of episode ${state.viewing}</p><h2>${escapeHTML(location.name)}</h2><p class="panel-subtitle">${escapeHTML(location.subtitle)}</p>${knowledgeBadge('approximate')}
-      <section class="panel-block"><h3>The lay of the land</h3><p>${escapeHTML(location.summary)}</p></section>
-      <section class="panel-block"><h3>Why it matters</h3><p>${escapeHTML(location.why)}</p></section>
-      <section class="panel-block"><h3>What happened here</h3>${events.length ? events.map(eventCard).join('') : '<p>No event is recorded here by the selected episode.</p>'}</section>
+      ${gates.length || lost ? `<p class="status-line">${gates.map(gate => `<span class="status-chip gate-${escapeHTML(gate.state)}">Gate ${escapeHTML(gate.state)}, E${gate.from}</span>`).join('')}${lost ? `<span class="status-chip gate-breached">Lost ground since E${lost.from}</span>` : ''}</p>` : ''}
+      ${thisEpisode.length ? `<section class="panel-block now-block"><h3>This episode</h3>${thisEpisode.map(eventCard).join('')}</section>` : ''}
+      <section class="panel-block"><h3>${thisEpisode.length ? 'Earlier here' : 'What happened here'}</h3>${earlierEvents.length ? earlierEvents.map(eventCard).join('') : `<p>${thisEpisode.length ? 'Nothing earlier is recorded here.' : 'No event is recorded here by the selected episode.'}</p>`}</section>
       ${here.length ? `<section class="panel-block"><h3>Last recorded here</h3>${here.map(({ character, position }) => `<button class="person-row" data-open-character="${escapeHTML(character.id)}">${avatar(character, 'sm')}<span><strong>${escapeHTML(nameOf(character))}</strong><small>Episode ${position.episode}. ${escapeHTML(position.note)}</small></span></button>`).join('')}</section>` : ''}
       <section class="panel-block"><h3>My field note, episode ${state.viewing}</h3><label class="sr-only" for="location-note">Note about ${escapeHTML(location.name)} at episode ${state.viewing}</label><textarea id="location-note" class="note-input" maxlength="4000" placeholder="A question, a connection, a theory…">${escapeHTML(note)}</textarea><div class="note-save-row"><span id="save-status">${storageAvailable ? 'Saved automatically in this browser' : 'Storage unavailable; kept for this session'}</span><button class="save-note" id="save-note">Save note</button></div>
         ${earlier.length ? `<div class="earlier-notes"><h4>Your earlier notes here</h4>${earlier.map(([key, text]) => `<blockquote><p class="episode-tag">Written at episode ${Number(key.split(':')[0])}</p><p>${escapeHTML(text)}</p></blockquote>`).join('')}</div>` : ''}
       </section>
-      <section class="panel-block"><h3>Map accuracy</h3><p>${escapeHTML(location.geography)}</p></section>
+      <section class="panel-block"><h3>About this place</h3><p>${escapeHTML(location.summary)}</p><p class="why-text">${escapeHTML(location.why)}</p></section>
+      <p class="panel-footnote"><strong>Map accuracy.</strong> ${escapeHTML(location.geography)}</p>
     </div>`;
     $('#location-note').addEventListener('input', saveNote);
     $('#save-note').addEventListener('click', () => {
@@ -453,7 +527,11 @@
   function renderTimeline() {
     const episodes = visibleEpisodes();
     $('#timeline-count').textContent = `${episodes.length} of ${data.episodes.length} milestones`;
-    $('#timeline-track').innerHTML = episodes.map(episode => `<button class="timeline-event ${episode.number === state.viewing ? 'active' : ''}" data-episode="${episode.number}" aria-label="View episode ${episode.number}: ${escapeHTML(episode.shortTitle)}" ${episode.number === state.viewing ? 'aria-current="step"' : ''}><span class="time-number">Episode ${episode.number}</span><strong>${escapeHTML(episode.shortTitle)}</strong></button>`).join('');
+    $('#timeline-track').innerHTML = episodes.map(episode => {
+      const places = [...new Set(episode.events.map(event => event.locationId).filter(Boolean))].map(getLocation).filter(Boolean);
+      const where = places.length ? places.map(place => place.mapLabel || place.name).join(', ') : 'Not pinned on the map';
+      return `<button class="timeline-event ${episode.number === state.viewing ? 'active' : ''}" data-episode="${episode.number}" aria-label="View episode ${episode.number}: ${escapeHTML(episode.shortTitle)}, ${escapeHTML(where)}" ${episode.number === state.viewing ? 'aria-current="step"' : ''}><span class="time-number">Episode ${episode.number}</span><strong>${escapeHTML(episode.shortTitle)}</strong><span class="time-place">${escapeHTML(where)}</span></button>`;
+    }).join('');
     centerTimeline();
   }
   function centerTimeline() {
@@ -482,10 +560,12 @@
     const position = lastPosition(character);
     const place = position?.locationId ? getLocation(position.locationId) : null;
     const notes = (character.notes || []).filter(note => note.episode <= state.viewing).sort((a, b) => b.episode - a.episode);
+    const noteItem = note => `<li><span class="note-episode">E${pad(note.episode)}</span><span>${escapeHTML(note.text)}</span></li>`;
     return `<article class="character-card faction-${factionOf(character)}${revealed ? ' revealed' : ''}${state.focusCharacter === character.id ? ' focused' : ''}" id="character-${escapeHTML(character.id)}" data-character="${escapeHTML(character.id)}" tabindex="-1">
       <header>${avatar(character, 'lg')}<div><h3>${escapeHTML(nameOf(character))}</h3><p class="character-role">${escapeHTML(roleOf(character))}</p></div></header>
       ${revealed ? `<p class="reveal-line">Revealed in episode ${character.revealedAs.episode}: <button class="inline-link" data-open-character="${escapeHTML(revealed.id)}">${escapeHTML(nameOf(revealed))}</button></p>` : ''}
-      ${notes.length ? `<ol class="character-notes">${notes.map(note => `<li><span class="note-episode">E${pad(note.episode)}</span><span>${escapeHTML(note.text)}</span></li>`).join('')}</ol>` : ''}
+      ${notes.length ? `<ol class="character-notes">${notes.slice(0, 3).map(noteItem).join('')}</ol>` : ''}
+      ${notes.length > 3 ? `<details class="more-notes"><summary>Earlier (${notes.length - 3})</summary><ol class="character-notes">${notes.slice(3).map(noteItem).join('')}</ol></details>` : ''}
       <footer>${position ? (place
         ? `<button class="card-link" data-open-place="${escapeHTML(place.id)}">Last recorded at ${escapeHTML(place.name)}, episode ${position.episode}</button>`
         : `<span>Last recorded in episode ${position.episode}, somewhere this map does not place.</span>`) : ''}<span class="since">In the atlas from episode ${character.firstEpisode}</span></footer>
@@ -495,12 +575,16 @@
     const query = state.characterFilter.trim().toLocaleLowerCase();
     const matches = visibleCharacters().filter(character => character.type !== 'group' && (!query
       || [nameOf(character), roleOf(character), ...(character.aliases || [])].join(' ').toLocaleLowerCase().includes(query)));
-    const sections = CHARACTER_SECTIONS.map(([title, keys]) => {
+    const sections = CHARACTER_SECTIONS.filter(([title]) => state.characterFaction === 'all' || state.characterFaction === title).map(([title, keys]) => {
       const members = matches.filter(character => keys.includes(factionOf(character)))
         .sort((a, b) => Boolean(revealOf(a)) - Boolean(revealOf(b)) || a.firstEpisode - b.firstEpisode);
       return members.length ? `<section class="character-section"><h2>${title}<span>${members.length}</span></h2><div class="character-grid">${members.map(characterCard).join('')}</div></section>` : '';
     }).join('');
-    $('#characters-view').innerHTML = `<div class="character-tools"><label for="character-filter">Filter characters</label><input id="character-filter" type="search" placeholder="Name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"></div>${sections || '<p class="search-empty">No character matches that filter at this episode.</p>'}`;
+    const counts = Object.fromEntries(CHARACTER_SECTIONS.map(([title, keys]) => [title, matches.filter(character => keys.includes(factionOf(character))).length]));
+    const chips = [['all', 'Everyone', matches.length], ...CHARACTER_SECTIONS.map(([title]) => [title, title, counts[title]])]
+      .filter(([, , count], index) => index === 0 || count)
+      .map(([value, label, count]) => `<button class="filter-chip" data-faction-filter="${escapeHTML(value)}" aria-pressed="${state.characterFaction === value}">${escapeHTML(label)} <span>${count}</span></button>`).join('');
+    $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"></div>${sections || '<p class="search-empty">No character matches that filter at this episode.</p>'}`;
   }
   function renderNotes() {
     const notes = availableNotes().sort((a, b) => Number(b[0].split(':')[0]) - Number(a[0].split(':')[0]));
@@ -513,7 +597,9 @@
     closeCard();
     ensureSelection();
     updateHeader();
+    renderTerritory();
     renderDistrictArt();
+    renderAreas();
     renderMarkers();
     syncLayers();
     renderPanel();
@@ -544,8 +630,8 @@
     if (focus) {
       const location = getLocation(id);
       state.zoom = 1.45;
-      state.panX = 600 - location.x * state.zoom;
-      state.panY = 460 - location.y * state.zoom;
+      state.panX = VIEW.cx - location.x * state.zoom;
+      state.panY = VIEW.cy - location.y * state.zoom;
     }
     applyCamera();
     $(`[data-location="${state.selected}"]`)?.focus({ preventScroll: true });
@@ -556,14 +642,18 @@
     state.view = 'characters';
     state.focusCharacter = id;
     state.characterFilter = '';
+    state.characterFaction = 'all';
     render();
     const card = $(`#character-${CSS.escape(id)}`);
     card?.scrollIntoView({ block: 'center' });
     card?.focus({ preventScroll: true });
   }
-  function setEpisode(number) {
+  function setEpisode(number, { follow = false } = {}) {
     state.viewing = Math.min(state.cutoff, episodeNumber(number));
     state.activeEvent = null;
+    // Follow the story: a milestone episode selects the place where it happens.
+    const place = follow && data.episodes.find(entry => entry.number === state.viewing)?.events.find(event => event.locationId)?.locationId;
+    if (place && getLocation(place)) state.selected = place;
     ensureSelection();
     render();
     $('#location-panel').scrollTop = 0;
@@ -602,10 +692,10 @@
     // Keep a good part of the walled area (Wall Maria: x 160–1040, y 40–770) on screen:
     // at least 45% of the view or of the walls, whichever is smaller, along each axis.
     const zoom = state.zoom;
-    const needX = Math.min(1200, 880 * zoom) * 0.45;
-    const needY = Math.min(920, 730 * zoom) * 0.45;
-    state.panX = Math.min(1200 - needX - 160 * zoom, Math.max(needX - 1040 * zoom, state.panX));
-    state.panY = Math.min(920 - needY - 40 * zoom, Math.max(needY - 770 * zoom, state.panY));
+    const needX = Math.min(VIEW.width, 880 * zoom) * 0.45;
+    const needY = Math.min(VIEW.height, 730 * zoom) * 0.45;
+    state.panX = Math.min(VIEW.x + VIEW.width - needX - 160 * zoom, Math.max(VIEW.x + needX - 1040 * zoom, state.panX));
+    state.panY = Math.min(VIEW.y + VIEW.height - needY - 40 * zoom, Math.max(VIEW.y + needY - 770 * zoom, state.panY));
     $('#map-camera').setAttribute('transform', `translate(${Math.round(state.panX * 100) / 100} ${Math.round(state.panY * 100) / 100}) scale(${zoom})`);
     $('#zoom-level').textContent = `${Math.round(zoom * 100)}%`;
     $('#zoom-out').disabled = zoom <= 0.75;
@@ -613,9 +703,10 @@
     // Pins, labels and portraits keep one on-screen size whatever the zoom or window width.
     const ctm = map.getScreenCTM();
     if (ctm && ctm.a > 0) map.style.setProperty('--pin-scale', (1 / (ctm.a * zoom)).toFixed(4));
+    map.style.setProperty('--wall-scale', (1 / Math.sqrt(zoom)).toFixed(4));
     scheduleLayout();
   }
-  function zoomMap(factor, point = { x: 600, y: 460 }) {
+  function zoomMap(factor, point = { x: VIEW.cx, y: VIEW.cy }) {
     const previous = state.zoom;
     state.zoom = Math.max(0.75, Math.min(3, state.zoom * factor));
     const ratio = state.zoom / previous;
@@ -720,11 +811,30 @@
     clearTimeout(cardShowTimer);
     cardHideTimer = setTimeout(closeCard, 220);
   });
+  // Hovering a milestone lights up its places; hovering a place dims milestones that never touch it.
+  function highlightEpisode(number) {
+    const episode = data.episodes.find(entry => entry.number === number);
+    const places = episode ? new Set(episode.events.map(event => event.locationId).filter(Boolean)) : null;
+    $('#location-markers').classList.toggle('highlighting', Boolean(places?.size));
+    $$('#location-markers .map-marker').forEach(marker => marker.classList.toggle('highlight', Boolean(places?.has(marker.dataset.location))));
+  }
+  function highlightPlace(id) {
+    $$('#timeline-track .timeline-event').forEach(item => {
+      const episode = data.episodes.find(entry => entry.number === Number(item.dataset.episode));
+      item.classList.toggle('dim', Boolean(id) && !episode.events.some(event => event.locationId === id));
+    });
+  }
+  $('#timeline-track').addEventListener('pointerover', event => { const item = event.target.closest('[data-episode]'); if (item) highlightEpisode(Number(item.dataset.episode)); });
+  $('#timeline-track').addEventListener('pointerleave', () => highlightEpisode(null));
+  $('#timeline-track').addEventListener('focusin', event => { const item = event.target.closest('[data-episode]'); if (item) highlightEpisode(Number(item.dataset.episode)); });
+  $('#timeline-track').addEventListener('focusout', () => highlightEpisode(null));
+  $('#location-markers').addEventListener('pointerover', event => { const marker = event.target.closest('.map-marker'); if (marker && !event.target.closest('.map-person')) highlightPlace(marker.dataset.location); });
+  $('#location-markers').addEventListener('pointerleave', () => highlightPlace(null));
   $('#person-card').addEventListener('pointerenter', () => clearTimeout(cardHideTimer));
   $('#person-card').addEventListener('pointerleave', () => { if (!state.card?.pinned) cardHideTimer = setTimeout(closeCard, 220); });
 
   /* ---------- Controls ---------- */
-  $('#episode-select').addEventListener('change', event => setEpisode(event.target.value));
+  $('#episode-select').addEventListener('change', event => setEpisode(event.target.value, { follow: true }));
   $('#prev-milestone').addEventListener('click', () => stepMilestone(-1));
   $('#next-milestone').addEventListener('click', () => stepMilestone(1));
   $('#location-search').addEventListener('input', searchAll);
@@ -758,7 +868,7 @@
     if (!typing && !$('dialog[open]') && (event.key === '[' || event.key === ']')) stepMilestone(event.key === ']' ? 1 : -1);
     if (event.key === 'Escape') { $('#search-results').hidden = true; closeCard(); }
   });
-  for (const name of ['locations', 'groups', 'walls']) {
+  for (const name of ['locations', 'groups', 'territory', 'walls']) {
     $(`#layer-${name}`).addEventListener('change', event => { state.layers[name] = event.target.checked; syncLayers(); persist(); });
   }
   function cutoffHint() {
@@ -802,6 +912,8 @@
     if (marker) { state.activeEvent = null; selectLocation(marker.dataset.location); return; }
     const result = event.target.closest('[data-search-location]');
     if (result) { state.activeEvent = null; selectLocation(result.dataset.searchLocation, { focus: true }); return; }
+    const factionChip = event.target.closest('[data-faction-filter]');
+    if (factionChip) { state.characterFaction = factionChip.dataset.factionFilter; state.focusCharacter = null; renderCharacters(); $(`[data-faction-filter="${CSS.escape(state.characterFaction)}"]`)?.focus(); return; }
     const person = event.target.closest('[data-open-character]');
     if (person) { openCharacter(person.dataset.openCharacter); return; }
     const place = event.target.closest('[data-open-place]');
@@ -865,5 +977,8 @@
 
   render();
   applyCamera();
+  const stageBox = $('#map-stage').getBoundingClientRect();
+  $('#map-legend').open = stageBox.width >= 700 && stageBox.height >= 600;
+  $('#map-legend').addEventListener('toggle', scheduleLayout);
   if (unreadableCopy) toast('Saved data could not be read. A copy was kept in this browser and the atlas started fresh.');
 })();

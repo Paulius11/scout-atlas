@@ -247,12 +247,16 @@ async function main() {
           boxes.forEach((a, i) => boxes.slice(i + 1).forEach(b => { if (a.owner !== b.owner && overlap(a, b)) clashes.push(`${a.text} / ${b.text}`); }));
           assert.deepEqual(clashes, [], `E${n}`);
           assert.ok(boxes.some(box => /marker-label/.test(box.kind)), `no labels rendered at E${n}`);
+          const stage = await sized.locator('#map-stage').boundingBox();
+          const outside = boxes.filter(box => /marker-label/.test(box.kind) && (box.left < stage.x || box.right > stage.x + stage.width || box.top < stage.y || box.bottom > stage.y + stage.height));
+          assert.deepEqual(outside.map(box => box.text), [], `E${n}: labels outside the map`);
         }
       });
     }
 
     const note = 'Browser regression note: only visible from the last episode. <b>plain text</b>';
     await test('notes persist, stay out of earlier views, and show in later panels', async () => {
+      try {
       await chooseLocation(page, 'Shiganshina', 'shiganshina');
       await page.locator('#location-note').fill(note);
       await page.locator('#save-note').click();
@@ -268,9 +272,87 @@ async function main() {
       assert.equal(await page.locator('#location-note').inputValue(), '');
       await page.locator('#location-note').fill('An early theory');
       await episode(page, 13);
+      await chooseLocation(page, 'Shiganshina', 'shiganshina');
       assert.ok((await page.locator('#location-panel .earlier-notes').innerText()).includes('An early theory'), 'earlier note missing from a later panel');
       await episode(page, MAX);
+      await chooseLocation(page, 'Shiganshina', 'shiganshina');
       assert.equal(await page.locator('#location-note').inputValue(), note);
+      } finally { await episode(page, MAX); }
+    });
+
+    await test('choosing an episode follows the story to its place and marks it', async () => {
+      try {
+        await episode(page, 13);
+        assert.equal(await page.locator('.map-marker.selected').getAttribute('data-location'), 'trost');
+        assert.equal(await page.locator('[data-location="trost"]').evaluate(el => el.classList.contains('now')), true);
+        assert.match(await page.locator('#location-panel .now-block').innerText(), /This episode/);
+        assert.match(await page.locator('#page-description').innerText(), /Episode 13/);
+        await episode(page, 14);
+        assert.equal(await page.locator('.map-marker.selected').getAttribute('data-location'), 'trost', 'an episode without a milestone keeps the selection');
+      } finally { await episode(page, MAX); }
+    });
+
+    await test('held and lost ground and gate states change with the episode', async () => {
+      try {
+        await episode(page, 1);
+        assert.equal(await page.locator('#territory-art .lost-ground').count(), 0, 'Wall Maria is not lost at episode 1');
+        assert.equal(await page.locator('#district-art .gate-breached').count(), 1, 'Shiganshina gate breached at episode 1');
+        await episode(page, 5);
+        assert.equal(await page.locator('#territory-art .lost-ground').count(), 1);
+        assert.equal(await page.locator('#district-art .gate-breached').count(), 2, 'Trost breached at episode 5');
+        await episode(page, 13);
+        assert.equal(await page.locator('#district-art .gate-sealed').count(), 1, 'Trost sealed at episode 13');
+        await page.locator('#layer-territory').uncheck({ force: true });
+        assert.equal(await page.locator('#territory-art').evaluate(el => getComputedStyle(el).display), 'none');
+        await page.locator('#layer-territory').check({ force: true });
+      } finally { await episode(page, MAX); }
+    });
+
+    await test('timeline and map light each other up; zoom shows episode tags; new places fade in', async () => {
+      try {
+        await page.locator('#timeline-track [data-episode="43"]').hover();
+        assert.equal(await page.locator('#location-markers').evaluate(el => el.classList.contains('highlighting')), true);
+        assert.deepEqual(await page.locator('#location-markers .map-marker.highlight').evaluateAll(els => els.map(el => el.dataset.location)), ['reiss-chapel']);
+        await page.mouse.move(5, 5);
+        assert.equal(await page.locator('#location-markers').evaluate(el => el.classList.contains('highlighting')), false);
+        await page.locator('#zoom-in').click();
+        await page.locator('#zoom-in').click();
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        assert.match(await page.locator('[data-location="trost"] .marker-caption').textContent(), /^Episodes 5, 8, 13, 38$/);
+        await page.locator('#reset-map').click();
+        await episode(page, 42);
+        await page.locator('#next-milestone').click();
+        assert.equal(await page.locator('[data-location="reiss-chapel"]').evaluate(el => el.classList.contains('enter')), true, 'a place new at this episode fades in');
+        assert.equal(await page.locator('[data-location="trost"]').evaluate(el => el.classList.contains('enter')), false);
+      } finally { await episode(page, MAX); }
+    });
+
+    await test('character groups filter with chips; long histories fold away', async () => {
+      await view(page, 'characters');
+      await page.locator('[data-faction-filter="Titans and Titan shifters"]').click();
+      const sections = await page.locator('.character-section h2').evaluateAll(els => els.map(el => el.firstChild.textContent.trim()));
+      assert.deepEqual(sections, ['Titans and Titan shifters']);
+      await page.locator('[data-faction-filter="all"]').click();
+      assert.ok(await page.locator('#character-eren .more-notes summary').count() === 1, 'older notes fold behind a summary');
+      await view(page, 'map');
+    });
+
+    await test('approximate places are drawn as areas and wall names stay clear of places', async () => {
+      const areas = await page.locator('#area-art .place-area').evaluateAll(els => els.map(el => el.dataset.area));
+      const expected = data.locations.filter(l => l.area && l.firstEpisode <= MAX).map(l => l.id);
+      assert.deepEqual(areas.sort(), expected.sort());
+      for (const n of milestones) {
+        await episode(page, n);
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const clashes = await page.evaluate(() => {
+          const walls = [...document.querySelectorAll('#wall-labels text')].map(t => t.getBoundingClientRect());
+          const others = [...document.querySelectorAll('#location-markers .marker-ring, #location-markers .map-person, #location-markers .marker-label')].filter(el => getComputedStyle(el).display !== 'none').map(el => el.getBoundingClientRect());
+          const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+          return walls.flatMap((w, i) => others.filter(o => hit(w, o)).map(() => i));
+        });
+        assert.deepEqual(clashes, [], `E${n}: a wall name overlaps a place`);
+      }
+      await episode(page, MAX);
     });
 
     await test('a stale second tab keeps notes saved in the first', async () => {
@@ -463,7 +545,7 @@ async function main() {
       assert.ok(tabs.every(right => right <= 390), `a tab is off screen: ${tabs}`);
       const fit = await mobile.evaluate(() => {
         const stage = document.querySelector('#map-stage').getBoundingClientRect();
-        return 920 * document.querySelector('#atlas-map').getScreenCTM().d / stage.height;
+        return document.querySelector('#atlas-map').viewBox.baseVal.height * document.querySelector('#atlas-map').getScreenCTM().d / stage.height;
       });
       assert.ok(fit > 0.8, `map fills only ${Math.round(fit * 100)}% of its stage`);
       for (const name of ['recap', 'characters', 'notes']) { await view(mobile, name); await assertNoHorizontalOverflow(mobile, `mobile ${name}`); }

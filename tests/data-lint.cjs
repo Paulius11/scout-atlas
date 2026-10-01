@@ -155,6 +155,23 @@ check('no text names something before it is introduced', bad => {
   }
 });
 
+check('status records: known targets and states, visible in time, sourced', bad => {
+  (d.status || []).forEach(item => {
+    const [kind, id] = item.target.split(':');
+    if (kind === 'gate') {
+      if (!place[id] || place[id].kind !== 'district') bad(`${item.target}: not a district`);
+      else if (item.from < place[id].firstEpisode) bad(`${item.target} at E${item.from} before the district is visible`);
+      if (!['breached', 'sealed'].includes(item.state)) bad(`${item.target}: state ${item.state}`);
+    } else if (item.target !== 'belt:maria-rose' || !['lost', 'held'].includes(item.state)) bad(`${item.target}: unknown target or state`);
+    if (item.from > d.maxEpisode) bad(`${item.target} past the ceiling`);
+    if (!/^https:\/\//.test(item.sourceUrl || '')) bad(`${item.target} has no https source`);
+  });
+});
+check('areas stay on the canvas', bad => {
+  d.locations.filter(l => l.area).forEach(l => {
+    if (l.x - l.area.rx < 0 || l.x + l.area.rx > 1200 || l.y - l.area.ry < 0 || l.y + l.area.ry > 920) bad(l.id);
+  });
+});
 check('portraits: known ids, safe file names, ordered versions', bad => {
   for (const [id, entry] of Object.entries(portraits)) {
     if (!person[id]) bad(`${id} is not a character`);
