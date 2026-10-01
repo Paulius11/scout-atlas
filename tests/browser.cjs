@@ -51,6 +51,11 @@ async function chooseLocation(page, query, id) {
   await page.locator(`[data-search-location="${id}"]`).click();
   assert.equal(await page.locator(`[data-location="${id}"]`).getAttribute('aria-pressed'), 'true');
 }
+async function setLayer(page, name, checked) {
+  await page.locator('#map-options').evaluate(element => { element.open = true; });
+  await page.locator(`#layer-${name}`).setChecked(checked);
+  await page.locator('#map-options').evaluate(element => { element.open = false; });
+}
 async function setCutoff(page, value) {
   await page.locator('#spoiler-button').click();
   await page.locator('#cutoff-input').fill(String(value));
@@ -83,7 +88,7 @@ async function main() {
     page.on('console', message => { if (/Content Security Policy|Refused to/.test(message.text())) errors.push(message.text()); });
     page.on('request', request => { if (!request.url().startsWith(new URL('.', url).href)) foreign.push(request.url()); });
     await page.goto(url, { waitUntil: 'load' });
-    await page.locator('#location-panel h2').waitFor();
+    await page.locator('#location-panel h2').waitFor({ state: 'attached' });
     return page;
   }
   try {
@@ -222,6 +227,153 @@ async function main() {
       }
     });
 
+    await test('expanded map keeps episode controls, search, layers and place details usable', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
+        const expanded = await createPage(viewport);
+        await expanded.locator('#expand-map').click();
+        for (const id of ['episode-select', 'location-search', 'layer-groups', 'location-panel']) {
+          assert.equal(await expanded.locator(`#${id}`).count(), 1);
+          assert.equal(await expanded.locator(`#${id}`).evaluate(element => Boolean(element.closest('#expanded-map-dialog'))), true);
+        }
+        await chooseLocation(expanded, 'Trost', 'trost');
+        if (viewport.width < 761) {
+          assert.match(await expanded.locator('#place-peek').innerText(), /Trost/);
+          await expanded.locator('#place-peek').click();
+          assert.equal(await expanded.locator('#place-details').isVisible(), true);
+          await expanded.keyboard.press('Escape');
+          assert.equal(await expanded.locator('#place-details').isVisible(), false);
+          assert.equal(await expanded.locator('#expanded-map-dialog').evaluate(dialog => dialog.open), true);
+        } else {
+          assert.equal(await expanded.locator('#location-panel h2').innerText(), data.locations.find(location => location.id === 'trost').name);
+          const width = (await expanded.locator('#map-stage').boundingBox()).width;
+          const camera = await expanded.locator('#map-camera').getAttribute('transform');
+          await expanded.locator('#map-panel-toggle').click();
+          assert.ok((await expanded.locator('#map-stage').boundingBox()).width > width);
+          assert.equal(await expanded.locator('#map-camera').getAttribute('transform'), camera);
+          await expanded.locator('#map-panel-toggle').click();
+        }
+        await expanded.locator('#map-options summary').click();
+        await expanded.locator('#layer-groups').uncheck();
+        assert.equal(await expanded.locator('#location-markers').evaluate(element => element.classList.contains('hide-people')), true);
+        await expanded.locator('button[data-map-style="night"]').click();
+        assert.equal(await expanded.locator('html').getAttribute('data-map-style'), 'night');
+        await expanded.keyboard.press('Escape');
+        assert.equal(await expanded.locator('#map-options').evaluate(element => element.open), false);
+        assert.equal(await expanded.locator('#expanded-map-dialog').evaluate(dialog => dialog.open), true);
+        await expanded.locator('#close-expanded-map').focus();
+        await expanded.keyboard.press('/');
+        assert.equal(await expanded.locator('#location-search').evaluate(element => element === document.activeElement), true);
+        await expanded.locator('#location-search').fill('Trost');
+        await expanded.keyboard.press('Escape');
+        assert.equal(await expanded.locator('#search-results').isVisible(), false);
+        assert.equal(await expanded.locator('#location-search').inputValue(), 'Trost');
+        assert.equal(await expanded.locator('#expanded-map-dialog').evaluate(dialog => dialog.open), true);
+        await expanded.locator('#location-search').fill('');
+        await expanded.locator('#close-expanded-map').focus();
+        await expanded.keyboard.press('[');
+        assert.equal(await expanded.locator('#episode-select').inputValue(), String(milestones.at(-2)));
+        await expanded.locator('#close-expanded-map').click();
+        assert.equal(await expanded.locator('#location-panel').evaluate(element => element.parentElement.classList.contains('atlas-body')), true);
+        assert.equal(await expanded.locator('#episode-select').evaluate(element => Boolean(element.closest('.page-heading'))), true);
+        assert.equal(await expanded.locator('#map-style-switch').evaluate(element => Boolean(element.closest('.map-toolbar'))), true);
+        await assertNoHorizontalOverflow(expanded, 'restored map controls');
+      }
+    });
+
+    await test('an expanded map applies a lowered cutoff from another tab immediately', async () => {
+      const expanded = await createPage();
+      const other = await createPage(undefined, undefined, expanded.context());
+      await expanded.locator('#expand-map').click();
+      await expanded.locator('#show-changes').click();
+      await other.evaluate(key => localStorage.setItem(key, JSON.stringify({ cutoff: 1 })), storageKey);
+      await expanded.waitForFunction(() => document.querySelector('#episode-select').value === '1');
+      assert.equal(await expanded.locator('#episode-select option').count(), 1);
+      assert.equal(await expanded.locator('#expanded-map-dialog').evaluate(dialog => dialog.open), true);
+      assert.equal(await expanded.locator('#location-markers .map-marker').count(), data.locations.filter(location => location.firstEpisode <= 1).length);
+      const copy = await expanded.locator('#expanded-map-dialog').textContent();
+      for (const name of laterNames) assert.ok(!copy.includes(name), `later name ${name} leaked into the expanded map`);
+      await expanded.locator('#close-expanded-map').click();
+    });
+
+    await test('zoom reveals detail and the overview tracks the visible area and resets', async () => {
+      const zoomed = await createPage();
+      await zoomed.locator('#zoom-out').click();
+      const minor = zoomed.locator('.map-marker.minor:not(.selected):not(.now):not(.changed)').first();
+      assert.equal(await minor.locator('.marker-label').isVisible(), false);
+      await minor.focus();
+      assert.equal(await minor.locator('.marker-label').isVisible(), true, 'keyboard focus still exposes a minor place name');
+      await zoomed.locator('#reset-map').click();
+      const selected = await zoomed.locator('.map-marker.selected').getAttribute('data-location');
+      await zoomed.locator('#zoom-in').click();
+      await zoomed.locator('#zoom-in').click();
+      assert.equal(await zoomed.locator('#map-overview').isVisible(), true);
+      const rect = await zoomed.locator('#overview-viewport').evaluate(element => ({ x: Number(element.getAttribute('x')), width: Number(element.getAttribute('width')), height: Number(element.getAttribute('height')) }));
+      assert.ok(rect.width > 0 && rect.width < 960 && rect.height > 0 && rect.height < 832);
+      await zoomed.locator('#atlas-map').focus();
+      await zoomed.keyboard.press('ArrowRight');
+      assert.notEqual(Number(await zoomed.locator('#overview-viewport').getAttribute('x')), rect.x);
+      assert.ok(await zoomed.locator('.marker-caption').evaluateAll(elements => elements.some(element => getComputedStyle(element).display !== 'none' && /Episodes? \d/.test(element.textContent))));
+      await zoomed.locator('#map-overview').click();
+      assert.equal(await zoomed.locator('#zoom-level').innerText(), '100%');
+      assert.equal(await zoomed.locator('#map-overview').isVisible(), false);
+      assert.equal(await zoomed.locator('#atlas-map').evaluate(element => element === document.activeElement), true, 'reset returns keyboard focus to the map');
+      assert.equal(await zoomed.locator('.map-marker.selected').getAttribute('data-location'), selected);
+    });
+
+    await test('episode changes show recorded events, new places and status without inventing pins', async () => {
+      const changed = await createPage();
+      await changed.locator('#show-changes').click();
+      const pinned = data.episodes.find(item => item.number === MAX).events.filter(event => event.locationId);
+      for (const event of pinned) assert.equal(await changed.locator(`[data-change-event="${event.id}"]`).count(), 1);
+      const first = changed.locator('[data-change-place]').first();
+      const id = await first.getAttribute('data-change-place');
+      await first.click();
+      assert.equal(await changed.locator('.map-marker.selected').getAttribute('data-location'), id);
+      await episode(changed, 2);
+      assert.match(await changed.locator('#episode-changes-panel').innerText(), /Territory changed/);
+      assert.equal(await changed.locator('#territory-art').evaluate(element => element.classList.contains('changed-territory')), true);
+      const unpinned = data.episodes.find(item => item.events.some(event => !event.locationId));
+      await episode(changed, unpinned.number);
+      assert.ok(await changed.locator('.change-unpinned').count() > 0);
+      assert.equal(await changed.locator('#location-markers .map-marker').count(), data.locations.filter(location => location.firstEpisode <= unpinned.number).length);
+      const empty = Array.from({ length: MAX }, (_, index) => index + 1).find(number => !data.episodes.some(item => item.number === number) && !data.locations.some(item => item.firstEpisode === number) && !(data.status || []).some(item => item.from === number));
+      await episode(changed, empty);
+      assert.match(await changed.locator('#episode-changes-panel').innerText(), /No changes are recorded/);
+      await changed.locator('#show-changes').click();
+      assert.equal(await changed.locator('#episode-changes-panel').isVisible(), false);
+    });
+
+    await test('phone place sheet supports taps, swipes and scrolling while leaving map space', async () => {
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+      contexts.push(ctx);
+      const phone = await createPage(undefined, undefined, ctx);
+      await phone.locator('#expand-map').tap();
+      assert.equal(await phone.locator('#place-details').isVisible(), false);
+      await phone.locator('#place-peek').tap();
+      assert.equal(await phone.locator('#place-details').isVisible(), true);
+      const sizes = await phone.evaluate(() => ({ sheet: document.querySelector('#location-panel').clientHeight, area: document.querySelector('#expanded-map-slot').clientHeight }));
+      assert.ok(sizes.sheet < sizes.area * .7, 'the sheet must leave map space');
+      await phone.locator('#place-details').evaluate(element => { element.scrollTop = 250; });
+      assert.ok(await phone.locator('#place-details').evaluate(element => element.scrollTop > 0));
+      await phone.locator('#place-peek').tap();
+      const cdp = await ctx.newCDPSession(phone);
+      async function swipe(delta) {
+        const box = await phone.locator('#place-peek').boundingBox();
+        const x = box.x + box.width / 2;
+        const y = box.y + box.height / 2;
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + delta }] });
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      }
+      await swipe(-65);
+      assert.equal(await phone.locator('#place-details').isVisible(), true);
+      await swipe(65);
+      assert.equal(await phone.locator('#place-details').isVisible(), false);
+      await phone.locator('#place-peek').tap();
+      assert.equal(await phone.locator('#place-details').isVisible(), true, 'a tap still works after swiping');
+      await assertNoHorizontalOverflow(phone, 'phone place sheet');
+    });
+
     await test('opening a character from the expanded map restores the atlas and shows their card', async () => {
       const expanded = await createPage();
       await expanded.locator('#expand-map').click();
@@ -263,7 +415,7 @@ async function main() {
       await episode(styled, 13);
       await chooseLocation(styled, 'Shiganshina', 'shiganshina');
       await styled.locator('#zoom-in').click();
-      await styled.locator('#layer-groups').uncheck({ force: true });
+      await setLayer(styled, 'groups', false);
       const camera = await styled.locator('#map-camera').getAttribute('transform');
       const saved = await styled.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
       for (const style of ['night', 'parchment', 'night']) {
@@ -436,6 +588,10 @@ async function main() {
       const card = await phone.locator('#person-card').boundingBox();
       const stage = await phone.locator('#map-stage').boundingBox();
       assert.ok(card.x >= stage.x && card.x + card.width <= stage.x + stage.width + 1, 'card stays inside the map');
+      const sheet = await phone.locator('#location-panel').boundingBox();
+      assert.ok(card.y + card.height <= sheet.y, 'the place sheet must not cover the portrait card');
+      await phone.locator('#person-card [data-open-character]').tap();
+      assert.equal(await phone.locator('#characters-view').isVisible(), true);
     });
 
     for (const viewport of [{ width: 1440, height: 1040 }, { width: 1366, height: 768 }]) {
@@ -496,9 +652,9 @@ async function main() {
         assert.equal(await page.locator('#district-art .gate-breached').count(), 2, 'Trost breached at episode 5');
         await episode(page, 13);
         assert.equal(await page.locator('#district-art .gate-sealed').count(), 1, 'Trost sealed at episode 13');
-        await page.locator('#layer-territory').uncheck({ force: true });
+        await setLayer(page, 'territory', false);
         assert.equal(await page.locator('#territory-art').evaluate(el => getComputedStyle(el).display), 'none');
-        await page.locator('#layer-territory').check({ force: true });
+        await setLayer(page, 'territory', true);
       } finally { await episode(page, MAX); }
     });
 
@@ -566,10 +722,12 @@ async function main() {
         saved.notes = { '47:shiganshina': 'Kept from an older tab' };
         localStorage.setItem(key, JSON.stringify(saved));
       }, storageKey);
+      await view(b, 'recap');
       await setCutoff(a, 13);
       await b.waitForFunction(() => document.querySelector('#episode-select').value === '13');
-      await view(b, 'recap');
-      await b.locator('#layer-walls').uncheck({ force: true });
+      assert.equal(await b.locator('#recap-view').isVisible(), true, 'the other tab keeps its own view');
+      await view(b, 'map');
+      await setLayer(b, 'walls', false);
       assert.deepEqual(await b.evaluate(key => JSON.parse(localStorage.getItem(key)).notes, storageKey), { '47:shiganshina': 'Kept from an older tab' });
     });
 
@@ -636,12 +794,12 @@ async function main() {
       });
       assert.ok(inView > 0, 'the map was dragged completely out of view');
       await page.locator('#reset-map').click();
-      await page.locator('#layer-locations').uncheck({ force: true });
+      await setLayer(page, 'locations', false);
       assert.equal(await page.locator('[data-location="trost"] .marker-label').evaluate(el => getComputedStyle(el).display), 'none');
-      await page.locator('#layer-locations').check({ force: true });
-      await page.locator('#layer-walls').uncheck({ force: true });
+      await setLayer(page, 'locations', true);
+      await setLayer(page, 'walls', false);
       assert.equal(await page.locator('#wall-labels').evaluate(el => getComputedStyle(el).display), 'none');
-      await page.locator('#layer-walls').check({ force: true });
+      await setLayer(page, 'walls', true);
       assert.equal(await page.locator('#next-milestone').isDisabled(), true, 'no milestone after the last one');
       await episode(page, 1);
       await page.locator('#next-milestone').click();
@@ -758,7 +916,7 @@ async function main() {
       const footer = await mobile.locator('.page-footer button').boundingBox();
       assert.ok(footer.y + footer.height <= afterScroll.y, 'bottom navigation must not cover the last control');
       const fit = await mobile.evaluate(() => {
-        const stage = document.querySelector('#map-stage').getBoundingClientRect();
+        const stage = document.querySelector('#atlas-map').getBoundingClientRect();
         return document.querySelector('#atlas-map').viewBox.baseVal.height * document.querySelector('#atlas-map').getScreenCTM().d / stage.height;
       });
       assert.ok(fit > 0.8, `map fills only ${Math.round(fit * 100)}% of its stage`);

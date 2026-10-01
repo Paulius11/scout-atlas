@@ -51,6 +51,8 @@
     focusCharacter: null,
     characterFilter: '',
     characterFaction: 'all',
+    changesOnly: false,
+    panelExpanded: !window.matchMedia('(max-width: 760px)').matches,
     card: null,
     zoom: 1,
     panX: 0,
@@ -104,6 +106,32 @@
   const knowledgeBadge = kind => `<span class="knowledge-badge"><i class="knowledge-dot ${escapeHTML(kind)}"></i>${knowledgeLabel(kind)}</span>`;
   function ensureSelection() {
     if (!getLocation(state.selected)) state.selected = visibleLocations()[0]?.id || null;
+  }
+  // This episode's recorded changes, including events without an established map position.
+  function mapChanges() {
+    return [
+      ...visibleEvents().filter(event => event.episode === state.viewing).map(event => ({ ...event, type: 'Event' })),
+      ...visibleLocations().filter(location => location.firstEpisode === state.viewing).map(location => ({
+        id: `new-${location.id}`, locationId: location.id, title: `New place: ${location.name}`, summary: location.subtitle, type: 'Place'
+      })),
+      ...(data.status || []).filter(item => item.from === state.viewing).map(item => ({
+        id: `status-${item.target}`, locationId: item.target.startsWith('gate:') ? item.target.slice(5) : null,
+        title: item.target.startsWith('gate:') ? `Gate ${item.state}` : 'Territory changed', summary: item.note, type: 'Status'
+      }))
+    ];
+  }
+  function renderChanges() {
+    const changes = mapChanges();
+    const panel = $('#episode-changes-panel');
+    panel.hidden = !state.changesOnly;
+    $('#show-changes').setAttribute('aria-pressed', String(state.changesOnly));
+    panel.innerHTML = `<header><strong>Episode ${state.viewing}</strong><span role="status">${changes.length} recorded ${changes.length === 1 ? 'change' : 'changes'}</span></header><div class="change-list">${changes.length ? changes.map(change => {
+      const place = getLocation(change.locationId);
+      const copy = `<strong>${escapeHTML(change.title)}</strong><small>${place ? `${escapeHTML(place.name)} · ` : ''}${escapeHTML(change.summary)}</small>`;
+      return place ? `<button data-change-place="${escapeHTML(place.id)}"${change.type === 'Event' ? ` data-change-event="${escapeHTML(change.id)}"` : ''}>${copy}</button>` : `<div class="change-unpinned">${copy}<span>${change.type === 'Event' ? 'Not pinned on the map' : 'Territory'}</span></div>`;
+    }).join('') : '<p class="search-empty">No changes are recorded for this episode. Earlier records remain on the map.</p>'}</div>`;
+    $('#location-markers').classList.toggle('changes-mode', state.changesOnly);
+    $('#territory-art').classList.toggle('changed-territory', state.changesOnly && changes.some(change => change.type === 'Status' && !change.locationId));
   }
 
   /* ---------- Portraits: a drawn emblem, or an image listed in portraits/portraits.js ---------- */
@@ -239,6 +267,7 @@
     }).join('');
   }
   function renderMarkers() {
+    const changes = mapChanges();
     $('#location-markers').innerHTML = visibleLocations().map(location => {
       const selected = location.id === state.selected;
       const side = SIDES[location.label?.side] ? location.label.side : 'right';
@@ -258,8 +287,9 @@
       const peopleText = here.map(({ character, position }) => `${nameOf(character)}, last recorded in episode ${position.episode}`).join('; ');
       const label = location.mapLabel || location.name;
       const rank = selected ? 0 : now ? 1 : here.length ? 2 : ['district', 'capital'].includes(location.kind) ? 3 : 4;
-      const classes = ['map-marker', `kind-${location.kind}`, selected && 'selected', fresh && 'fresh', now && 'now', location.area && 'is-area', shownBefore && !shownBefore.has(location.id) && 'enter'].filter(Boolean).join(' ');
-      return `<g class="${escapeHTML(classes)}" data-location="${escapeHTML(location.id)}" data-side="${side}" data-rank="${rank}" data-caption="${escapeHTML(caption)}" data-episodes="${episodes.join(', ')}" transform="translate(${Number(location.x)} ${Number(location.y)})" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escapeHTML(`Explore ${location.name}${peopleText ? `. Last recorded here: ${peopleText}` : ''}`)}">
+      const change = changes.find(item => item.locationId === location.id);
+      const classes = ['map-marker', `kind-${location.kind}`, !['district', 'capital'].includes(location.kind) && 'minor', selected && 'selected', fresh && 'fresh', now && 'now', change && 'changed', location.area && 'is-area', shownBefore && !shownBefore.has(location.id) && 'enter'].filter(Boolean).join(' ');
+      return `<g class="${escapeHTML(classes)}" data-location="${escapeHTML(location.id)}" data-side="${side}" data-rank="${rank}" data-caption="${escapeHTML(caption)}" data-change="${escapeHTML(change?.title || '')}" data-episodes="${episodes.join(', ')}" transform="translate(${Number(location.x)} ${Number(location.y)})" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escapeHTML(`Explore ${location.name}${peopleText ? `. Last recorded here: ${peopleText}` : ''}`)}">
         <g class="pin"><g class="pin-mark"><title>${escapeHTML(`${location.name} — ${location.subtitle}`)}</title><circle class="marker-hit" r="20"/><circle class="marker-pulse" r="16"/><circle class="marker-ring" r="7.5"/><circle class="marker-center" r="2.5"/></g>
           ${here.length ? `<g class="pin-people">${chips}${more}</g>` : ''}
           <text class="marker-label" x="${labelX}" y="${labelY}" text-anchor="${anchor}">${escapeHTML(label)}</text>
@@ -269,6 +299,7 @@
     }).join('');
     $('#location-markers').classList.toggle('has-now', Boolean($('#location-markers .map-marker.now')));
     shownBefore = new Set([...visibleLocations().map(location => location.id), ...visibleLocations().flatMap(location => peopleAt(location.id).map(({ character }) => `${character.id}@${location.id}`))]);
+    $('#overview-places').innerHTML = visibleLocations().map(location => `<circle cx="${location.x}" cy="${location.y}" r="${location.id === state.selected ? 22 : 12}" class="${location.id === state.selected ? 'selected' : ''}"/>`).join('');
   }
   function syncLayers() {
     $('#location-markers').classList.toggle('hide-places', !state.layers.locations);
@@ -324,7 +355,7 @@
       ...$$('.map-person, .people-more', marker).map(shape => ({ owner: null, chipsOf: marker, rect: inflate(shape.getBoundingClientRect(), 2) }))
     ]);
     // The overlays drawn on top of the map count as occupied too.
-    for (const overlay of $$('.map-stage > .zoom-controls, .map-stage > .map-legend, .map-stage > .compass-rose')) {
+    for (const overlay of $$('.map-stage > .zoom-controls, .map-stage > .map-legend, .map-stage > .compass-rose, .map-stage > .map-overview')) {
       const rect = overlay.getBoundingClientRect();
       if (rect.width) obstacles.push({ owner: null, rect: inflate(rect, 4) });
     }
@@ -332,10 +363,12 @@
     const zoomed = state.zoom >= 1.5;
     for (const marker of markers) {
       const eps = marker.dataset.episodes;
-      $('.marker-caption', marker).textContent = zoomed && eps ? `${eps.includes(',') ? 'Episodes' : 'Episode'} ${eps}` : marker.dataset.caption;
+      const change = marker.dataset.change;
+      $('.marker-caption', marker).textContent = state.changesOnly && change ? (change.length > 34 ? `${change.slice(0, 31)}…` : change) : zoomed && eps ? `${eps.includes(',') ? 'Episodes' : 'Episode'} ${eps}` : marker.dataset.caption;
     }
     // Labels must stay inside the map.
     const stage = inflate($('#map-stage').getBoundingClientRect(), -4);
+    if (window.matchMedia('(max-width: 760px)').matches) stage.bottom = Math.min(stage.bottom, $('#location-panel').getBoundingClientRect().top - 4);
     const outside = rect => rect.left < stage.left || rect.right > stage.right || rect.top < stage.top || rect.bottom > stage.bottom;
     const placed = [];
     for (const marker of markers) {
@@ -480,7 +513,8 @@
     const gates = statusHistory(`gate:${location.id}`);
     const lost = statusOf('belt:maria-rose')?.state === 'lost' && location.tags.some(tag => tag === 'Between the walls' || tag === 'Beyond Wall Rose') ? statusOf('belt:maria-rose') : null;
     const here = peopleAt(location.id);
-    $('#location-panel').innerHTML = `${illustration(location)}<div class="panel-content">
+    const latest = thisEpisode[0] || events[0];
+    $('#location-panel').innerHTML = `<button type="button" id="place-peek" class="place-peek" aria-controls="place-details"><span class="sheet-handle" aria-hidden="true"></span><span class="place-peek-copy"><strong>${escapeHTML(location.name)}</strong><small>${latest ? `E${latest.episode} · ${escapeHTML(latest.title)}` : 'No event recorded here yet'}</small></span><span class="peek-action"></span></button><div id="place-details">${illustration(location)}<div class="panel-content">
       <header class="place-heading"><p class="panel-kicker">As of episode ${state.viewing}</p><h2>${escapeHTML(location.name)}</h2><p class="panel-subtitle">${escapeHTML(location.subtitle)}</p></header>${knowledgeBadge('approximate')}
       ${gates.length || lost ? `<p class="status-line">${gates.map(gate => `<span class="status-chip gate-${escapeHTML(gate.state)}">Gate ${escapeHTML(gate.state)}, E${gate.from}</span>`).join('')}${lost ? `<span class="status-chip gate-breached">Lost ground since E${lost.from}</span>` : ''}</p>` : ''}
       ${thisEpisode.length ? `<section class="panel-block now-block"><h3>This episode</h3>${thisEpisode.map(eventCard).join('')}</section>` : ''}
@@ -488,7 +522,32 @@
       ${here.length ? `<section class="panel-block"><h3>Last recorded here</h3>${here.map(({ character, position }) => `<button class="person-row" data-open-character="${escapeHTML(character.id)}">${avatar(character, 'sm')}<span><strong>${escapeHTML(nameOf(character))}</strong><small>Episode ${position.episode}. ${escapeHTML(position.note)}</small></span></button>`).join('')}</section>` : ''}
       <section class="panel-block"><h3>About this place</h3><p>${escapeHTML(location.summary)}</p><p class="why-text">${escapeHTML(location.why)}</p></section>
       <p class="panel-footnote"><strong>Map accuracy.</strong> ${escapeHTML(location.geography)}</p>
-    </div>`;
+    </div></div>`;
+    syncPanel();
+  }
+  function syncPanel() {
+    const panel = $('#location-panel');
+    const phone = window.matchMedia('(max-width: 760px)').matches;
+    const details = $('#place-details');
+    panel.hidden = !phone && !state.panelExpanded;
+    if (details) details.hidden = !state.panelExpanded;
+    panel.classList.toggle('details-open', state.panelExpanded);
+    const peek = $('#place-peek');
+    if (peek) {
+      peek.setAttribute('aria-expanded', String(state.panelExpanded));
+      peek.setAttribute('aria-label', `${state.panelExpanded ? 'Collapse' : 'Show'} details for ${getLocation(state.selected)?.name || 'this place'}`);
+      $('.peek-action', peek).textContent = state.panelExpanded ? (phone ? 'Less' : 'Hide details') : 'More';
+    }
+    $('#map-panel-toggle').setAttribute('aria-expanded', String(state.panelExpanded));
+    $('#map-panel-toggle').textContent = state.panelExpanded ? 'Hide details' : 'Place details';
+    $('#map-stage').classList.toggle('has-sheet', phone);
+    $('#map-stage').style.setProperty('--sheet-height', `${phone ? panel.offsetHeight : 0}px`);
+    $('#map-stage').style.setProperty('--sheet-peek-height', `${phone ? peek?.offsetHeight || 90 : 0}px`);
+  }
+  function setPanelExpanded(expanded) {
+    state.panelExpanded = expanded;
+    syncPanel();
+    applyCamera();
   }
 
   /* ---------- Timeline, recap, characters ---------- */
@@ -567,6 +626,7 @@
     renderDistrictArt();
     renderAreas();
     renderMarkers();
+    renderChanges();
     syncLayers();
     renderPanel();
     renderTimeline();
@@ -591,6 +651,7 @@
     if (!getLocation(id)) return;
     state.selected = id;
     state.view = 'map';
+    state.panelExpanded = !window.matchMedia('(max-width: 760px)').matches;
     render();
     $('#location-panel').scrollTop = 0;
     if (focus) {
@@ -617,6 +678,7 @@
   function setEpisode(number, { follow = false } = {}) {
     state.viewing = Math.min(state.cutoff, episodeNumber(number));
     state.activeEvent = null;
+    state.panelExpanded = !window.matchMedia('(max-width: 760px)').matches;
     // Follow the story: a milestone episode selects the place where it happens.
     const place = follow && data.episodes.find(entry => entry.number === state.viewing)?.events.find(event => event.locationId)?.locationId;
     if (place && getLocation(place)) state.selected = place;
@@ -653,13 +715,15 @@
 
   /* ---------- Camera ---------- */
   const map = $('#atlas-map');
+  map.addEventListener('focusin', scheduleLayout);
+  map.addEventListener('focusout', scheduleLayout);
   $('defs', map).insertAdjacentHTML('beforeend', '<clipPath id="avatar-clip" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath>');
   function applyCamera() {
     // In a tall expanded window, use its full height instead of shrinking the drawing
     // to fit the phone's width. The camera stays centred and the remaining ground can be panned.
     const stage = $('#map-stage');
-    const viewWidth = $('#expanded-map-dialog').open && stage.clientHeight > 0
-      ? Math.min(VIEW.width, VIEW.height * stage.clientWidth / stage.clientHeight) : VIEW.width;
+    const viewWidth = $('#expanded-map-dialog').open && map.clientHeight > 0
+      ? Math.min(VIEW.width, VIEW.height * map.clientWidth / map.clientHeight) : VIEW.width;
     map.setAttribute('viewBox', `${VIEW.cx - viewWidth / 2} ${VIEW.y} ${viewWidth} ${VIEW.height}`);
     const viewport = map.viewBox.baseVal;
     // Keep a good part of the walled area (Wall Maria: x 160–1040, y 40–770) on screen:
@@ -677,7 +741,24 @@
     const ctm = map.getScreenCTM();
     if (ctm && ctm.a > 0) map.style.setProperty('--pin-scale', (1 / (ctm.a * zoom)).toFixed(4));
     map.style.setProperty('--wall-scale', (1 / Math.sqrt(zoom)).toFixed(4));
+    map.dataset.detail = zoom < 1 ? 'overview' : zoom < 1.5 ? 'places' : 'detail';
+    updateOverview(viewWidth);
     scheduleLayout();
+  }
+  function updateOverview(viewWidth) {
+    const overview = $('#map-overview');
+    overview.hidden = state.zoom <= 1.15 && viewWidth >= VIEW.width;
+    if (overview.hidden || !map.getScreenCTM()?.a) return;
+    const stage = $('#map-stage').getBoundingClientRect();
+    const sheetTop = window.matchMedia('(max-width: 760px)').matches ? $('#location-panel').getBoundingClientRect().top : stage.bottom;
+    const topLeft = mapPoint(stage.left, stage.top);
+    const bottomRight = mapPoint(stage.right, Math.min(stage.bottom, sheetTop));
+    const left = Math.max(VIEW.x, (topLeft.x - state.panX) / state.zoom);
+    const top = Math.max(VIEW.y, (topLeft.y - state.panY) / state.zoom);
+    const right = Math.min(VIEW.x + VIEW.width, (bottomRight.x - state.panX) / state.zoom);
+    const bottom = Math.min(VIEW.y + VIEW.height, (bottomRight.y - state.panY) / state.zoom);
+    const rect = $('#overview-viewport');
+    for (const [name, value] of Object.entries({ x: left, y: top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) })) rect.setAttribute(name, value.toFixed(2));
   }
   function zoomMap(factor, point = { x: VIEW.cx, y: VIEW.cy }) {
     const previous = state.zoom;
@@ -769,18 +850,35 @@
   });
   $('#zoom-in').addEventListener('click', () => zoomMap(1.25));
   $('#zoom-out').addEventListener('click', () => zoomMap(1 / 1.25));
-  $('#reset-map').addEventListener('click', () => { state.zoom = 1; state.panX = 0; state.panY = 0; applyCamera(); });
-  window.addEventListener('resize', () => { centerTimeline(); applyCamera(); });
+  function resetMap() { state.zoom = 1; state.panX = 0; state.panY = 0; applyCamera(); }
+  $('#reset-map').addEventListener('click', resetMap);
+  $('#map-overview').addEventListener('click', () => { resetMap(); map.focus({ preventScroll: true }); });
+  window.addEventListener('resize', () => { centerTimeline(); syncPanel(); applyCamera(); });
+  new ResizeObserver(() => { syncPanel(); if (state.view === 'map') applyCamera(); }).observe($('#location-panel'));
 
   /* ---------- Expanded map: the same map, with the whole window to explore ---------- */
   const expandedMapDialog = $('#expanded-map-dialog');
   const mapStage = $('#map-stage');
-  const mapHome = $('.atlas-body');
+  const locationPanel = $('#location-panel');
+  const mapToolbar = $('.map-toolbar');
+  const episodeControl = $('.episode-control');
+  const changesPanel = $('#episode-changes-panel');
+  const mapStyleSwitch = $('#map-style-switch');
+  // Anchors let every original control return to the same place without duplicate IDs/listeners.
+  const mapHomes = [mapStage, locationPanel, mapToolbar, episodeControl, changesPanel, mapStyleSwitch].map(element => {
+    const anchor = document.createComment('Map control home');
+    element.before(anchor);
+    return { element, anchor };
+  });
+  $('#map-options-content').append($('.layer-section'));
   let atlasScrollY = 0;
   function restoreExpandedMap() {
     if (!$('#expanded-map-slot').contains(mapStage)) return;
-    mapHome.insertBefore(mapStage, $('#location-panel'));
+    for (const { element, anchor } of mapHomes) anchor.after(element);
+    $('#map-options').open = false;
+    $('#map-options-label').textContent = 'Layers';
     document.body.classList.remove('map-expanded');
+    syncPanel();
     applyCamera();
     window.scrollTo({ top: atlasScrollY, behavior: 'instant' });
     if (state.view === 'map') $('#expand-map').focus({ preventScroll: true });
@@ -792,14 +890,58 @@
   $('#expand-map').addEventListener('click', () => {
     if (expandedMapDialog.open) return;
     atlasScrollY = window.scrollY;
-    $('#expanded-map-slot').append(mapStage);
+    $('#expanded-map-slot').append(mapStage, locationPanel);
+    $('#expanded-toolbar-slot').append(mapToolbar);
+    $('#expanded-episode-slot').append(episodeControl);
+    $('#expanded-changes-slot').append(changesPanel);
+    $('#map-options-content').prepend(mapStyleSwitch);
+    $('#map-options-label').textContent = 'Layers & style';
+    $('#map-options').open = false;
     document.body.classList.add('map-expanded');
     expandedMapDialog.showModal();
+    syncPanel();
     applyCamera();
     $('#close-expanded-map').focus({ preventScroll: true });
   });
   $('#close-expanded-map').addEventListener('click', closeExpandedMap);
   expandedMapDialog.addEventListener('close', restoreExpandedMap);
+  expandedMapDialog.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    if ($('#map-options').open) { $('#map-options').open = false; $('#map-options summary').focus(); }
+    else if (!$('#search-results').hidden) { $('#search-results').hidden = true; $('#location-search').focus(); }
+    else if (state.card) closeCard();
+    else if (state.panelExpanded && event.target.closest('#location-panel')) { setPanelExpanded(false); (window.matchMedia('(max-width: 760px)').matches ? $('#place-peek') : $('#map-panel-toggle')).focus(); }
+    else closeExpandedMap();
+  });
+  $('#map-panel-toggle').addEventListener('click', () => setPanelExpanded(!state.panelExpanded));
+  locationPanel.addEventListener('click', event => { if (event.target.closest('#place-peek')) setPanelExpanded(!state.panelExpanded); });
+  let sheetGesture = null;
+  let suppressSheetClick = false;
+  locationPanel.addEventListener('pointerdown', event => {
+    // A swipe may suppress its click entirely; a new interaction must still work.
+    suppressSheetClick = false;
+    const peek = event.target.closest('#place-peek');
+    if (event.pointerType !== 'touch' || !peek) return;
+    sheetGesture = { id: event.pointerId, y: event.clientY };
+    peek.setPointerCapture(event.pointerId);
+  });
+  locationPanel.addEventListener('pointerup', event => {
+    if (!sheetGesture || sheetGesture.id !== event.pointerId) return;
+    const delta = event.clientY - sheetGesture.y;
+    sheetGesture = null;
+    if (Math.abs(delta) < 35) return;
+    suppressSheetClick = true;
+    setPanelExpanded(delta < 0);
+  });
+  locationPanel.addEventListener('pointercancel', () => { sheetGesture = null; });
+  locationPanel.addEventListener('click', event => {
+    if (!suppressSheetClick) return;
+    suppressSheetClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
+  $('#show-changes').addEventListener('click', () => { state.changesOnly = !state.changesOnly; renderChanges(); scheduleLayout(); });
 
   /* ---------- Expanded gallery: reuse the same cards, filters and episode boundary ---------- */
   const expandedGalleryDialog = $('#expanded-gallery-dialog');
@@ -874,7 +1016,7 @@
   $('#next-milestone').addEventListener('click', () => stepMilestone(1));
   $('#location-search').addEventListener('input', searchAll);
   $('#location-search').addEventListener('keydown', event => {
-    if (event.key === 'Escape') $('#search-results').hidden = true;
+    if (event.key === 'Escape' && !expandedMapDialog.open) $('#search-results').hidden = true;
     if (event.key === 'ArrowDown') { event.preventDefault(); $('#search-results button')?.focus(); }
     if (event.key === 'Enter') {
       const first = $('#search-results button');
@@ -899,8 +1041,9 @@
   });
   document.addEventListener('keydown', event => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
-    if (event.key === '/' && !typing && !$('dialog[open]') && state.view === 'map') { event.preventDefault(); $('#location-search').focus(); }
-    if (!typing && !$('dialog[open]') && (event.key === '[' || event.key === ']')) stepMilestone(event.key === ']' ? 1 : -1);
+    const otherDialog = $$('dialog[open]').some(dialog => dialog !== expandedMapDialog);
+    if (event.key === '/' && !typing && !otherDialog && state.view === 'map') { event.preventDefault(); $('#location-search').focus(); }
+    if (!typing && !otherDialog && (event.key === '[' || event.key === ']')) stepMilestone(event.key === ']' ? 1 : -1);
     if (event.key === 'Escape') { $('#search-results').hidden = true; closeCard(); }
   });
   for (const name of ['locations', 'groups', 'territory', 'walls']) {
@@ -935,6 +1078,7 @@
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
   }));
   document.addEventListener('click', event => {
+    if (!event.target.closest('#map-options')) $('#map-options').open = false;
     if (swallowClick) { swallowClick = false; if (event.target.closest('#atlas-map')) return; }
     const mapStyleButton = event.target.closest('button[data-map-style]');
     if (mapStyleButton && isMapStyle(mapStyleButton.dataset.mapStyle)) {
@@ -955,6 +1099,8 @@
     if (marker) { state.activeEvent = null; selectLocation(marker.dataset.location); return; }
     const result = event.target.closest('[data-search-location]');
     if (result) { state.activeEvent = null; selectLocation(result.dataset.searchLocation, { focus: true }); return; }
+    const change = event.target.closest('[data-change-place]');
+    if (change) { state.activeEvent = change.dataset.changeEvent || null; selectLocation(change.dataset.changePlace, { focus: true }); return; }
     const factionChip = event.target.closest('[data-faction-filter]');
     if (factionChip) { state.characterFaction = factionChip.dataset.factionFilter; state.focusCharacter = null; renderCharacters(); $(`[data-faction-filter="${CSS.escape(state.characterFaction)}"]`)?.focus(); return; }
     const person = event.target.closest('[data-open-character]');

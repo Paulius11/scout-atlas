@@ -93,8 +93,14 @@
             <button type="button" data-map-style="parchment" aria-pressed="false">Parchment</button>
             <button type="button" data-map-style="night" aria-pressed="false">Night</button>
           </div>
-          <div class="search-wrap"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="location-search" placeholder="Find a place, person or event" aria-label="Find a place, person or event" autocomplete="off"><kbd>/</kbd><div id="search-results" class="search-results" hidden></div></div>
+          <div class="map-navigation">
+            <div class="search-wrap"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="location-search" placeholder="Find a place, person or event" aria-label="Find a place, person or event" autocomplete="off"><kbd>/</kbd><div id="search-results" class="search-results" hidden></div></div>
+            <details id="map-options" class="map-options"><summary><span id="map-options-label">Layers</span></summary><div id="map-options-content"></div></details>
+            <button type="button" id="show-changes" class="map-tool-button" aria-pressed="false" aria-controls="episode-changes-panel">Changes this episode</button>
+            <button type="button" id="map-panel-toggle" class="map-tool-button" aria-expanded="true" aria-controls="location-panel">Hide details</button>
+          </div>
         </div>
+        <section id="episode-changes-panel" class="episode-changes-panel" aria-label="Changes this episode" hidden></section>
         <div class="atlas-body">
           <div class="map-stage" id="map-stage">
             <svg id="atlas-map" viewBox="120 0 960 832" role="group" tabindex="0" aria-label="Schematic map of the three walls. Select a place to explore its story. Arrow keys move the map, plus and minus zoom.">
@@ -117,33 +123,33 @@
               <g id="map-camera">
                 <rect x="-2400" y="-2400" width="6000" height="6000" fill="var(--carto-ground)"/>
                 <rect width="1200" height="920" fill="url(#map-grid)"/>
-                <g class="terrain-contours" fill="none" stroke="var(--carto-contour)" stroke-opacity=".12" stroke-width="1">
+                <g class="terrain-contours" fill="none" stroke="var(--carto-contour)" stroke-opacity=".075" stroke-width="1">
                   <path d="M-20 107C109 20 184 64 241 107S372 223 398 164 490 30 616 46 802 11 888 93 1060 64 1240 83M-20 124C100 35 180 80 232 122S377 246 414 177 495 45 615 61 807 31 881 111 1059 80 1240 105M-20 145C104 59 169 98 225 141S386 266 433 192 510 64 623 78 809 57 875 130 1063 101 1240 129"/>
                   <path d="M-50 596C97 544 179 627 208 715S381 842 428 799 540 806 578 875 750 945 843 900M-50 619C99 567 156 636 184 724S377 866 441 820 519 822 559 892 750 963 843 923M-50 644C75 587 134 650 163 738S363 890 450 842 498 847 538 913"/>
                   <path d="M984 283C1078 242 1105 299 1082 390S974 520 1016 585 1156 568 1238 647M1002 303C1092 276 1081 315 1064 389S950 521 998 599 1146 593 1228 668M1018 326C1084 303 1066 337 1045 399S927 520 979 613 1137 616 1219 690"/>
                   <path d="M378 319C322 368 362 420 310 442S239 535 304 557 421 513 449 575M395 328C342 369 383 434 326 461S257 521 316 538 434 499 470 575"/>
                   <path d="M700 256C801 224 852 254 818 305S779 350 826 373M706 273C787 246 830 261 801 299S759 352 811 390"/>
                 </g>
-                <g fill="url(#forest-pattern)" opacity=".74">
+                <g fill="url(#forest-pattern)" opacity=".46">
                   <path d="M250 242q85-56 141 11t-4 87q-76 45-99-7t-38-91Z"/>
                   <path d="M825 464q52-55 120-15t35 110q-80 48-102-15t-53-80Z"/>
                   <path d="M339 571q43-38 80 3t-24 67q-88 17-56-70Z"/>
                   <path d="M661 644q77-37 115 33t-29 76q-65 8-86-109Z"/>
                   <path d="M475 175q40-30 69 1t-13 56q-43 13-56-57Z"/>
                 </g>
-                <g opacity=".75"><use href="#mountain" x="131" y="341" width="112" height="70"/><use href="#mountain" x="120" y="386" width="100" height="63"/><use href="#mountain" x="170" y="429" width="95" height="59"/><use href="#mountain" x="965" y="649" width="105" height="65"/><use href="#mountain" x="1009" y="694" width="90" height="56"/><use href="#mountain" x="776" y="133" width="85" height="53"/></g>
-                <g fill="none"><path d="M599 306c-48 80 43 108 8 173s-35 107-6 148-1 95-5 199" stroke="var(--carto-river-bank)" stroke-width="9"/><path d="M599 306c-48 80 43 108 8 173s-35 107-6 148-1 95-5 199" stroke="var(--carto-river)" stroke-opacity=".5" stroke-width="3"/></g>
+                <g opacity=".45"><use href="#mountain" x="131" y="341" width="112" height="70"/><use href="#mountain" x="120" y="386" width="100" height="63"/><use href="#mountain" x="170" y="429" width="95" height="59"/><use href="#mountain" x="965" y="649" width="105" height="65"/><use href="#mountain" x="1009" y="694" width="90" height="56"/><use href="#mountain" x="776" y="133" width="85" height="53"/></g>
+                <g fill="none"><path d="M599 306c-48 80 43 108 8 173s-35 107-6 148-1 95-5 199" stroke="var(--carto-river-bank)" stroke-width="9"/><path d="M599 306c-48 80 43 108 8 173s-35 107-6 148-1 95-5 199" stroke="var(--carto-river)" stroke-opacity=".38" stroke-width="3"/></g>
                 <g id="territory-art"></g>
                 <g id="wall-geometry" fill="none">
-                  <ellipse cx="600" cy="405" rx="440" ry="365" fill="var(--carto-wall-wash)" fill-opacity=".025" stroke="var(--carto-wall-shadow)" stroke-width="13"/>
-                  <ellipse cx="600" cy="405" rx="440" ry="365" stroke="var(--carto-wall)" stroke-width="5"/>
-                  <ellipse cx="600" cy="405" rx="440" ry="365" stroke="var(--carto-battlement)" stroke-width="9" stroke-dasharray="2 8"/>
-                  <ellipse cx="600" cy="405" rx="298" ry="246" fill="var(--carto-wall-wash)" fill-opacity=".035" stroke="var(--carto-wall-shadow)" stroke-width="12"/>
-                  <ellipse cx="600" cy="405" rx="298" ry="246" stroke="var(--carto-wall)" stroke-width="5"/>
-                  <ellipse cx="600" cy="405" rx="298" ry="246" stroke="var(--carto-battlement)" stroke-width="9" stroke-dasharray="2 8"/>
-                  <ellipse cx="600" cy="405" rx="162" ry="131" fill="var(--carto-wall-wash)" fill-opacity=".035" stroke="var(--carto-wall-shadow)" stroke-width="11"/>
-                  <ellipse cx="600" cy="405" rx="162" ry="131" stroke="var(--carto-wall)" stroke-width="5"/>
-                  <ellipse cx="600" cy="405" rx="162" ry="131" stroke="var(--carto-battlement)" stroke-width="9" stroke-dasharray="2 8"/>
+                  <ellipse cx="600" cy="405" rx="440" ry="365" fill="var(--carto-wall-wash)" fill-opacity=".025" stroke="var(--carto-wall-shadow)" stroke-opacity=".5" stroke-width="8"/>
+                  <ellipse cx="600" cy="405" rx="440" ry="365" stroke="var(--carto-wall)" stroke-width="3"/>
+                  <ellipse cx="600" cy="405" rx="440" ry="365" stroke="var(--carto-battlement)" stroke-width="6" stroke-dasharray="1.5 9"/>
+                  <ellipse cx="600" cy="405" rx="298" ry="246" fill="var(--carto-wall-wash)" fill-opacity=".035" stroke="var(--carto-wall-shadow)" stroke-opacity=".5" stroke-width="7"/>
+                  <ellipse cx="600" cy="405" rx="298" ry="246" stroke="var(--carto-wall)" stroke-width="3"/>
+                  <ellipse cx="600" cy="405" rx="298" ry="246" stroke="var(--carto-battlement)" stroke-width="6" stroke-dasharray="1.5 9"/>
+                  <ellipse cx="600" cy="405" rx="162" ry="131" fill="var(--carto-wall-wash)" fill-opacity=".035" stroke="var(--carto-wall-shadow)" stroke-opacity=".5" stroke-width="6"/>
+                  <ellipse cx="600" cy="405" rx="162" ry="131" stroke="var(--carto-wall)" stroke-width="3"/>
+                  <ellipse cx="600" cy="405" rx="162" ry="131" stroke="var(--carto-battlement)" stroke-width="6" stroke-dasharray="1.5 9"/>
                 </g>
                 <g id="district-art"></g>
                 <rect x="-600" y="-600" width="2400" height="2120" fill="url(#map-light)" pointer-events="none"/>
@@ -157,6 +163,7 @@
             <details class="map-legend" id="map-legend"><summary>Key</summary><div class="legend-items"><span><i class="legend-pin"></i>Place</span><span><i class="legend-area"></i>Approximate area</span><span><i class="legend-now"></i>This episode</span><span><i class="legend-person"></i>Last recorded here</span><span class="legend-lost-item"><i class="legend-lost"></i>Lost to the Titans</span><small>Schematic: distances and shapes are approximate.</small></div></details>
             <div class="zoom-controls" role="group" aria-label="Map controls"><button id="zoom-in" aria-label="Zoom in">+</button><span id="zoom-level">100%</span><button id="zoom-out" aria-label="Zoom out">−</button><div></div><button id="reset-map" aria-label="Reset map"><svg class="icon" aria-hidden="true"><use href="#i-reset"/></svg></button><div></div><button id="expand-map" aria-label="Expand map" aria-haspopup="dialog" aria-controls="expanded-map-dialog" title="Expand map"><svg class="icon" aria-hidden="true"><use href="#i-expand"/></svg></button></div>
             <p id="map-hint" class="map-hint" role="status" aria-live="polite"></p>
+            <button type="button" id="map-overview" class="map-overview" aria-label="Map overview. Reset map view" title="Reset map view" hidden><span>Overview</span><svg viewBox="120 0 960 832" aria-hidden="true"><g fill="none"><ellipse cx="600" cy="405" rx="440" ry="365"/><ellipse cx="600" cy="405" rx="298" ry="246"/><ellipse cx="600" cy="405" rx="162" ry="131"/></g><g id="overview-places"></g><rect id="overview-viewport"/></svg></button>
             <div id="person-card" class="person-card" hidden></div>
           </div>
           <aside id="location-panel" class="location-panel" aria-label="Selected place"></aside>
@@ -178,6 +185,8 @@
       <div><h2 id="expanded-map-title">The walled territory</h2><p id="expanded-map-episode"></p></div>
       <button type="button" id="close-expanded-map" class="expanded-map-close">Back to atlas<svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
     </header>
+    <div id="expanded-map-controls"><div id="expanded-episode-slot"></div><div id="expanded-toolbar-slot"></div></div>
+    <div id="expanded-changes-slot"></div>
     <div id="expanded-map-slot"></div>
   </dialog>
   <dialog id="expanded-gallery-dialog" aria-labelledby="expanded-gallery-title" aria-describedby="expanded-gallery-episode">
