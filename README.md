@@ -19,6 +19,7 @@ Then visit <http://127.0.0.1:8765>. Check first whether a server is already runn
 
 ## What it does
 
+- **Map styles.** Choose **Parchment** for warm paper and ink details, or **Night** for a dark field map. The switch is in the map toolbar on desktop and phone. The initial style follows your system preference, and your choice is saved in this browser. Switching preserves the selected place, zoom, episode and notes. Open **Key** when you need the legend.
 - **Map.** Twelve places across the three walls, filling the stage. It follows the story: choosing an episode selects the place where it happens, rings it in brass and steps everything else back. Approximate places are dashed areas rather than precise pins. The land between Wall Maria and Wall Rose is hatched as lost from episode 2, and district gates show as breached or sealed at the right episodes. Wall names run along their walls. Pins, labels and portraits keep one on-screen size; labels move, drop their caption or hide rather than overlap, and never leave the map. Zoomed in, each place lists the episodes it appears in. Hovering a milestone in the timeline lights up its places, and new places fade in when you step episodes.
 - **Portrait cards.** Point at a portrait on the map for a larger picture, where and when that person was recorded, and what happens there involving them. Click the portrait to pin the card (Escape or a click elsewhere closes it); on a phone, tap it. The card links to the full character card.
 - **Characters.** Everyone the atlas knows about as of the viewing episode, grouped by regiment, with dated notes. Names and identities change at the episode that reveals them (for example, a Titan card shows who it turned out to be only from that episode on).
@@ -33,7 +34,7 @@ The map separates **confirmed events**, **characters' beliefs**, and **approxima
 
 ## Local storage
 
-Notes and viewing/cutoff preferences use this browser's local storage, key `scout-atlas:v1`. Nothing is transmitted or synced between devices. Opening `index.html` directly and opening it through the local server use different storage. Two tabs can be open at once: each merges the other's notes instead of overwriting them. If the saved value ever cannot be read, it is kept under `scout-atlas:v1:unreadable:<time>` and the atlas starts fresh. When storage is unavailable, the interface still works, but notes last only for the session.
+Notes, map style and viewing/cutoff preferences use this browser's local storage, key `scout-atlas:v1`. Nothing is transmitted or synced between devices. Opening `index.html` directly and opening it through the local server use different storage. Two tabs can be open at once: each merges the other's notes instead of overwriting them. If the saved value ever cannot be read, it is kept under `scout-atlas:v1:unreadable:<time>` and the atlas starts fresh. When storage is unavailable, the interface still works, but notes last only for the session.
 
 ## Portraits
 
@@ -80,13 +81,13 @@ Place cards contain only what is known at the episode they first appear. `firstE
 
 ```bash
 node scripts/etc/js/scout-atlas/tests/data-lint.cjs    # 20 checks, ~30 ms, no browser
-node scripts/etc/js/scout-atlas/tests/browser.cjs      # 31 checks, ~30 s, headless Chrome
+node scripts/etc/js/scout-atlas/tests/browser.cjs      # 34 checks, headless Chrome
 ATLAS_URL=http://127.0.0.1:8765 node scripts/etc/js/scout-atlas/tests/browser.cjs
 ```
 
 Run them from `/opt/odoo/odoo17` or anywhere else: Playwright resolves from the workspace's `node_modules`. The browser checks use `/usr/bin/google-chrome` (override with `CHROME=`) in isolated contexts and never touch your own browser's notes.
 
-The data lint checks ids, references, seasons, geometry and kinds, and that **no text visible at episode N names a place, person or name version the atlas only introduces after N**. The browser checks cover episode boundaries (derived from the data, not a hand-written list), identities changing at their episode, unpinned events, portraits staying beside their own pin, label overlap at every milestone on desktop and laptop screens, notes across reloads and two tabs, the cutoff, search, map controls, wheel and keyboard, storage failures, portraits, phone layout, and that no request leaves the folder.
+The data lint checks ids, references, seasons, geometry and kinds, and that **no text visible at episode N names a place, person or name version the atlas only introduces after N**. The browser checks cover episode boundaries (derived from the data, not a hand-written list), identities changing at their episode, unpinned events, portraits staying beside their own pin, label overlap at every milestone on desktop and laptop screens, notes across reloads and two tabs, the cutoff, search, map controls, wheel and keyboard, storage failures, saved map styles, portraits, phone layout, and that no request leaves the folder.
 
 ## Dataset structure
 

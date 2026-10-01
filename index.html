@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#141f19">
+  <meta name="theme-color" content="#101b18">
   <meta name="description" content="An unofficial, episode-aware Attack on Titan atlas. Explore the places, people and events you have already watched.">
   <title>Scout Atlas · Attack on Titan companion</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -70,6 +70,7 @@
     <main>
       <header class="page-heading">
         <div class="heading-text">
+          <p class="page-kicker">A scout’s field guide</p>
           <h1 id="page-title">Find your bearings.</h1>
           <p id="page-description">The places, the people, and the pieces coming together.</p>
         </div>
@@ -89,6 +90,10 @@
       <section id="map-view" class="map-view" aria-label="Interactive atlas">
         <div class="map-toolbar">
           <h2 class="map-title"><svg class="icon" aria-hidden="true"><use href="#i-map"/></svg>The walled territory<span class="schematic-badge">Schematic</span></h2>
+          <div id="map-style-switch" class="map-style-switch" role="group" aria-label="Map style">
+            <button type="button" data-map-style="parchment" aria-pressed="false">Parchment</button>
+            <button type="button" data-map-style="night" aria-pressed="false">Night</button>
+          </div>
           <div class="search-wrap"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="location-search" placeholder="Find a place, person or event" aria-label="Find a place, person or event" autocomplete="off"><kbd>/</kbd><div id="search-results" class="search-results" hidden></div></div>
         </div>
         <div class="atlas-body">
@@ -101,19 +106,19 @@
                 <path id="wall-path-maria-low" d="M160 405A440 365 0 0 0 1040 405"/>
                 <path id="wall-path-rose-low" d="M302 405A298 246 0 0 0 898 405"/>
                 <path id="wall-path-sina-low" d="M438 405A162 131 0 0 0 762 405"/>
-                <pattern id="lost-ground" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(38)"><path d="M0 0V14" stroke="#c07a68" stroke-width="2.2" stroke-opacity=".32"/></pattern>
-                <pattern id="map-grid" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0H0V80" fill="none" stroke="#afc2ab" stroke-opacity=".045"/></pattern>
-                <pattern id="forest-pattern" width="43" height="40" patternUnits="userSpaceOnUse"><path d="m13 8-8 15h5l-7 9h20l-7-9h5Zm19 16-5 9h10Z" fill="#111e19" stroke="#70846c" stroke-opacity=".2" stroke-width=".7"/></pattern>
-                <pattern id="town-pattern" width="17" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(-14)"><rect x="3" y="3" width="8" height="6" rx=".7" fill="#819077" opacity=".4"/></pattern>
+                <pattern id="lost-ground" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(38)"><path d="M0 0V14" stroke="var(--carto-lost)" stroke-width="2.2" stroke-opacity=".32"/></pattern>
+                <pattern id="map-grid" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0H0V80" fill="none" stroke="var(--carto-grid)" stroke-opacity=".045"/></pattern>
+                <pattern id="forest-pattern" width="43" height="40" patternUnits="userSpaceOnUse"><path d="m13 8-8 15h5l-7 9h20l-7-9h5Zm19 16-5 9h10Z" fill="var(--carto-forest-fill)" stroke="var(--carto-forest-line)" stroke-opacity=".2" stroke-width=".7"/></pattern>
+                <pattern id="town-pattern" width="17" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(-14)"><rect x="3" y="3" width="8" height="6" rx=".7" fill="var(--carto-town)" opacity=".4"/></pattern>
                 <filter id="paper-grain"><feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
-                <radialGradient id="map-light" gradientUnits="userSpaceOnUse" cx="600" cy="405" r="720"><stop offset="0" stop-color="#657853" stop-opacity=".15"/><stop offset="1" stop-color="#071410" stop-opacity=".25"/></radialGradient>
-                <filter id="marker-shadow"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#060e0a" flood-opacity=".7"/></filter>
-                <symbol id="mountain" viewBox="0 0 80 50"><path d="m4 46 23-32 12 17L52 5l26 41M27 14l4 28M52 5l6 39m-13-25 7-2 7 7" fill="none" stroke="#8c9c80" stroke-opacity=".27" stroke-width="1.2"/></symbol>
+                <radialGradient id="map-light" gradientUnits="userSpaceOnUse" cx="600" cy="405" r="720"><stop offset="0" stop-color="var(--carto-light)" stop-opacity=".15"/><stop offset="1" stop-color="var(--carto-shade)" stop-opacity=".25"/></radialGradient>
+                <filter id="marker-shadow"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="var(--carto-shadow)" flood-opacity=".7"/></filter>
+                <symbol id="mountain" viewBox="0 0 80 50"><path d="m4 46 23-32 12 17L52 5l26 41M27 14l4 28M52 5l6 39m-13-25 7-2 7 7" fill="none" stroke="var(--carto-mountain)" stroke-opacity=".27" stroke-width="1.2"/></symbol>
               </defs>
               <g id="map-camera">
-                <rect x="-2400" y="-2400" width="6000" height="6000" fill="#1e3027"/>
+                <rect x="-2400" y="-2400" width="6000" height="6000" fill="var(--carto-ground)"/>
                 <rect width="1200" height="920" fill="url(#map-grid)"/>
-                <g class="terrain-contours" fill="none" stroke="#768369" stroke-opacity=".12" stroke-width="1">
+                <g class="terrain-contours" fill="none" stroke="var(--carto-contour)" stroke-opacity=".12" stroke-width="1">
                   <path d="M-20 107C109 20 184 64 241 107S372 223 398 164 490 30 616 46 802 11 888 93 1060 64 1240 83M-20 124C100 35 180 80 232 122S377 246 414 177 495 45 615 61 807 31 881 111 1059 80 1240 105M-20 145C104 59 169 98 225 141S386 266 433 192 510 64 623 78 809 57 875 130 1063 101 1240 129"/>
                   <path d="M-50 596C97 544 179 627 208 715S381 842 428 799 540 806 578 875 750 945 843 900M-50 619C99 567 156 636 184 724S377 866 441 820 519 822 559 892 750 963 843 923M-50 644C75 587 134 650 163 738S363 890 450 842 498 847 538 913"/>
                   <path d="M984 283C1078 242 1105 299 1082 390S974 520 1016 585 1156 568 1238 647M1002 303C1092 276 1081 315 1064 389S950 521 998 599 1146 593 1228 668M1018 326C1084 303 1066 337 1045 399S927 520 979 613 1137 616 1219 690"/>
@@ -128,18 +133,18 @@
                   <path d="M475 175q40-30 69 1t-13 56q-43 13-56-57Z"/>
                 </g>
                 <g opacity=".75"><use href="#mountain" x="131" y="341" width="112" height="70"/><use href="#mountain" x="120" y="386" width="100" height="63"/><use href="#mountain" x="170" y="429" width="95" height="59"/><use href="#mountain" x="965" y="649" width="105" height="65"/><use href="#mountain" x="1009" y="694" width="90" height="56"/><use href="#mountain" x="776" y="133" width="85" height="53"/></g>
-                <g fill="none"><path d="M599 306c-48 80 43 108 8 173s-35 107-6 148-1 95-5 199" stroke="#11241f" stroke-width="9"/><path d="M599 306c-48 80 43 108 8 173s-35 107-6 148-1 95-5 199" stroke="#658a83" stroke-opacity=".5" stroke-width="3"/></g>
+                <g fill="none"><path d="M599 306c-48 80 43 108 8 173s-35 107-6 148-1 95-5 199" stroke="var(--carto-river-bank)" stroke-width="9"/><path d="M599 306c-48 80 43 108 8 173s-35 107-6 148-1 95-5 199" stroke="var(--carto-river)" stroke-opacity=".5" stroke-width="3"/></g>
                 <g id="territory-art"></g>
                 <g id="wall-geometry" fill="none">
-                  <ellipse cx="600" cy="405" rx="440" ry="365" fill="#84916d" fill-opacity=".025" stroke="#0a1610" stroke-width="13"/>
-                  <ellipse cx="600" cy="405" rx="440" ry="365" stroke="#889477" stroke-width="5"/>
-                  <ellipse cx="600" cy="405" rx="440" ry="365" stroke="#364831" stroke-width="9" stroke-dasharray="2 8"/>
-                  <ellipse cx="600" cy="405" rx="298" ry="246" fill="#92a879" fill-opacity=".035" stroke="#0a1610" stroke-width="12"/>
-                  <ellipse cx="600" cy="405" rx="298" ry="246" stroke="#a1a98b" stroke-width="5"/>
-                  <ellipse cx="600" cy="405" rx="298" ry="246" stroke="#3a4e36" stroke-width="9" stroke-dasharray="2 8"/>
-                  <ellipse cx="600" cy="405" rx="162" ry="131" fill="#b5bc8a" fill-opacity=".035" stroke="#0a1610" stroke-width="11"/>
-                  <ellipse cx="600" cy="405" rx="162" ry="131" stroke="#b0b599" stroke-width="5"/>
-                  <ellipse cx="600" cy="405" rx="162" ry="131" stroke="#435139" stroke-width="9" stroke-dasharray="2 8"/>
+                  <ellipse cx="600" cy="405" rx="440" ry="365" fill="var(--carto-wall-wash)" fill-opacity=".025" stroke="var(--carto-wall-shadow)" stroke-width="13"/>
+                  <ellipse cx="600" cy="405" rx="440" ry="365" stroke="var(--carto-wall)" stroke-width="5"/>
+                  <ellipse cx="600" cy="405" rx="440" ry="365" stroke="var(--carto-battlement)" stroke-width="9" stroke-dasharray="2 8"/>
+                  <ellipse cx="600" cy="405" rx="298" ry="246" fill="var(--carto-wall-wash)" fill-opacity=".035" stroke="var(--carto-wall-shadow)" stroke-width="12"/>
+                  <ellipse cx="600" cy="405" rx="298" ry="246" stroke="var(--carto-wall)" stroke-width="5"/>
+                  <ellipse cx="600" cy="405" rx="298" ry="246" stroke="var(--carto-battlement)" stroke-width="9" stroke-dasharray="2 8"/>
+                  <ellipse cx="600" cy="405" rx="162" ry="131" fill="var(--carto-wall-wash)" fill-opacity=".035" stroke="var(--carto-wall-shadow)" stroke-width="11"/>
+                  <ellipse cx="600" cy="405" rx="162" ry="131" stroke="var(--carto-wall)" stroke-width="5"/>
+                  <ellipse cx="600" cy="405" rx="162" ry="131" stroke="var(--carto-battlement)" stroke-width="9" stroke-dasharray="2 8"/>
                 </g>
                 <g id="district-art"></g>
                 <rect x="-600" y="-600" width="2400" height="2120" fill="url(#map-light)" pointer-events="none"/>

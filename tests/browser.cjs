@@ -102,6 +102,77 @@ async function main() {
       await assertNoHorizontalOverflow(page, 'desktop map');
     });
 
+    await test('map style follows the system preference for fresh and legacy saved sessions', async () => {
+      for (const colorScheme of ['light', 'dark']) {
+        for (const legacy of [false, true]) {
+          const ctx = await browser.newContext({ viewport: { width: 1440, height: 1040 }, colorScheme });
+          contexts.push(ctx);
+          const styled = await createPage(undefined, legacy ? () => {
+            localStorage.setItem('scout-atlas:v1', JSON.stringify({ cutoff: 47, viewing: 13, selected: 'shiganshina', notes: { '13:shiganshina': 'A note from before map styles' } }));
+          } : undefined, ctx);
+          const expected = colorScheme === 'light' ? 'parchment' : 'night';
+          assert.equal(await styled.locator('html').getAttribute('data-map-style'), expected, `${colorScheme}, legacy=${legacy}`);
+          assert.equal(await styled.locator(`button[data-map-style="${expected}"]`).getAttribute('aria-pressed'), 'true');
+          assert.equal(await styled.locator(`button[data-map-style="${expected === 'night' ? 'parchment' : 'night'}"]`).getAttribute('aria-pressed'), 'false');
+          if (legacy) {
+            assert.equal(await styled.locator('#episode-select').inputValue(), '13');
+            assert.equal(await styled.locator('.map-marker.selected').getAttribute('data-location'), 'shiganshina');
+            assert.equal(await styled.locator('#location-note').inputValue(), 'A note from before map styles');
+          }
+        }
+      }
+    });
+
+    await test('changing map style preserves exploration and notes, and the choice survives reload', async () => {
+      const ctx = await browser.newContext({ viewport: { width: 1440, height: 1040 }, colorScheme: 'light' });
+      contexts.push(ctx);
+      const styled = await createPage(undefined, undefined, ctx);
+      await episode(styled, 13);
+      await chooseLocation(styled, 'Shiganshina', 'shiganshina');
+      await styled.locator('#zoom-in').click();
+      await styled.locator('#layer-groups').uncheck({ force: true });
+      const note = 'Keep this field note while changing the map paper.';
+      await styled.locator('#location-note').fill(note);
+      await styled.locator('#save-note').click();
+      const camera = await styled.locator('#map-camera').getAttribute('transform');
+      const saved = await styled.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
+      for (const style of ['night', 'parchment', 'night']) {
+        await styled.locator(`button[data-map-style="${style}"]`).focus();
+        await styled.keyboard.press('Enter');
+        assert.equal(await styled.locator('html').getAttribute('data-map-style'), style);
+        assert.equal(await styled.locator(`button[data-map-style="${style}"]`).getAttribute('aria-pressed'), 'true');
+        assert.equal(await styled.locator('#map-camera').getAttribute('transform'), camera, 'changing style moved the camera');
+        assert.equal(await styled.locator('#episode-select').inputValue(), '13');
+        assert.equal(await styled.locator('.map-marker.selected').getAttribute('data-location'), 'shiganshina');
+        assert.equal(await styled.locator('#location-note').inputValue(), note);
+        const current = await styled.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
+        assert.deepEqual(current, { ...saved, mapStyle: style }, 'changing style altered other saved state');
+      }
+      await styled.reload({ waitUntil: 'load' });
+      assert.equal(await styled.locator('html').getAttribute('data-map-style'), 'night', 'saved style must override the light system preference');
+      assert.equal(await styled.locator('button[data-map-style="night"]').getAttribute('aria-pressed'), 'true');
+      assert.equal(await styled.locator('#episode-select').inputValue(), '13');
+      assert.equal(await styled.locator('.map-marker.selected').getAttribute('data-location'), 'shiganshina');
+      assert.equal(await styled.locator('#location-note').inputValue(), note);
+      assert.equal(await styled.locator('#layer-groups').isChecked(), false);
+    });
+
+    await test('both map styles remain reachable and work by touch on a phone', async () => {
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, colorScheme: 'dark' });
+      contexts.push(ctx);
+      const mobile = await createPage(undefined, undefined, ctx);
+      for (const style of ['parchment', 'night']) {
+        const button = mobile.locator(`button[data-map-style="${style}"]`);
+        assert.equal(await button.isVisible(), true);
+        const bounds = await button.boundingBox();
+        assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 391, `${style} control is outside the phone viewport`);
+        await button.tap();
+        assert.equal(await mobile.locator('html').getAttribute('data-map-style'), style);
+        assert.equal(await button.getAttribute('aria-pressed'), 'true');
+        await assertNoHorizontalOverflow(mobile, `mobile ${style} map`);
+      }
+    });
+
     await test('episode 1 shows nothing the atlas introduces later', async () => {
       await episode(page, 1);
       assert.deepEqual(await page.locator('#location-markers [data-location]').evaluateAll(items => items.map(item => item.dataset.location)), ['shiganshina']);
@@ -456,9 +527,15 @@ async function main() {
       await laptop.waitForTimeout(150);
       assert.ok(await laptop.evaluate(() => scrollY) > 0, 'page did not scroll');
       assert.equal(await laptop.locator('#zoom-level').innerText(), '100%');
+      // Page scrolling can move a short map away from the pointer. Start the
+      // separate zoom gesture over the map again, as a user would.
+      await laptop.locator('#map-stage').scrollIntoViewIfNeeded();
+      const zoomBox = await laptop.locator('#map-stage').boundingBox();
+      await laptop.mouse.move(zoomBox.x + zoomBox.width / 2, zoomBox.y + 100);
       await laptop.keyboard.down('Control');
       await laptop.mouse.wheel(0, -300);
       await laptop.keyboard.up('Control');
+      await laptop.waitForFunction(() => document.querySelector('#zoom-level').textContent !== '100%');
       assert.notEqual(await laptop.locator('#zoom-level').innerText(), '100%');
     });
 

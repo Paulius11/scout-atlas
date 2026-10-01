@@ -10,6 +10,7 @@
   const STORAGE_KEY = 'scout-atlas:v1';
   const MAX_EPISODE = Math.max(1, Math.trunc(Number(data.maxEpisode)) || 1);
   const episodeNumber = value => Math.min(MAX_EPISODE, Math.max(1, Math.trunc(Number(value)) || 1));
+  const isMapStyle = value => value === 'parchment' || value === 'night';
 
   // Versioned fields: the entry with the latest `from` at or before the episode wins.
   const at = (list, episode) => (list || []).reduce((found, item) => (item.from <= episode && (!found || item.from >= found.from) ? item : found), null);
@@ -46,6 +47,7 @@
     selected: typeof stored.selected === 'string' ? stored.selected
       : data.episodes.find(entry => entry.number === Math.min(cutoff, episodeNumber(stored.viewing ?? cutoff)))?.events.find(event => event.locationId)?.locationId || 'shiganshina',
     view: 'map',
+    mapStyle: isMapStyle(stored.mapStyle) ? stored.mapStyle : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'parchment' : 'night'),
     layers: { locations: true, groups: true, territory: true, walls: true, ...(stored.layers && typeof stored.layers === 'object' ? stored.layers : {}) },
     notes: readNotes(stored.notes),
     activeEvent: null,
@@ -69,7 +71,7 @@
       for (const key of pendingNotes) {
         if (key in state.notes) notes[key] = state.notes[key]; else delete notes[key];
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ cutoff: state.cutoff, viewing: state.viewing, selected: state.selected, layers: state.layers, notes }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ cutoff: state.cutoff, viewing: state.viewing, selected: state.selected, mapStyle: state.mapStyle, layers: state.layers, notes }));
       state.notes = notes;
       pendingNotes.clear();
       storageAvailable = true;
@@ -166,6 +168,10 @@
   }
 
   /* ---------- Header, views and controls ---------- */
+  function applyMapStyle() {
+    document.documentElement.dataset.mapStyle = state.mapStyle;
+    $$('button[data-map-style]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mapStyle === state.mapStyle)));
+  }
   const milestones = () => data.episodes.map(episode => episode.number).filter(number => number <= state.cutoff);
   function updateHeader() {
     const season = seasonOf(state.cutoff);
@@ -902,6 +908,14 @@
   }));
   document.addEventListener('click', event => {
     if (swallowClick) { swallowClick = false; if (event.target.closest('#atlas-map')) return; }
+    const mapStyleButton = event.target.closest('button[data-map-style]');
+    if (mapStyleButton && isMapStyle(mapStyleButton.dataset.mapStyle)) {
+      state.mapStyle = mapStyleButton.dataset.mapStyle;
+      // Change only the palette so the camera, open cards and note editor stay intact.
+      applyMapStyle();
+      persist();
+      return;
+    }
     const chip = event.target.closest('.map-person');
     if (chip) { openCard(chip, true); return; }
     if (event.target.closest('[data-close-card]')) { closeCard(); return; }
@@ -975,10 +989,9 @@
     if (state.view === 'map') applyCamera();
   });
 
+  applyMapStyle();
   render();
   applyCamera();
-  const stageBox = $('#map-stage').getBoundingClientRect();
-  $('#map-legend').open = stageBox.width >= 700 && stageBox.height >= 600;
   $('#map-legend').addEventListener('toggle', scheduleLayout);
   if (unreadableCopy) toast('Saved data could not be read. A copy was kept in this browser and the atlas started fresh.');
 })();
