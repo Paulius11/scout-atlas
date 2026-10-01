@@ -522,7 +522,11 @@ async function main() {
         await page.waitForFunction(() => [...document.querySelectorAll('#characters-view img.avatar')].every(img => img.complete));
         const broken = await page.locator('#characters-view img.avatar').evaluateAll(imgs => imgs.filter(img => !img.naturalWidth).map(img => img.src));
         assert.deepEqual(broken, []);
-        assert.equal(await page.locator('#character-hannes svg.avatar').count(), 1, 'someone without a picture gets a silhouette');
+        assert.equal(await page.locator('#character-armored svg.avatar').count(), 1, 'someone without a picture gets a silhouette');
+        await episode(page, 43);
+        assert.equal(await page.locator('#character-grisha svg.avatar').count(), 1, 'an episode still never shows before its episode');
+        await episode(page, 44);
+        assert.match(await page.locator('#character-grisha img.avatar').getAttribute('src'), /grisha-e44\.jpg$/);
         await view(page, 'map');
         await episode(page, MAX);
       });

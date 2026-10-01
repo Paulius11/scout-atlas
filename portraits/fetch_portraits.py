@@ -3,12 +3,17 @@
 
     python3 portraits/fetch_portraits.py          # needs network once, and Pillow (system python3 has it)
 
-The images are official promotional art from shingeki.tv, kept for personal use: they are git-ignored
-(see .gitignore) and never committed. Run this again on another machine instead of copying them.
+The images are committed next to this script (the scripts repo is private and they are kept for
+personal use), so a fresh clone needs no download. Run this only to re-create or re-crop them.
 
-Spoiler boundary: each season's art is shown only from that season's first episode, so a later design
-never appears while the viewer looks at an earlier episode. Add a season here only once the viewer has
-reached it. Only the ids below are fetched; nothing else on the official sites is read.
+Spoiler boundary: each season's art is shown only from that season's first episode, and each episode
+still only from its own episode, so a later design or scene never appears early. Add a source here only
+once the viewer has reached it. Only the ids below are fetched; nothing else on these sites is read.
+
+Sources: official character thumbnails and episode stills from shingeki.tv. Five people the official
+pages never show up close use their character portraits from MyAnimeList and AniList instead (checked
+by eye on 2026-10-01: plain portraits, no later designs). The Armored Titan and the smiling Titan have
+no usable picture, so they keep the drawn silhouette.
 """
 import io
 import json
@@ -36,6 +41,23 @@ SOURCES = [
     (38, 's3', 'https://shingeki.tv/season3/character/img/thumb_{}.png', (0, 6, 188, 194), SEASON_3),
 ]
 BACKGROUND = (58, 44, 34)  # the thumbnails' own brown, for any transparent pixels
+# Single pictures: (atlas id, file name, first overall episode shown, url, crop box on the original).
+# Episode stills are named -eNN after the episode they come from and never show before it.
+STILLS = [
+    ('carla', 'carla-e01.jpg', 1, 'https://shingeki.tv/season1/story/img/01/01_cut_01.jpg', (170, 40, 360, 230)),
+    ('colossal', 'colossal-e01.jpg', 1, 'https://shingeki.tv/season1/story/img/01/01_cut_04.jpg', (215, 10, 520, 315)),
+    ('hannes', 'hannes-e02.jpg', 2, 'https://shingeki.tv/season1/story/img/02/02_cut_02.jpg', (195, 0, 495, 300)),
+    ('pixis', 'pixis-e11.jpg', 11, 'https://shingeki.tv/season1/story/img/11/11_cut_03.jpg', (190, 5, 370, 185)),
+    ('female-titan', 'female-titan-e18.jpg', 18, 'https://shingeki.tv/season1/story/img/18/18_cut_04.jpg', (250, 0, 530, 280)),
+    ('female-titan', 'female-titan-e24.jpg', 24, 'https://shingeki.tv/season1/story/img/24/24_cut_03.jpg', (140, 0, 440, 300)),
+    ('beast', 'beast-e26.jpg', 26, 'https://shingeki.tv/season2/story/img/26/26_01.jpg', (140, 50, 470, 380)),
+    ('grisha', 'grisha-e44.jpg', 44, 'https://shingeki.tv/season3/story/img/season3/thumb_44.jpg', (110, 20, 259, 169)),
+    ('nick', 'nick-portrait.jpg', 26, 'https://cdn.myanimelist.net/images/characters/6/213227.jpg', (0, 15, 225, 240)),
+    ('kenny', 'kenny-portrait.jpg', 39, 'https://cdn.myanimelist.net/images/characters/8/364347.jpg', (0, 15, 225, 240)),
+    ('rod', 'rod-portrait.jpg', 40, 'https://s4.anilist.co/file/anilistcdn/character/large/127360-UgSpq6e0DAYz.jpg', (0, 10, 230, 240)),
+    ('marlo', 'marlo-portrait.jpg', 41, 'https://cdn.myanimelist.net/images/characters/15/220855.jpg', (0, 15, 225, 240)),
+    ('hitch', 'hitch-portrait.jpg', 41, 'https://cdn.myanimelist.net/images/characters/10/220845.jpg', (0, 15, 225, 240)),
+]
 
 
 def fetch(url):
@@ -44,22 +66,29 @@ def fetch(url):
         return response.read()
 
 
+def save(atlas_id, image, box, name):
+    flat = Image.new('RGBA', image.size, BACKGROUND + (255,))
+    flat.alpha_composite(image.convert('RGBA'))
+    flat.crop(box).resize((SIZE, SIZE), Image.LANCZOS).convert('RGB').save(HERE / name, quality=86, optimize=True)
+
+
 def main():
     manifest = {}
     for first, suffix, pattern, box, keys in SOURCES:
         for atlas_id, key in keys.items():
-            image = Image.open(io.BytesIO(fetch(pattern.format(key)))).convert('RGBA')
-            flat = Image.new('RGBA', image.size, BACKGROUND + (255,))
-            flat.alpha_composite(image)
-            portrait = flat.crop(box).resize((SIZE, SIZE), Image.LANCZOS).convert('RGB')
             name = f'{atlas_id}-{suffix}.jpg'
-            portrait.save(HERE / name, quality=86, optimize=True)
+            save(atlas_id, Image.open(io.BytesIO(fetch(pattern.format(key)))), box, name)
             manifest.setdefault(atlas_id, []).append({'from': first, 'file': name})
             print(f'{name}  from episode {first}')
-    # The earliest version starts where the character does in data.js.
+    for atlas_id, name, first, url, box in STILLS:
+        save(atlas_id, Image.open(io.BytesIO(fetch(url))), box, name)
+        manifest.setdefault(atlas_id, []).append({'from': first, 'file': name})
+        print(f'{name}  from episode {first}')
+    # Versions in episode order; none may start before the character is known in data.js.
     first_episode = dict(re.findall(r'id: "([\w-]+)", type: "\w+", firstEpisode: (\d+)', (HERE.parent / 'data.js').read_text(encoding='utf-8')))
     for atlas_id, versions in manifest.items():
-        versions[0]['from'] = int(first_episode[atlas_id])
+        versions.sort(key=lambda version: version['from'])
+        versions[0]['from'] = max(versions[0]['from'], int(first_episode[atlas_id]))
     body = ',\n'.join(f'  {json.dumps(k)}: {json.dumps(v, ensure_ascii=False)}' for k, v in sorted(manifest.items()))
     (HERE / 'portraits.js').write_text(
         '/* Portraits, written by fetch_portraits.py. Each id maps to a file name, or to a list of\n'

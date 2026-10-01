@@ -191,6 +191,9 @@ const ART_MAY_START_IN = { 2: 1 };
 check('portraits: no season art before its season', bad => {
   for (const [id, entry] of Object.entries(portraits)) {
     (Array.isArray(entry) ? entry : [{ from: 1, file: entry }]).forEach(v => {
+      // Episode stills (-eNN) never show before their own episode.
+      const still = Number((/-e(\d+)\./.exec(v.file) || [])[1]);
+      if (still && v.from < still) bad(`${id}: ${v.file} shown from E${v.from}, before its episode`);
       const season = Number((/-s(\d+)\./.exec(v.file) || [])[1]);
       if (!season) return;
       const allowed = d.seasons.find(s => s.season === (ART_MAY_START_IN[season] ?? season))?.first;

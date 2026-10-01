@@ -37,12 +37,16 @@ Notes and viewing/cutoff preferences use this browser's local storage, key `scou
 
 ## Portraits
 
-14 main characters show official character art from the anime's site, cropped to round portraits: Season 2 art up to episode 37, Season 3 art from episode 38, so a later design never appears early. Everyone else gets a drawn silhouette in their regiment's colour: a person, a Titan, or the Survey Corps wings.
+26 of the 28 people and Titans have a picture.
+- **Main characters:** official character art from the anime's site, cropped to round portraits. Season 2 art is used up to episode 37 and Season 3 art from episode 38.
+- **Supporting cast and three Titans:** Carla, Hannes, Pixis, Grisha, and the Colossal, Female and Beast Titans are cropped from official episode stills. Each still shows only from its own episode, so Grisha's (from episode 44) appears only from 44.
+- **Faces the official pages never show up close:** Pastor Nick, Kenny, Rod, Marlo and Hitch use their character portraits from MyAnimeList or AniList.
+- **No picture:** the Armored Titan and the smiling Titan keep a drawn Titan silhouette. No usable image exists without risking who they turn out to be.
 
-The pictures are official promotional art kept for personal use. They are **not committed** (`portraits/.gitignore`); on a new machine, fetch and crop them again:
+The pictures are official or fan-database art kept for personal use, committed in `portraits/` (the scripts repo is private), so a fresh clone has them and nothing needs downloading. To re-create or re-crop them:
 
 ```bash
-python3 scripts/etc/js/scout-atlas/portraits/fetch_portraits.py   # needs Pillow and the network once
+python3 scripts/etc/js/scout-atlas/portraits/fetch_portraits.py   # only to refresh; needs Pillow and the network
 ```
 
 The script writes the images and [`portraits/portraits.js`](portraits/portraits.js). Each id maps to a file, or to a list of `{ from, file }` versions chosen by the viewing episode. To add your own picture, put it in `portraits/` and add a line, for example `rod: "rod.jpg"`. Supported: `.jpg`, `.jpeg`, `.png`, `.webp`, file names only; a file that fails to load falls back to the silhouette. **Use pictures from episodes you have already watched.** The data lint rejects season art listed before its season starts.
@@ -66,7 +70,7 @@ Place cards contain only what is known at the episode they first appear. `firstE
 | `app.js` | Rendering, episode filtering, label layout, camera, local state |
 | `data.js` | Seasons, milestones, places, characters and positions |
 | `portraits/portraits.js` | Which picture each character shows, by episode |
-| `portraits/fetch_portraits.py` | Downloads and crops the official art (git-ignored images) |
+| `portraits/fetch_portraits.py` | Re-creates the committed portrait images (download and crop) |
 | `tests/data-lint.cjs` | Data checks, including the spoiler boundary |
 | `tests/browser.cjs` | Browser regression checks |
 
