@@ -11,6 +11,8 @@
   const MAX_EPISODE = Math.max(1, Math.trunc(Number(data.maxEpisode)) || 1);
   const episodeNumber = value => Math.min(MAX_EPISODE, Math.max(1, Math.trunc(Number(value)) || 1));
   const isMapStyle = value => value === 'parchment' || value === 'night';
+  const episodeTitles = new Map((data.episodeTitles || data.episodes).map(episode => [episode.number, episode.title]));
+  const titleOfEpisode = number => episodeTitles.get(number) || `Episode ${number}`;
 
   // Versioned fields: the entry with the latest `from` at or before the episode wins.
   const at = (list, episode) => (list || []).reduce((found, item) => (item.from <= episode && (!found || item.from >= found.from) ? item : found), null);
@@ -18,10 +20,6 @@
   const seasonText = number => { const season = seasonOf(number); return season ? `Season ${season.season}, episode ${number - season.first + 1}` : `Episode ${number}`; };
 
   /* ---------- Storage ---------- */
-  const readNotes = value => (value && typeof value === 'object' && !Array.isArray(value)
-    ? Object.fromEntries(Object.entries(value).filter(([key, note]) => /^\d+:[\w-]+$/.test(key) && typeof note === 'string'))
-    : {});
-  let storageAvailable = true;
   let unreadableCopy = null;
   let stored = {};
   try {
@@ -37,7 +35,7 @@
         try { localStorage.setItem(unreadableCopy, raw); } catch { unreadableCopy = null; }
       }
     }
-  } catch { storageAvailable = false; }
+  } catch { /* Exploration also works when browser storage is unavailable. */ }
 
   const cutoff = episodeNumber(stored.cutoff ?? MAX_EPISODE);
   const state = {
@@ -49,7 +47,6 @@
     view: 'map',
     mapStyle: isMapStyle(stored.mapStyle) ? stored.mapStyle : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'parchment' : 'night'),
     layers: { locations: true, groups: true, territory: true, walls: true, ...(stored.layers && typeof stored.layers === 'object' ? stored.layers : {}) },
-    notes: readNotes(stored.notes),
     activeEvent: null,
     focusCharacter: null,
     characterFilter: '',
@@ -59,25 +56,16 @@
     panX: 0,
     panY: 0
   };
-  // Note keys this tab changed since its last successful write.
-  const pendingNotes = new Set();
-
-  // Other tabs may have saved notes since this tab loaded, so merge instead of overwriting.
   function persist() {
     try {
       let current = {};
       try { current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch { current = {}; }
-      const notes = readNotes(current.notes);
-      for (const key of pendingNotes) {
-        if (key in state.notes) notes[key] = state.notes[key]; else delete notes[key];
-      }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ cutoff: state.cutoff, viewing: state.viewing, selected: state.selected, mapStyle: state.mapStyle, layers: state.layers, notes }));
-      state.notes = notes;
-      pendingNotes.clear();
-      storageAvailable = true;
+      const saved = { cutoff: state.cutoff, viewing: state.viewing, selected: state.selected, mapStyle: state.mapStyle, layers: state.layers };
+      // Preserve legacy notes without exposing a removed feature or erasing existing user data.
+      if (Object.prototype.hasOwnProperty.call(current, 'notes')) saved.notes = current.notes;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
       return true;
     } catch {
-      storageAvailable = false;
       return false;
     }
   }
@@ -107,10 +95,6 @@
   const peopleAt = locationId => visibleCharacters().flatMap(character => {
     const position = lastPosition(character);
     return position && position.locationId === locationId ? [{ character, position }] : [];
-  });
-  const availableNotes = () => Object.entries(state.notes).filter(([key, note]) => {
-    const [episode, locationId] = key.split(':');
-    return Number(episode) <= state.viewing && Number(episode) >= 1 && note.trim() && getLocation(locationId);
   });
   // Held/lost ground and gate states, as of the viewing episode.
   const statusHistory = target => (data.status || []).filter(item => item.target === target && item.from <= state.viewing).sort((a, b) => a.from - b.from);
@@ -187,23 +171,23 @@
       const last = Math.min(state.cutoff, season.last ?? state.cutoff);
       const options = [];
       for (let number = season.first; number <= last; number += 1) {
-        const episode = data.episodes.find(entry => entry.number === number);
-        options.push(`<option value="${number}" ${number === state.viewing ? 'selected' : ''}>E${pad(number)}${episode ? `  ${escapeHTML(episode.shortTitle)}` : ''}</option>`);
+        options.push(`<option value="${number}" ${number === state.viewing ? 'selected' : ''}>E${pad(number)}  ${escapeHTML(titleOfEpisode(number))}</option>`);
       }
       return `<optgroup label="Season ${season.season}">${options.join('')}</optgroup>`;
     });
     $('#episode-select').innerHTML = groups.join('');
+    $('#episode-select').title = titleOfEpisode(state.viewing);
+    $('#expanded-map-episode').textContent = `Episode ${state.viewing} · ${titleOfEpisode(state.viewing)}`;
+    $('#expanded-gallery-episode').textContent = `Episode ${state.viewing} · ${titleOfEpisode(state.viewing)}`;
     const numbers = milestones();
     $('#prev-milestone').disabled = !numbers.some(number => number < state.viewing);
     $('#next-milestone').disabled = !numbers.some(number => number > state.viewing);
-    $('#note-count').textContent = availableNotes().length;
     $('#character-count').textContent = visibleCharacters().filter(character => character.type !== 'group').length;
     const milestone = data.episodes.find(entry => entry.number === state.viewing);
     const headings = {
-      map: ['Find your bearings.', milestone ? `Episode ${milestone.number}, “${milestone.title}”: ${milestone.description}` : `Episode ${state.viewing} has no milestone of its own; the map shows everything known by then.`],
-      recap: ['Connect the pieces.', `A briefing built only from what is known through episode ${state.viewing}.`],
-      characters: ['Who’s who.', `Everyone the atlas knows about as of episode ${state.viewing}, and only what is known by then.`],
-      notes: ['Keep your own record.', 'Your observations. Your questions. Your theories.']
+      map: ['Explore the atlas.', milestone ? `Episode ${milestone.number} · ${milestone.description}` : `Episode ${state.viewing} has no milestone of its own; the map shows everything known by then.`],
+      recap: ['The story so far.', `A briefing built only from what is known through episode ${state.viewing}.`],
+      characters: ['The people.', `Everyone the atlas knows about as of episode ${state.viewing}, and only what is known by then.`]
     }[state.view];
     $('#page-title').textContent = headings[0];
     $('#page-description').textContent = headings[1];
@@ -213,7 +197,7 @@
       button.classList.toggle('active', active);
       if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
     });
-    ['map', 'recap', 'characters', 'notes'].forEach(view => { $(`#${view}-view`).hidden = state.view !== view; });
+    ['map', 'recap', 'characters'].forEach(view => { $(`#${view}-view`).hidden = state.view !== view; });
   }
 
   /* ---------- Map ---------- */
@@ -468,19 +452,19 @@
 
   /* ---------- Location panel ---------- */
   const SCENERY = {
-    district: '<path d="M0 66H300V104H0Z" fill="#637258"/><path d="M0 65H300M0 75H300M0 86H300M0 97H300" stroke="#263b2c" stroke-width="1"/><path d="M0 61h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12" fill="none" stroke="#8e9a72" stroke-width="4"/><path d="M175 106V84a14 14 0 0 1 28 0v22" fill="#26392b"/><g fill="#4b5c42" stroke="#253626" stroke-width="1"><path d="M9 111V93l17-15 18 15v18Zm29 6V97l20-15 19 15v20Zm37-5V86l16-13 19 13v26Zm37 6V94l22-18 20 18v24Zm115-4V91l16-15 18 15v23Zm32 4V99l22-16 18 16v19Z"/></g><g fill="#a2ac80" opacity=".5"><path d="M22 96h5v6h-5Zm31 5h5v6h-5Zm37-10h5v6h-5Zm38 8h5v6h-5Zm116-3h5v6h-5Zm31 8h5v6h-5Z"/></g>',
-    forest: '<g stroke="#a5b18b" stroke-width="7" opacity=".4"><path d="M40 120V0m-1 37L15 10m25 39 31-26M111 120V0m0 53L79 19m32 59 37-28M190 120V0m0 40L168 9m22 47 27-35M259 120V0m0 74-38-20m38-11 25-21"/></g>',
-    village: '<path d="M0 86Q150 76 300 88V120H0Z" fill="#3f4f38"/><g fill="#4b5c42" stroke="#253626"><path d="M40 98V82l15-13 15 13v16Z"/><path d="M96 102V89l12-10 12 10v13Z"/><path d="M186 99V83l14-12 14 12v16Z"/><path d="M236 104V93l10-8 10 8v11Z"/></g><path d="M0 108h300M14 102v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12" stroke="#76866a" stroke-width="2" opacity=".6"/>',
-    castle: '<path d="M0 104Q90 70 160 74T300 100V120H0Z" fill="#3a4a35"/><path d="M118 80V38h7v-6h6v6h7v-6h6v6h7v-6h6v6h7v42Z" fill="#4b5c42" stroke="#253626"/><path d="M170 82V58h6v-5h6v5h6v-5h6v29Z" fill="#46573e" stroke="#253626"/><path d="M134 80V64a6 6 0 0 1 12 0v16" fill="#24362a"/><path d="M129 48h4v6h-4Zm16 0h4v6h-4Z" fill="#a2ac80" opacity=".5"/>',
-    wall: '<path d="M0 40H300V120H0Z" fill="#5d6c52"/><path d="M0 36h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14" fill="none" stroke="#8e9a72" stroke-width="5"/><path d="M0 56H300M0 72H300M0 88H300M0 104H300M40 40v16m60 0v16m-30 0v16m90-32v16m60 0v16m-30 0v16m60-48v16" stroke="#34463a" stroke-width="1.2"/>',
-    field: '<path d="M0 80Q150 70 300 82V120H0Z" fill="#3e4d37"/><g fill="#2f3f2c"><path d="M20 80q6-14 12 0Zm18 1q5-10 10 0Zm210-2q6-13 12 0Zm18 1q5-10 10 0Z"/></g><path d="M20 100q10-4 20 0m30 6q10-4 20 0m40-10q10-4 20 0m40 8q10-4 20 0m30-6q10-4 20 0" stroke="#7f8f68" stroke-width="1.5" fill="none" opacity=".7"/>',
-    chapel: '<path d="M0 84H300V120H0Z" fill="#33432f"/><g stroke="#a5b18b" stroke-width="4" opacity=".3"><path d="M40 84V20m220 64V26"/></g><path d="M128 84V58l22-18 22 18v26Z" fill="#4b5c42" stroke="#253626"/><path d="M144 44V28l6-9 6 9v16" fill="#46573e" stroke="#253626"/><path d="M145 84V70a5 5 0 0 1 10 0v14" fill="#24362a"/><path d="M104 120q46-30 92 0Z" fill="#1b261d"/><path d="M120 116l9-8 6 5 10-9 8 7 9-6 8 7" stroke="#9fc4c0" stroke-width="1.4" fill="none" opacity=".45"/>',
-    capital: '<path d="M0 88H300V120H0Z" fill="#3f4f38"/><g fill="#4b5c42" stroke="#253626"><path d="M14 110V86h22v24Zm28 0V78h18v32Zm26 0V90h20v20Zm120 0V82h20v28Zm26 0V88h24v22Zm30 0V80h18v30Z"/><path d="M110 110V66h80v44Z"/><path d="M122 66V50l28-16 28 16v16Z"/><path d="M146 34V20l4-6 4 6v14"/></g><g fill="#a2ac80" opacity=".5"><path d="M130 80h6v8h-6Zm18 0h6v8h-6Zm18 0h6v8h-6Z"/></g>'
+    district: '<path d="M0 66H300V104H0Z" fill="var(--scene-wall)"/><path d="M0 65H300M0 75H300M0 86H300M0 97H300" stroke="var(--scene-dark)" stroke-width="1"/><path d="M0 61h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12v-8h12v8h12" fill="none" stroke="var(--scene-light)" stroke-width="4"/><path d="M175 106V84a14 14 0 0 1 28 0v22" fill="var(--scene-dark)"/><g fill="var(--scene-mid)" stroke="var(--scene-dark)" stroke-width="1"><path d="M9 111V93l17-15 18 15v18Zm29 6V97l20-15 19 15v20Zm37-5V86l16-13 19 13v26Zm37 6V94l22-18 20 18v24Zm115-4V91l16-15 18 15v23Zm32 4V99l22-16 18 16v19Z"/></g><g fill="var(--scene-light)" opacity=".5"><path d="M22 96h5v6h-5Zm31 5h5v6h-5Zm37-10h5v6h-5Zm38 8h5v6h-5Zm116-3h5v6h-5Zm31 8h5v6h-5Z"/></g>',
+    forest: '<g stroke="var(--scene-light)" stroke-width="7" opacity=".4"><path d="M40 120V0m-1 37L15 10m25 39 31-26M111 120V0m0 53L79 19m32 59 37-28M190 120V0m0 40L168 9m22 47 27-35M259 120V0m0 74-38-20m38-11 25-21"/></g>',
+    village: '<path d="M0 86Q150 76 300 88V120H0Z" fill="var(--scene-ground)"/><g fill="var(--scene-mid)" stroke="var(--scene-dark)"><path d="M40 98V82l15-13 15 13v16Z"/><path d="M96 102V89l12-10 12 10v13Z"/><path d="M186 99V83l14-12 14 12v16Z"/><path d="M236 104V93l10-8 10 8v11Z"/></g><path d="M0 108h300M14 102v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12m24-12v12" stroke="var(--scene-wall)" stroke-width="2" opacity=".6"/>',
+    castle: '<path d="M0 104Q90 70 160 74T300 100V120H0Z" fill="var(--scene-ground)"/><path d="M118 80V38h7v-6h6v6h7v-6h6v6h7v-6h6v6h7v42Z" fill="var(--scene-mid)" stroke="var(--scene-dark)"/><path d="M170 82V58h6v-5h6v5h6v-5h6v29Z" fill="var(--scene-mid)" stroke="var(--scene-dark)"/><path d="M134 80V64a6 6 0 0 1 12 0v16" fill="var(--scene-dark)"/><path d="M129 48h4v6h-4Zm16 0h4v6h-4Z" fill="var(--scene-light)" opacity=".5"/>',
+    wall: '<path d="M0 40H300V120H0Z" fill="var(--scene-wall)"/><path d="M0 36h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14v-8h14v8h14" fill="none" stroke="var(--scene-light)" stroke-width="5"/><path d="M0 56H300M0 72H300M0 88H300M0 104H300M40 40v16m60 0v16m-30 0v16m90-32v16m60 0v16m-30 0v16m60-48v16" stroke="var(--scene-dark)" stroke-width="1.2"/>',
+    field: '<path d="M0 80Q150 70 300 82V120H0Z" fill="var(--scene-ground)"/><g fill="var(--scene-dark)"><path d="M20 80q6-14 12 0Zm18 1q5-10 10 0Zm210-2q6-13 12 0Zm18 1q5-10 10 0Z"/></g><path d="M20 100q10-4 20 0m30 6q10-4 20 0m40-10q10-4 20 0m40 8q10-4 20 0m30-6q10-4 20 0" stroke="var(--scene-wall)" stroke-width="1.5" fill="none" opacity=".7"/>',
+    chapel: '<path d="M0 84H300V120H0Z" fill="var(--scene-ground)"/><g stroke="var(--scene-light)" stroke-width="4" opacity=".3"><path d="M40 84V20m220 64V26"/></g><path d="M128 84V58l22-18 22 18v26Z" fill="var(--scene-mid)" stroke="var(--scene-dark)"/><path d="M144 44V28l6-9 6 9v16" fill="var(--scene-mid)" stroke="var(--scene-dark)"/><path d="M145 84V70a5 5 0 0 1 10 0v14" fill="var(--scene-dark)"/><path d="M104 120q46-30 92 0Z" fill="var(--scene-dark)"/><path d="M120 116l9-8 6 5 10-9 8 7 9-6 8 7" stroke="var(--scene-reflection)" stroke-width="1.4" fill="none" opacity=".45"/>',
+    capital: '<path d="M0 88H300V120H0Z" fill="var(--scene-ground)"/><g fill="var(--scene-mid)" stroke="var(--scene-dark)"><path d="M14 110V86h22v24Zm28 0V78h18v32Zm26 0V90h20v20Zm120 0V82h20v28Zm26 0V88h24v22Zm30 0V80h18v30Z"/><path d="M110 110V66h80v44Z"/><path d="M122 66V50l28-16 28 16v16Z"/><path d="M146 34V20l4-6 4 6v14"/></g><g fill="var(--scene-light)" opacity=".5"><path d="M130 80h6v8h-6Zm18 0h6v8h-6Zm18 0h6v8h-6Z"/></g>'
   };
   function illustration(location) {
     // Original decorative drawings, never episode screenshots.
     const scene = SCENERY[location.kind] || SCENERY.district;
-    return `<div class="panel-illustration" aria-hidden="true"><svg viewBox="0 0 300 120" preserveAspectRatio="xMidYMid slice"><rect width="300" height="120" fill="#28372b"/><circle cx="218" cy="30" r="21" fill="#bdc597" opacity=".12"/><path d="M0 57 24 38 59 48 103 26 147 46 186 35 232 58 279 37 300 47V120H0Z" fill="#3e4d37" opacity=".5"/>${scene}<path d="M0 115Q150 93 300 113V120H0Z" fill="#213023"/></svg><span class="panel-image-tag">${escapeHTML(KIND_LABEL[location.kind] || 'Place')}</span></div>`;
+    return `<div class="panel-illustration" aria-hidden="true"><svg viewBox="0 0 300 120" preserveAspectRatio="xMidYMid slice"><rect width="300" height="120" fill="var(--scene-sky)"/><circle cx="218" cy="30" r="21" fill="var(--scene-light)" opacity=".12"/><path d="M0 57 24 38 59 48 103 26 147 46 186 35 232 58 279 37 300 47V120H0Z" fill="var(--scene-ground)" opacity=".5"/>${scene}<path d="M0 115Q150 93 300 113V120H0Z" fill="var(--scene-dark)"/></svg><span class="panel-image-tag">${escapeHTML(KIND_LABEL[location.kind] || 'Place')}</span></div>`;
   }
   function eventCard(event) {
     return `<article class="event-card" data-event-id="${escapeHTML(event.id)}"><p class="episode-tag">Episode ${event.episode}</p><h4>${escapeHTML(event.title)}</h4><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}<div class="event-foot">${knowledgeBadge(event.kind)}</div>${peopleList(event.people, { compact: true })}</article>`;
@@ -496,47 +480,25 @@
     const gates = statusHistory(`gate:${location.id}`);
     const lost = statusOf('belt:maria-rose')?.state === 'lost' && location.tags.some(tag => tag === 'Between the walls' || tag === 'Beyond Wall Rose') ? statusOf('belt:maria-rose') : null;
     const here = peopleAt(location.id);
-    const note = state.notes[`${state.viewing}:${location.id}`] || '';
-    const earlier = availableNotes()
-      .filter(([key]) => key.split(':')[1] === location.id && Number(key.split(':')[0]) < state.viewing)
-      .sort((a, b) => Number(b[0].split(':')[0]) - Number(a[0].split(':')[0]));
     $('#location-panel').innerHTML = `${illustration(location)}<div class="panel-content">
-      <p class="panel-kicker">As of episode ${state.viewing}</p><h2>${escapeHTML(location.name)}</h2><p class="panel-subtitle">${escapeHTML(location.subtitle)}</p>${knowledgeBadge('approximate')}
+      <header class="place-heading"><p class="panel-kicker">As of episode ${state.viewing}</p><h2>${escapeHTML(location.name)}</h2><p class="panel-subtitle">${escapeHTML(location.subtitle)}</p></header>${knowledgeBadge('approximate')}
       ${gates.length || lost ? `<p class="status-line">${gates.map(gate => `<span class="status-chip gate-${escapeHTML(gate.state)}">Gate ${escapeHTML(gate.state)}, E${gate.from}</span>`).join('')}${lost ? `<span class="status-chip gate-breached">Lost ground since E${lost.from}</span>` : ''}</p>` : ''}
       ${thisEpisode.length ? `<section class="panel-block now-block"><h3>This episode</h3>${thisEpisode.map(eventCard).join('')}</section>` : ''}
       <section class="panel-block"><h3>${thisEpisode.length ? 'Earlier here' : 'What happened here'}</h3>${earlierEvents.length ? earlierEvents.map(eventCard).join('') : `<p>${thisEpisode.length ? 'Nothing earlier is recorded here.' : 'No event is recorded here by the selected episode.'}</p>`}</section>
       ${here.length ? `<section class="panel-block"><h3>Last recorded here</h3>${here.map(({ character, position }) => `<button class="person-row" data-open-character="${escapeHTML(character.id)}">${avatar(character, 'sm')}<span><strong>${escapeHTML(nameOf(character))}</strong><small>Episode ${position.episode}. ${escapeHTML(position.note)}</small></span></button>`).join('')}</section>` : ''}
-      <section class="panel-block"><h3>My field note, episode ${state.viewing}</h3><label class="sr-only" for="location-note">Note about ${escapeHTML(location.name)} at episode ${state.viewing}</label><textarea id="location-note" class="note-input" maxlength="4000" placeholder="A question, a connection, a theory…">${escapeHTML(note)}</textarea><div class="note-save-row"><span id="save-status">${storageAvailable ? 'Saved automatically in this browser' : 'Storage unavailable; kept for this session'}</span><button class="save-note" id="save-note">Save note</button></div>
-        ${earlier.length ? `<div class="earlier-notes"><h4>Your earlier notes here</h4>${earlier.map(([key, text]) => `<blockquote><p class="episode-tag">Written at episode ${Number(key.split(':')[0])}</p><p>${escapeHTML(text)}</p></blockquote>`).join('')}</div>` : ''}
-      </section>
       <section class="panel-block"><h3>About this place</h3><p>${escapeHTML(location.summary)}</p><p class="why-text">${escapeHTML(location.why)}</p></section>
       <p class="panel-footnote"><strong>Map accuracy.</strong> ${escapeHTML(location.geography)}</p>
     </div>`;
-    $('#location-note').addEventListener('input', saveNote);
-    $('#save-note').addEventListener('click', () => {
-      saveNote();
-      toast(storageAvailable ? ($('#location-note').value.trim() ? 'Field note saved on this device.' : 'Empty field note removed.') : 'Browser storage is unavailable. Note kept for this session.');
-    });
-  }
-  function saveNote() {
-    const input = $('#location-note');
-    if (!input || !state.selected) return;
-    const key = `${state.viewing}:${state.selected}`;
-    if (input.value.trim()) state.notes[key] = input.value; else delete state.notes[key];
-    pendingNotes.add(key);
-    persist();
-    $('#note-count').textContent = availableNotes().length;
-    $('#save-status').textContent = storageAvailable ? 'Saved on this device' : 'Storage unavailable; kept for this session';
   }
 
-  /* ---------- Timeline, recap, characters, notes ---------- */
+  /* ---------- Timeline, recap, characters ---------- */
   function renderTimeline() {
     const episodes = visibleEpisodes();
     $('#timeline-count').textContent = `${episodes.length} of ${data.episodes.length} milestones`;
     $('#timeline-track').innerHTML = episodes.map(episode => {
       const places = [...new Set(episode.events.map(event => event.locationId).filter(Boolean))].map(getLocation).filter(Boolean);
       const where = places.length ? places.map(place => place.mapLabel || place.name).join(', ') : 'Not pinned on the map';
-      return `<button class="timeline-event ${episode.number === state.viewing ? 'active' : ''}" data-episode="${episode.number}" aria-label="View episode ${episode.number}: ${escapeHTML(episode.shortTitle)}, ${escapeHTML(where)}" ${episode.number === state.viewing ? 'aria-current="step"' : ''}><span class="time-number">Episode ${episode.number}</span><strong>${escapeHTML(episode.shortTitle)}</strong><span class="time-place">${escapeHTML(where)}</span></button>`;
+      return `<button class="timeline-event ${episode.number === state.viewing ? 'active' : ''}" data-episode="${episode.number}" title="${escapeHTML(episode.title)}" aria-label="View episode ${episode.number}: ${escapeHTML(episode.title)}, ${escapeHTML(where)}" ${episode.number === state.viewing ? 'aria-current="step"' : ''}><span class="time-number">E${pad(episode.number)}</span><strong>${escapeHTML(episode.title)}</strong><span class="time-place">${escapeHTML(where)}</span></button>`;
     }).join('');
     centerTimeline();
   }
@@ -548,10 +510,10 @@
   function renderRecap() {
     const currentEpisode = data.episodes.find(episode => episode.number === state.viewing);
     const events = visibleEvents().slice().reverse();
-    $('#recap-view').innerHTML = `<div class="recap-intro">${icon('shield')}<div><p class="panel-kicker">Briefing, episode ${state.viewing}</p><h2>${currentEpisode ? escapeHTML(currentEpisode.shortTitle) : 'Your story so far'}</h2><p>${escapeHTML(currentEpisode?.description || `No new milestone is mapped for episode ${state.viewing}. Below are the selected events established by this point.`)}</p><p class="coverage-note">A selective recap, newest first. Some events happen in places the atlas cannot pin.</p></div></div><div class="recap-grid">${events.map(event => {
+    $('#recap-view').innerHTML = `<div class="recap-intro">${icon('shield')}<div><p class="panel-kicker">Briefing, episode ${state.viewing}</p><h2>${escapeHTML(titleOfEpisode(state.viewing))}</h2><p>${escapeHTML(currentEpisode?.description || `No new milestone is mapped for episode ${state.viewing}. Below are the selected events established by this point.`)}</p><p class="coverage-note">A selective recap, newest first. Some events happen in places the atlas cannot pin.</p></div></div><div class="recap-grid">${events.map((event, index) => {
       const location = event.locationId ? getLocation(event.locationId) : null;
       if (event.locationId && !location) return '';
-      return `<article class="recap-card"><p class="recap-meta">Episode ${event.episode}${location ? `, ${escapeHTML(location.name)}` : ''}</p><h3>${escapeHTML(event.title)}</h3><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}${knowledgeBadge(event.kind)}${peopleList(event.people, { compact: true })}${location ? `<button class="card-link" data-open-event="${escapeHTML(event.id)}">Find it on the map</button>` : '<p class="unpinned">Not pinned on the map</p>'}</article>`;
+      return `<article class="recap-card${index === 0 ? ' recap-lead' : ''}">${index === 0 ? '<p class="recap-label">Latest recorded moment</p>' : ''}<p class="recap-meta">Episode ${event.episode}${location ? `, ${escapeHTML(location.name)}` : ''}</p><h3>${escapeHTML(event.title)}</h3><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}${knowledgeBadge(event.kind)}${peopleList(event.people, { compact: true })}${location ? `<button class="card-link" data-open-event="${escapeHTML(event.id)}">Find it on the map</button>` : '<p class="unpinned">Not pinned on the map</p>'}</article>`;
     }).join('')}</div>`;
   }
   const CHARACTER_SECTIONS = [
@@ -568,13 +530,16 @@
     const notes = (character.notes || []).filter(note => note.episode <= state.viewing).sort((a, b) => b.episode - a.episode);
     const noteItem = note => `<li><span class="note-episode">E${pad(note.episode)}</span><span>${escapeHTML(note.text)}</span></li>`;
     return `<article class="character-card faction-${factionOf(character)}${revealed ? ' revealed' : ''}${state.focusCharacter === character.id ? ' focused' : ''}" id="character-${escapeHTML(character.id)}" data-character="${escapeHTML(character.id)}" tabindex="-1">
-      <header>${avatar(character, 'lg')}<div><h3>${escapeHTML(nameOf(character))}</h3><p class="character-role">${escapeHTML(roleOf(character))}</p></div></header>
-      ${revealed ? `<p class="reveal-line">Revealed in episode ${character.revealedAs.episode}: <button class="inline-link" data-open-character="${escapeHTML(revealed.id)}">${escapeHTML(nameOf(revealed))}</button></p>` : ''}
-      ${notes.length ? `<ol class="character-notes">${notes.slice(0, 3).map(noteItem).join('')}</ol>` : ''}
-      ${notes.length > 3 ? `<details class="more-notes"><summary>Earlier (${notes.length - 3})</summary><ol class="character-notes">${notes.slice(3).map(noteItem).join('')}</ol></details>` : ''}
-      <footer>${position ? (place
-        ? `<button class="card-link" data-open-place="${escapeHTML(place.id)}">Last recorded at ${escapeHTML(place.name)}, episode ${position.episode}</button>`
-        : `<span>Last recorded in episode ${position.episode}, somewhere this map does not place.</span>`) : ''}<span class="since">In the atlas from episode ${character.firstEpisode}</span></footer>
+      <header>${avatar(character, 'lg')}<div><h3>${escapeHTML(nameOf(character))}</h3><p class="character-role" title="${escapeHTML(roleOf(character))}">${escapeHTML(roleOf(character))}</p></div></header>
+      <details class="character-about"><summary>About <span class="sr-only">${escapeHTML(nameOf(character))}</span></summary>
+        <p class="character-description">${escapeHTML(roleOf(character))}</p>
+        ${revealed ? `<p class="reveal-line">Revealed in episode ${character.revealedAs.episode}: <button class="inline-link" data-open-character="${escapeHTML(revealed.id)}">${escapeHTML(nameOf(revealed))}</button></p>` : ''}
+        ${notes.length ? `<ol class="character-notes">${notes.slice(0, 3).map(noteItem).join('')}</ol>` : ''}
+        ${notes.length > 3 ? `<details class="more-notes"><summary>Earlier (${notes.length - 3})</summary><ol class="character-notes">${notes.slice(3).map(noteItem).join('')}</ol></details>` : ''}
+        <footer>${position ? (place
+          ? `<button class="card-link" data-open-place="${escapeHTML(place.id)}">Last recorded at ${escapeHTML(place.name)}, episode ${position.episode}</button>`
+          : `<span>Last recorded in episode ${position.episode}, somewhere this map does not place.</span>`) : ''}<span class="since">In the atlas from episode ${character.firstEpisode}</span></footer>
+      </details>
     </article>`;
   }
   function renderCharacters() {
@@ -590,16 +555,11 @@
     const chips = [['all', 'Everyone', matches.length], ...CHARACTER_SECTIONS.map(([title]) => [title, title, counts[title]])]
       .filter(([, , count], index) => index === 0 || count)
       .map(([value, label, count]) => `<button class="filter-chip" data-faction-filter="${escapeHTML(value)}" aria-pressed="${state.characterFaction === value}">${escapeHTML(label)} <span>${count}</span></button>`).join('');
-    $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"></div>${sections || '<p class="search-empty">No character matches that filter at this episode.</p>'}`;
-  }
-  function renderNotes() {
-    const notes = availableNotes().sort((a, b) => Number(b[0].split(':')[0]) - Number(a[0].split(':')[0]));
-    $('#notes-view').innerHTML = notes.length ? `<div class="recap-intro">${icon('note')}<div><h2 id="notes-heading" tabindex="-1">Your personal field journal</h2><p>Notes from episodes 1–${state.viewing}. Each note belongs to a place and the episode you were viewing. Later notes stay out of earlier briefings.</p></div></div><div class="notes-grid">${notes.map(([key, note]) => {
-      const [episode, locationId] = key.split(':');
-      return `<article class="field-note"><p class="recap-meta">Written at episode ${Number(episode)}</p><h3>${escapeHTML(getLocation(locationId).name)}</h3><p class="note-text">${escapeHTML(note)}</p><div class="note-actions"><button data-open-note="${escapeHTML(key)}">Open on the map</button><button data-delete-note="${escapeHTML(key)}">Delete note</button></div></article>`;
-    }).join('')}</div>` : `<div class="empty-state">${icon('note')}<h2 id="notes-heading" tabindex="-1">Every scout keeps a notebook.</h2><p>Select a place on the map and write down a question, a connection, or your own theory. Notes stay in this browser.</p><button class="primary-button" data-view="map">Explore the map</button></div>`;
+    $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><div class="gallery-actions"><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"><button type="button" id="expand-gallery" class="expand-gallery" aria-haspopup="dialog" aria-controls="expanded-gallery-dialog">${icon('expand')}Expand gallery</button></div></div>${sections || '<p class="search-empty">No character matches that filter at this episode.</p>'}`;
   }
   function render({ save = true } = {}) {
+    if (state.view !== 'map') closeExpandedMap();
+    if (state.view !== 'characters') closeExpandedGallery();
     closeCard();
     ensureSelection();
     updateHeader();
@@ -612,7 +572,6 @@
     renderTimeline();
     renderRecap();
     renderCharacters();
-    renderNotes();
     // Search results are rebuilt from the current visibility boundary, never retained across it.
     $('#location-search').value = '';
     $('#search-results').hidden = true;
@@ -626,6 +585,7 @@
     state.view = view;
     render();
     if (view === 'map') applyCamera();
+    if (window.matchMedia('(max-width: 760px)').matches) $('main').scrollIntoView({ block: 'start' });
   }
   function selectLocation(id, { focus = false } = {}) {
     if (!getLocation(id)) return;
@@ -695,13 +655,20 @@
   const map = $('#atlas-map');
   $('defs', map).insertAdjacentHTML('beforeend', '<clipPath id="avatar-clip" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath>');
   function applyCamera() {
+    // In a tall expanded window, use its full height instead of shrinking the drawing
+    // to fit the phone's width. The camera stays centred and the remaining ground can be panned.
+    const stage = $('#map-stage');
+    const viewWidth = $('#expanded-map-dialog').open && stage.clientHeight > 0
+      ? Math.min(VIEW.width, VIEW.height * stage.clientWidth / stage.clientHeight) : VIEW.width;
+    map.setAttribute('viewBox', `${VIEW.cx - viewWidth / 2} ${VIEW.y} ${viewWidth} ${VIEW.height}`);
+    const viewport = map.viewBox.baseVal;
     // Keep a good part of the walled area (Wall Maria: x 160–1040, y 40–770) on screen:
     // at least 45% of the view or of the walls, whichever is smaller, along each axis.
     const zoom = state.zoom;
-    const needX = Math.min(VIEW.width, 880 * zoom) * 0.45;
-    const needY = Math.min(VIEW.height, 730 * zoom) * 0.45;
-    state.panX = Math.min(VIEW.x + VIEW.width - needX - 160 * zoom, Math.max(VIEW.x + needX - 1040 * zoom, state.panX));
-    state.panY = Math.min(VIEW.y + VIEW.height - needY - 40 * zoom, Math.max(VIEW.y + needY - 770 * zoom, state.panY));
+    const needX = Math.min(viewport.width, 880 * zoom) * 0.45;
+    const needY = Math.min(viewport.height, 730 * zoom) * 0.45;
+    state.panX = Math.min(viewport.x + viewport.width - needX - 160 * zoom, Math.max(viewport.x + needX - 1040 * zoom, state.panX));
+    state.panY = Math.min(viewport.y + viewport.height - needY - 40 * zoom, Math.max(viewport.y + needY - 770 * zoom, state.panY));
     $('#map-camera').setAttribute('transform', `translate(${Math.round(state.panX * 100) / 100} ${Math.round(state.panY * 100) / 100}) scale(${zoom})`);
     $('#zoom-level').textContent = `${Math.round(zoom * 100)}%`;
     $('#zoom-out').disabled = zoom <= 0.75;
@@ -805,6 +772,68 @@
   $('#reset-map').addEventListener('click', () => { state.zoom = 1; state.panX = 0; state.panY = 0; applyCamera(); });
   window.addEventListener('resize', () => { centerTimeline(); applyCamera(); });
 
+  /* ---------- Expanded map: the same map, with the whole window to explore ---------- */
+  const expandedMapDialog = $('#expanded-map-dialog');
+  const mapStage = $('#map-stage');
+  const mapHome = $('.atlas-body');
+  let atlasScrollY = 0;
+  function restoreExpandedMap() {
+    if (!$('#expanded-map-slot').contains(mapStage)) return;
+    mapHome.insertBefore(mapStage, $('#location-panel'));
+    document.body.classList.remove('map-expanded');
+    applyCamera();
+    window.scrollTo({ top: atlasScrollY, behavior: 'instant' });
+    if (state.view === 'map') $('#expand-map').focus({ preventScroll: true });
+  }
+  function closeExpandedMap() {
+    if (expandedMapDialog.open) expandedMapDialog.close();
+    restoreExpandedMap();
+  }
+  $('#expand-map').addEventListener('click', () => {
+    if (expandedMapDialog.open) return;
+    atlasScrollY = window.scrollY;
+    $('#expanded-map-slot').append(mapStage);
+    document.body.classList.add('map-expanded');
+    expandedMapDialog.showModal();
+    applyCamera();
+    $('#close-expanded-map').focus({ preventScroll: true });
+  });
+  $('#close-expanded-map').addEventListener('click', closeExpandedMap);
+  expandedMapDialog.addEventListener('close', restoreExpandedMap);
+
+  /* ---------- Expanded gallery: reuse the same cards, filters and episode boundary ---------- */
+  const expandedGalleryDialog = $('#expanded-gallery-dialog');
+  const charactersView = $('#characters-view');
+  const charactersHome = charactersView.parentElement;
+  let galleryScrollY = 0;
+  function restoreExpandedGallery() {
+    if (!$('#expanded-gallery-slot').contains(charactersView)) return;
+    charactersHome.insertBefore(charactersView, $('.page-footer'));
+    document.body.classList.remove('gallery-expanded');
+    window.scrollTo({ top: galleryScrollY, behavior: 'instant' });
+    if (state.view === 'characters') $('#expand-gallery')?.focus({ preventScroll: true });
+  }
+  function closeExpandedGallery() {
+    if (expandedGalleryDialog.open) expandedGalleryDialog.close();
+    restoreExpandedGallery();
+  }
+  function openExpandedGallery() {
+    if (state.view !== 'characters' || expandedGalleryDialog.open) return;
+    galleryScrollY = window.scrollY;
+    $('#expanded-gallery-slot').append(charactersView);
+    document.body.classList.add('gallery-expanded');
+    expandedGalleryDialog.showModal();
+    $('#close-expanded-gallery').focus({ preventScroll: true });
+  }
+  $('#close-expanded-gallery').addEventListener('click', closeExpandedGallery);
+  expandedGalleryDialog.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    // Search inputs otherwise consume Escape to clear the current filter.
+    event.preventDefault();
+    closeExpandedGallery();
+  });
+  expandedGalleryDialog.addEventListener('close', restoreExpandedGallery);
+
   $('#location-markers').addEventListener('pointerover', event => {
     const chip = event.target.closest('.map-person');
     if (!chip || event.pointerType === 'touch' || state.card?.pinned) return;
@@ -881,8 +910,7 @@
     const value = Math.trunc(Number($('#cutoff-input').value));
     if (!value || value < 1) { $('#cutoff-hint').textContent = ''; return; }
     if (value > MAX_EPISODE) { $('#cutoff-hint').textContent = `This edition stops at episode ${MAX_EPISODE}.`; return; }
-    const episode = data.episodes.find(entry => entry.number === value);
-    $('#cutoff-hint').textContent = `Episode ${value} is ${seasonText(value).toLowerCase()}${episode ? `, “${episode.title}”` : ''}.`;
+    $('#cutoff-hint').textContent = `Episode ${value} is ${seasonText(value).toLowerCase()}, “${titleOfEpisode(value)}”.`;
   }
   function showProgress() { $('#cutoff-input').value = state.cutoff; cutoffHint(); $('#progress-dialog').showModal(); }
   $('#cutoff-input').addEventListener('input', cutoffHint);
@@ -911,11 +939,12 @@
     const mapStyleButton = event.target.closest('button[data-map-style]');
     if (mapStyleButton && isMapStyle(mapStyleButton.dataset.mapStyle)) {
       state.mapStyle = mapStyleButton.dataset.mapStyle;
-      // Change only the palette so the camera, open cards and note editor stay intact.
+      // Change only the palette so the camera and open cards stay intact.
       applyMapStyle();
       persist();
       return;
     }
+    if (event.target.closest('#expand-gallery')) { openExpandedGallery(); return; }
     const chip = event.target.closest('.map-person');
     if (chip) { openCard(chip, true); return; }
     if (event.target.closest('[data-close-card]')) { closeCard(); return; }
@@ -949,42 +978,16 @@
       if (storyEvent?.locationId) { state.activeEvent = storyEvent.id; selectLocation(storyEvent.locationId, { focus: true }); }
       return;
     }
-    const openNote = event.target.closest('[data-open-note]');
-    if (openNote && availableNotes().some(([key]) => key === openNote.dataset.openNote)) {
-      const [episode, locationId] = openNote.dataset.openNote.split(':');
-      state.viewing = Number(episode);
-      state.activeEvent = null;
-      selectLocation(locationId, { focus: true });
-      $('#location-note').focus();
-      return;
-    }
-    const deleteNote = event.target.closest('[data-delete-note]');
-    if (deleteNote && availableNotes().some(([key]) => key === deleteNote.dataset.deleteNote)) {
-      const key = deleteNote.dataset.deleteNote;
-      const buttons = $$('[data-delete-note]');
-      const index = buttons.indexOf(deleteNote);
-      delete state.notes[key];
-      pendingNotes.add(key);
-      render();
-      const next = $$('[data-open-note]')[Math.min(index, $$('[data-open-note]').length - 1)];
-      (next || $('#notes-heading'))?.focus();
-      toast('Field note deleted.');
-      return;
-    }
     if (!event.target.closest('.search-wrap')) $('#search-results').hidden = true;
   });
 
-  // Another tab saved: take its notes and spoiler limit, keep this tab's own view.
+  // Another tab saved: take its spoiler limit, keep this tab's own view.
   window.addEventListener('storage', event => {
     if (event.key !== STORAGE_KEY || event.newValue === null) return;
     let incoming;
     try { incoming = JSON.parse(event.newValue) || {}; } catch { return; }
-    const notes = readNotes(incoming.notes);
-    for (const key of pendingNotes) { if (key in state.notes) notes[key] = state.notes[key]; else delete notes[key]; }
-    state.notes = notes;
     state.cutoff = episodeNumber(incoming.cutoff ?? state.cutoff);
     state.viewing = Math.min(state.viewing, state.cutoff);
-    if (document.activeElement?.id === 'location-note') { $('#note-count').textContent = availableNotes().length; return; }
     render({ save: false });
     if (state.view === 'map') applyCamera();
   });

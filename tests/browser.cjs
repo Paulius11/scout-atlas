@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // Browser regression checks. Every check uses its own throwaway browser context, so the
-// notes saved in your own browser are never read or written.
+// preferences saved in your own browser are never read or written.
 //   node tests/browser.cjs                                  (the page over file://)
 //   ATLAS_URL=http://127.0.0.1:8765 node tests/browser.cjs  (a running local server)
 //   CHROME=/path/to/chrome node tests/browser.cjs           (another Chrome build)
@@ -39,7 +39,7 @@ async function test(name, run) {
   }
 }
 async function readUi(page) {
-  return page.locator('#location-markers, #location-panel, #recap-view, #characters-view, #timeline-track, #notes-view')
+  return page.locator('#location-markers, #location-panel, #recap-view, #characters-view, #timeline-track')
     .evaluateAll(elements => elements.map(element => element.textContent + ' ' + [...element.querySelectorAll('[aria-label],[title]')].map(e => `${e.getAttribute('aria-label') || ''} ${e.getAttribute('title') || ''}`).join(' ')).join('\n'));
 }
 async function assertNoHorizontalOverflow(page, label) {
@@ -102,6 +102,139 @@ async function main() {
       await assertNoHorizontalOverflow(page, 'desktop map');
     });
 
+    await test('published titles appear for every allowed episode and stay within the cutoff', async () => {
+      const titled = await createPage();
+      const options = await titled.locator('#episode-select option').evaluateAll(items => items.map(item => ({ number: Number(item.value), text: item.textContent })));
+      assert.deepEqual(options, data.episodeTitles.map(episode => ({ number: episode.number, text: `E${String(episode.number).padStart(2, '0')}  ${episode.title}` })));
+      for (const n of [1, 3, 13, MAX]) {
+        await episode(titled, n);
+        const title = data.episodeTitles.find(item => item.number === n).title;
+        assert.equal(await titled.locator('#episode-select').getAttribute('title'), title);
+        assert.equal(await titled.locator('#viewing-episode-title').count(), 0, 'the picker title should not be repeated underneath');
+        await view(titled, 'recap');
+        assert.equal(await titled.locator('.recap-intro h2').innerText(), title);
+        await view(titled, 'map');
+      }
+      for (const milestone of data.episodes) {
+        assert.equal(await titled.locator(`.timeline-event[data-episode="${milestone.number}"] strong`).innerText(), milestone.title);
+      }
+      await setCutoff(titled, 3);
+      assert.equal(await titled.locator('#episode-select option').count(), 3);
+      const allowed = await titled.locator('#episode-select').innerText();
+      for (const item of data.episodeTitles.filter(item => item.number > 3)) assert.ok(!allowed.includes(item.title), `E${item.number} title is beyond the cutoff`);
+    });
+
+    await test('compact gallery displays the current cast without losing readable details', async () => {
+      const compact = await createPage();
+      await view(compact, 'characters');
+      const count = data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= MAX).length;
+      assert.equal(await compact.locator('.character-card').count(), count);
+      const visible = await compact.locator('.character-card').evaluateAll(cards => cards.filter(card => {
+        const rect = card.getBoundingClientRect();
+        return rect.top >= 0 && rect.bottom <= innerHeight;
+      }).length);
+      assert.ok(visible >= 10, `only ${visible} complete cards fit on a desktop`);
+      const about = compact.locator('#character-eren .character-about');
+      assert.equal(await about.locator('footer').isVisible(), false, 'metadata starts folded');
+      await about.locator(':scope > summary').focus();
+      await compact.keyboard.press('Enter');
+      assert.equal(await about.locator('footer').isVisible(), true);
+      assert.equal(await about.locator('.character-description').innerText(), at(data.characters.find(character => character.id === 'eren').role, MAX).text);
+      await assertNoHorizontalOverflow(compact, 'compact gallery');
+    });
+
+    await test('expanded gallery keeps filters, contains focus, restores the tab and respects episode limits', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
+        const gallery = await createPage(viewport);
+        await view(gallery, 'characters');
+        const normalColumns = await gallery.locator('.character-grid').first().evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+        await gallery.locator('#expand-gallery').click();
+        assert.equal(await gallery.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), true);
+        assert.equal(await gallery.locator('#characters-view').evaluate(element => element.parentElement.id), 'expanded-gallery-slot');
+        assert.equal(await gallery.locator('#characters-view').count(), 1, 'reuse the existing gallery');
+        const expandedColumns = await gallery.locator('.character-grid').first().evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+        if (viewport.width > 760) assert.ok(expandedColumns > normalColumns, 'expanding should fit more columns');
+        await gallery.locator('#close-expanded-gallery').focus();
+        await gallery.keyboard.press('Tab');
+        assert.equal(await gallery.evaluate(() => Boolean(document.activeElement.closest('#expanded-gallery-dialog'))), true, 'keyboard navigation stays in the dialog');
+        await gallery.locator('#episode-select').evaluate(element => element.focus());
+        assert.equal(await gallery.evaluate(() => Boolean(document.activeElement.closest('#expanded-gallery-dialog'))), true, 'the background is inert while expanded');
+        await gallery.locator('#character-filter').fill('Levi');
+        const matches = await gallery.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character));
+        assert.ok(matches.includes('levi'), 'search includes the requested character');
+        assert.ok(matches.length < data.characters.length - 1, 'search narrows the gallery');
+        await gallery.keyboard.press('Escape');
+        assert.equal(await gallery.locator('#characters-view').evaluate(element => element.parentElement.tagName), 'MAIN');
+        assert.equal(await gallery.locator('#character-filter').inputValue(), 'Levi');
+        assert.deepEqual(await gallery.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character)), matches, 'returning keeps the same search results');
+        assert.equal(await gallery.locator('#expand-gallery').evaluate(element => element === document.activeElement), true);
+        assert.equal(await gallery.locator('body').evaluate(element => element.classList.contains('gallery-expanded')), false);
+        await gallery.locator('#character-filter').fill('');
+        await gallery.locator('#expand-gallery').click();
+        await gallery.locator('#character-eren .character-about > summary').click();
+        const placeLink = gallery.locator('#character-eren [data-open-place]');
+        const id = await placeLink.getAttribute('data-open-place');
+        await placeLink.click();
+        assert.equal(await gallery.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), false);
+        assert.equal(await gallery.locator('#map-view').isVisible(), true);
+        assert.equal(await gallery.locator('.map-marker.selected').getAttribute('data-location'), id);
+        await setCutoff(gallery, 1);
+        await view(gallery, 'characters');
+        await gallery.locator('#expand-gallery').click();
+        assert.equal(await gallery.locator('.character-card').count(), data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= 1).length);
+        assert.equal(await gallery.locator('#expanded-gallery-episode').innerText(), `Episode 1 · ${data.episodeTitles[0].title}`);
+        await assertNoHorizontalOverflow(gallery, 'expanded early-episode gallery');
+        await gallery.locator('#close-expanded-gallery').click();
+        assert.equal(await gallery.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), false);
+        assert.equal(await gallery.locator('#expand-gallery').evaluate(element => element === document.activeElement), true);
+      }
+    });
+
+    await test('expanded map grows on desktop and phone, preserves exploration and restores focus', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
+        const expanded = await createPage(viewport);
+        await expanded.locator('#zoom-in').click();
+        const selected = await expanded.locator('.map-marker.selected').getAttribute('data-location');
+        const camera = await expanded.locator('#map-camera').getAttribute('transform');
+        const normal = await expanded.locator('#map-stage').boundingBox();
+        const normalScale = await expanded.locator('#atlas-map').evaluate(element => element.getScreenCTM().a);
+        await expanded.locator('#expand-map').click();
+        await expanded.waitForFunction(() => document.querySelector('#expanded-map-dialog').open);
+        const large = await expanded.locator('#map-stage').boundingBox();
+        assert.ok(large.width * large.height > normal.width * normal.height * 1.5, 'expanded map did not gain usable area');
+        const largeScale = await expanded.locator('#atlas-map').evaluate(element => element.getScreenCTM().a);
+        assert.ok(largeScale > normalScale * 1.25, 'the drawing stayed small inside a larger empty canvas');
+        assert.equal(await expanded.locator('#map-camera').getAttribute('transform'), camera);
+        assert.equal(await expanded.locator('.map-marker.selected').getAttribute('data-location'), selected);
+        assert.equal(await expanded.locator('#expanded-map-episode').innerText(), `Episode ${MAX} · ${data.episodeTitles[MAX - 1].title}`);
+        await expanded.locator('#zoom-in').click();
+        const largerCamera = await expanded.locator('#map-camera').getAttribute('transform');
+        assert.notEqual(largerCamera, camera, 'zoom does not work inside the expanded map');
+        await expanded.keyboard.press('Escape');
+        await expanded.waitForFunction(() => !document.querySelector('#expanded-map-dialog').open && document.querySelector('#map-stage').parentElement.classList.contains('atlas-body'));
+        assert.equal(await expanded.locator('#map-camera').getAttribute('transform'), largerCamera);
+        assert.equal(await expanded.locator('#expand-map').evaluate(element => element === document.activeElement), true);
+        assert.equal(await expanded.locator('body').evaluate(element => element.classList.contains('map-expanded')), false);
+        await expanded.locator('#expand-map').click();
+        await expanded.locator('#close-expanded-map').click();
+        await expanded.waitForFunction(() => document.querySelector('#map-stage').parentElement.classList.contains('atlas-body'));
+        await assertNoHorizontalOverflow(expanded, 'restored map');
+      }
+    });
+
+    await test('opening a character from the expanded map restores the atlas and shows their card', async () => {
+      const expanded = await createPage();
+      await expanded.locator('#expand-map').click();
+      const portrait = expanded.locator('.map-person').first();
+      const id = await portrait.getAttribute('data-person');
+      await portrait.click();
+      await expanded.locator('#person-card [data-open-character]').click();
+      assert.equal(await expanded.locator('#expanded-map-dialog').evaluate(element => element.open), false);
+      assert.equal(await expanded.locator('#characters-view').isVisible(), true);
+      assert.equal(await expanded.locator(`#character-${id}`).evaluate(element => element === document.activeElement), true);
+      assert.equal(await expanded.locator('#map-stage').evaluate(element => element.parentElement.classList.contains('atlas-body')), true);
+    });
+
     await test('map style follows the system preference for fresh and legacy saved sessions', async () => {
       for (const colorScheme of ['light', 'dark']) {
         for (const legacy of [false, true]) {
@@ -117,13 +250,13 @@ async function main() {
           if (legacy) {
             assert.equal(await styled.locator('#episode-select').inputValue(), '13');
             assert.equal(await styled.locator('.map-marker.selected').getAttribute('data-location'), 'shiganshina');
-            assert.equal(await styled.locator('#location-note').inputValue(), 'A note from before map styles');
+            assert.deepEqual(await styled.evaluate(key => JSON.parse(localStorage.getItem(key)).notes, storageKey), { '13:shiganshina': 'A note from before map styles' });
           }
         }
       }
     });
 
-    await test('changing map style preserves exploration and notes, and the choice survives reload', async () => {
+    await test('changing map style preserves exploration, and the choice survives reload', async () => {
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 1040 }, colorScheme: 'light' });
       contexts.push(ctx);
       const styled = await createPage(undefined, undefined, ctx);
@@ -131,9 +264,6 @@ async function main() {
       await chooseLocation(styled, 'Shiganshina', 'shiganshina');
       await styled.locator('#zoom-in').click();
       await styled.locator('#layer-groups').uncheck({ force: true });
-      const note = 'Keep this field note while changing the map paper.';
-      await styled.locator('#location-note').fill(note);
-      await styled.locator('#save-note').click();
       const camera = await styled.locator('#map-camera').getAttribute('transform');
       const saved = await styled.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
       for (const style of ['night', 'parchment', 'night']) {
@@ -144,7 +274,6 @@ async function main() {
         assert.equal(await styled.locator('#map-camera').getAttribute('transform'), camera, 'changing style moved the camera');
         assert.equal(await styled.locator('#episode-select').inputValue(), '13');
         assert.equal(await styled.locator('.map-marker.selected').getAttribute('data-location'), 'shiganshina');
-        assert.equal(await styled.locator('#location-note').inputValue(), note);
         const current = await styled.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
         assert.deepEqual(current, { ...saved, mapStyle: style }, 'changing style altered other saved state');
       }
@@ -153,7 +282,6 @@ async function main() {
       assert.equal(await styled.locator('button[data-map-style="night"]').getAttribute('aria-pressed'), 'true');
       assert.equal(await styled.locator('#episode-select').inputValue(), '13');
       assert.equal(await styled.locator('.map-marker.selected').getAttribute('data-location'), 'shiganshina');
-      assert.equal(await styled.locator('#location-note').inputValue(), note);
       assert.equal(await styled.locator('#layer-groups').isChecked(), false);
     });
 
@@ -201,6 +329,7 @@ async function main() {
         await episode(page, titan.revealedAs.episode - 1);
         assert.equal(await page.locator(`#character-${titan.id} .reveal-line`).count(), 0, `${titan.id} revealed early`);
         await episode(page, titan.revealedAs.episode);
+        await page.locator(`#character-${titan.id} .character-about > summary`).click();
         assert.match(await page.locator(`#character-${titan.id} .reveal-line`).innerText(), new RegExp(at(who.name, titan.revealedAs.episode).text));
       }
       await view(page, 'map');
@@ -227,6 +356,7 @@ async function main() {
       const labels = await page.locator('#location-markers [data-location]').evaluateAll(items => items.map(item => item.getAttribute('aria-label')).join(' '));
       assert.ok(!labels.includes('Eren Yeager'), 'Eren must not keep a pin while his whereabouts are unknown');
       await view(page, 'characters');
+      await page.locator('#character-eren .character-about > summary').click();
       assert.match(await page.locator('#character-eren footer').innerText(), /does not place/);
       await view(page, 'map');
       await episode(page, MAX);
@@ -325,30 +455,23 @@ async function main() {
       });
     }
 
-    const note = 'Browser regression note: only visible from the last episode. <b>plain text</b>';
-    await test('notes persist, stay out of earlier views, and show in later panels', async () => {
-      try {
-      await chooseLocation(page, 'Shiganshina', 'shiganshina');
-      await page.locator('#location-note').fill(note);
-      await page.locator('#save-note').click();
-      await page.reload({ waitUntil: 'load' });
-      assert.equal(await page.locator('#location-note').inputValue(), note);
-      await view(page, 'notes');
-      assert.ok((await page.locator('#notes-view').innerText()).includes(note));
-      assert.equal(await page.locator('#notes-view b').count(), 0, 'Note content must be rendered as text');
-      await episode(page, 1);
-      assert.ok(!(await page.locator('#notes-view').innerText()).includes(note));
-      assert.equal(await page.locator('#note-count').innerText(), '0');
-      await view(page, 'map');
-      assert.equal(await page.locator('#location-note').inputValue(), '');
-      await page.locator('#location-note').fill('An early theory');
-      await episode(page, 13);
-      await chooseLocation(page, 'Shiganshina', 'shiganshina');
-      assert.ok((await page.locator('#location-panel .earlier-notes').innerText()).includes('An early theory'), 'earlier note missing from a later panel');
-      await episode(page, MAX);
-      await chooseLocation(page, 'Shiganshina', 'shiganshina');
-      assert.equal(await page.locator('#location-note').inputValue(), note);
-      } finally { await episode(page, MAX); }
+    await test('field notes are removed while legacy saved notes remain untouched', async () => {
+      const legacy = await createPage(undefined, () => {
+        if (!sessionStorage.getItem('seeded')) {
+          sessionStorage.setItem('seeded', '1');
+          localStorage.setItem('scout-atlas:v1', JSON.stringify({ cutoff: 47, viewing: 47, notes: { '47:shiganshina': 'Private legacy text <b>kept</b>' } }));
+        }
+      });
+      for (const n of [MAX, 1, 13]) {
+        await episode(legacy, n);
+        assert.equal(await legacy.locator('[data-view="notes"], #notes-view, #location-note, #save-note, #note-count').count(), 0);
+        assert.ok(!(await legacy.locator('body').innerText()).includes('Private legacy text'));
+      }
+      await setCutoff(legacy, 13);
+      await legacy.locator('button[data-map-style="parchment"]').click();
+      await legacy.reload({ waitUntil: 'load' });
+      assert.deepEqual(await legacy.evaluate(key => JSON.parse(localStorage.getItem(key)).notes, storageKey), { '47:shiganshina': 'Private legacy text <b>kept</b>' });
+      assert.equal(await page.evaluate(key => Object.hasOwn(JSON.parse(localStorage.getItem(key)), 'notes'), storageKey), false, 'fresh sessions should not create note storage');
     });
 
     await test('choosing an episode follows the story to its place and marks it', async () => {
@@ -404,7 +527,14 @@ async function main() {
       const sections = await page.locator('.character-section h2').evaluateAll(els => els.map(el => el.firstChild.textContent.trim()));
       assert.deepEqual(sections, ['Titans and Titan shifters']);
       await page.locator('[data-faction-filter="all"]').click();
-      assert.ok(await page.locator('#character-eren .more-notes summary').count() === 1, 'older notes fold behind a summary');
+      const about = page.locator('#character-eren .character-about');
+      assert.equal(await about.locator('ol.character-notes').first().isVisible(), false, 'longer details start folded');
+      await about.locator(':scope > summary').focus();
+      await page.keyboard.press('Enter');
+      assert.equal(await about.locator('ol.character-notes').first().isVisible(), true, 'About opens with the keyboard');
+      assert.ok(await about.locator('.more-notes summary').count() === 1, 'older notes fold behind a summary');
+      await about.locator('.more-notes summary').click();
+      assert.equal(await about.locator('.more-notes ol').isVisible(), true, 'older history remains readable');
       await view(page, 'map');
     });
 
@@ -426,21 +556,24 @@ async function main() {
       await episode(page, MAX);
     });
 
-    await test('a stale second tab keeps notes saved in the first', async () => {
+    await test('another tab synchronizes the cutoff without erasing legacy data', async () => {
       const shared = await browser.newContext({ viewport: { width: 1440, height: 1040 } });
       contexts.push(shared);
       const a = await createPage(undefined, undefined, shared);
       const b = await createPage(undefined, undefined, shared);
-      await a.locator('#location-note').fill('Saved in tab A');
-      await a.locator('#save-note').click();
-      await b.waitForFunction(() => document.querySelector('#note-count').textContent !== '0');
+      await a.evaluate(key => {
+        const saved = JSON.parse(localStorage.getItem(key));
+        saved.notes = { '47:shiganshina': 'Kept from an older tab' };
+        localStorage.setItem(key, JSON.stringify(saved));
+      }, storageKey);
+      await setCutoff(a, 13);
+      await b.waitForFunction(() => document.querySelector('#episode-select').value === '13');
       await view(b, 'recap');
       await b.locator('#layer-walls').uncheck({ force: true });
-      const notes = await b.evaluate(key => JSON.parse(localStorage.getItem(key)).notes, storageKey);
-      assert.ok(Object.values(notes).includes('Saved in tab A'), `tab B wrote ${JSON.stringify(notes)}`);
+      assert.deepEqual(await b.evaluate(key => JSON.parse(localStorage.getItem(key)).notes, storageKey), { '47:shiganshina': 'Kept from an older tab' });
     });
 
-    await test('lowering the cutoff clamps the view and keeps later notes', async () => {
+    await test('lowering the cutoff clamps the view and persists the limit', async () => {
       await chooseLocation(page, 'Utgard', 'utgard');
       await setCutoff(page, 13);
       assert.equal(await page.locator('#episode-select').inputValue(), '13');
@@ -451,7 +584,6 @@ async function main() {
       assert.equal(await page.locator('#episode-select').inputValue(), '13');
       const state = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
       assert.equal(state.cutoff, 13);
-      assert.ok(state.notes[`${MAX}:shiganshina`].includes('Browser regression note'), 'Lowering the cutoff must keep later notes without showing them');
       await page.locator('#spoiler-button').click();
       await page.locator('#cutoff-input').fill(String(MAX + 1));
       assert.match(await page.locator('#cutoff-hint').innerText(), new RegExp(`stops at episode ${MAX}`));
@@ -548,16 +680,6 @@ async function main() {
       assert.equal(await page.locator('#location-panel [data-event-id]').first().getAttribute('data-event-id'), last.id);
     });
 
-    await test('deleting a note keeps keyboard focus in the notes view', async () => {
-      await view(page, 'notes');
-      const before = await page.locator('[data-delete-note]').count();
-      await page.locator('[data-delete-note]').first().focus();
-      await page.keyboard.press('Enter');
-      assert.equal(await page.locator('[data-delete-note]').count(), before - 1);
-      assert.notEqual(await page.evaluate(() => document.activeElement.tagName), 'BODY');
-      await view(page, 'map');
-    });
-
     if (onFile) {
       await test('the brand link stays on the atlas over file://', async () => {
         const home = await createPage();
@@ -570,22 +692,25 @@ async function main() {
     await test('unreadable saved data is kept aside and the atlas starts fresh', async () => {
       const malformed = await createPage(undefined, () => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('scout-atlas:v1', '{invalid-json'); } });
       assert.equal(await malformed.locator('#episode-select').inputValue(), String(MAX));
-      assert.doesNotMatch(await malformed.locator('#save-status').innerText(), /unavailable/i);
+      await episode(malformed, 13);
+      assert.equal(await malformed.evaluate(key => JSON.parse(localStorage.getItem(key)).viewing, storageKey), 13);
       const copies = await malformed.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('scout-atlas:v1:unreadable:')).map(key => localStorage.getItem(key)));
       assert.deepEqual(copies, ['{invalid-json']);
     });
 
-    await test('denied browser storage still allows exploration and session notes', async () => {
+    await test('denied browser storage still allows exploration', async () => {
       const denied = await createPage(undefined, () => {
         Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new DOMException('Storage denied for regression test', 'SecurityError'); } });
       });
-      await denied.locator('#location-note').fill('Kept in this session only');
-      await denied.locator('#save-note').click();
-      assert.match(await denied.locator('#save-status').innerText(), /Storage unavailable/);
-      await view(denied, 'notes');
-      assert.ok((await denied.locator('#notes-view').innerText()).includes('Kept in this session only'));
       await episode(denied, 1);
-      assert.ok(!(await denied.locator('#notes-view').innerText()).includes('Kept in this session only'));
+      assert.equal(await denied.locator('#episode-select').inputValue(), '1');
+      await view(denied, 'recap');
+      assert.equal(await denied.locator('#recap-view').isVisible(), true);
+      await setCutoff(denied, 13);
+      await view(denied, 'map');
+      await episode(denied, 13);
+      await denied.locator('#zoom-in').click();
+      assert.notEqual(await denied.locator('#zoom-level').innerText(), '100%');
     });
 
     const fetched = require('node:fs').existsSync(path.resolve(__dirname, '../portraits/eren-s3.jpg'));
@@ -624,12 +749,20 @@ async function main() {
       await assertNoHorizontalOverflow(mobile, 'mobile map');
       const tabs = await mobile.locator('.primary-nav .nav-item').evaluateAll(items => items.map(item => item.getBoundingClientRect().right));
       assert.ok(tabs.every(right => right <= 390), `a tab is off screen: ${tabs}`);
+      const nav = mobile.locator('.primary-nav');
+      const atTop = await nav.boundingBox();
+      await mobile.locator('.page-footer button').scrollIntoViewIfNeeded();
+      const afterScroll = await nav.boundingBox();
+      assert.equal(Math.round(afterScroll.y + afterScroll.height), 844, 'phone navigation stays at the bottom');
+      assert.equal(Math.round(afterScroll.y), Math.round(atTop.y), 'navigation stays reachable while scrolling');
+      const footer = await mobile.locator('.page-footer button').boundingBox();
+      assert.ok(footer.y + footer.height <= afterScroll.y, 'bottom navigation must not cover the last control');
       const fit = await mobile.evaluate(() => {
         const stage = document.querySelector('#map-stage').getBoundingClientRect();
         return document.querySelector('#atlas-map').viewBox.baseVal.height * document.querySelector('#atlas-map').getScreenCTM().d / stage.height;
       });
       assert.ok(fit > 0.8, `map fills only ${Math.round(fit * 100)}% of its stage`);
-      for (const name of ['recap', 'characters', 'notes']) { await view(mobile, name); await assertNoHorizontalOverflow(mobile, `mobile ${name}`); }
+      for (const name of ['recap', 'characters']) { await view(mobile, name); await assertNoHorizontalOverflow(mobile, `mobile ${name}`); }
       await setCutoff(mobile, 1);
       assert.equal(await mobile.locator('#episode-select').inputValue(), '1');
       await assertNoHorizontalOverflow(mobile, 'mobile episode 1');

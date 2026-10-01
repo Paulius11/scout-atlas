@@ -19,13 +19,15 @@ Then visit <http://127.0.0.1:8765>. Check first whether a server is already runn
 
 ## What it does
 
-- **Map styles.** Choose **Parchment** for warm paper and ink details, or **Night** for a dark field map. The switch is in the map toolbar on desktop and phone. The initial style follows your system preference, and your choice is saved in this browser. Switching preserves the selected place, zoom, episode and notes. Open **Key** when you need the legend.
+- **Reading layout.** A compact heading aligns the title, episode picker and spoiler badge on one desktop row, with responsive controls on smaller screens. Place events use fine dividers; Story features the latest recorded moment above its supporting entries. On phones, **Map / Story / People** navigation stays at the bottom, with room beneath content and above system gestures.
+- **Episode titles.** Full English titles for every episode from 1 to 47 appear in the episode picker, milestone timeline and recap heading. Titles are catalogued separately from the 22 mapped milestones, so episodes without a recap still have their real names.
+- **Expanded map.** The expand icon beside the zoom and reset controls opens the map across the window. Pan, zoom and portraits continue to work. Use **Back to atlas** or Escape to return; the selected place, episode and zoom are kept. On a tall phone screen, the drawing fills the height and can be panned across.
+- **Map styles.** Choose **Parchment** for warm paper and ink details, or **Night** for a dark field map. The place panel, decorative drawings, timeline, Story and People views follow the same palette. The switch is in the map toolbar on desktop and phone. The initial style follows your system preference, and your choice is saved in this browser. Switching preserves the selected place, zoom and episode. Open **Key** when you need the legend.
 - **Map.** Twelve places across the three walls, filling the stage. It follows the story: choosing an episode selects the place where it happens, rings it in brass and steps everything else back. Approximate places are dashed areas rather than precise pins. The land between Wall Maria and Wall Rose is hatched as lost from episode 2, and district gates show as breached or sealed at the right episodes. Wall names run along their walls. Pins, labels and portraits keep one on-screen size; labels move, drop their caption or hide rather than overlap, and never leave the map. Zoomed in, each place lists the episodes it appears in. Hovering a milestone in the timeline lights up its places, and new places fade in when you step episodes.
 - **Portrait cards.** Point at a portrait on the map for a larger picture, where and when that person was recorded, and what happens there involving them. Click the portrait to pin the card (Escape or a click elsewhere closes it); on a phone, tap it. The card links to the full character card.
-- **Characters.** Everyone the atlas knows about as of the viewing episode, grouped by regiment, with dated notes. Names and identities change at the episode that reveals them (for example, a Titan card shows who it turned out to be only from that episode on).
+- **Characters.** Compact portrait cards for everyone the atlas knows about as of the viewing episode, grouped by regiment. Five columns fit a typical desktop gallery; phones use two. Open **About** for the full role, dated story observations and recorded place links, and **Earlier** for longer histories. **Expand gallery** opens the Characters tab across the window with the same search and group filters. Use **Back to gallery** or Escape to return; filters and keyboard focus are preserved. Names and identities change at the episode that reveals them (for example, a Titan card shows who it turned out to be only from that episode on).
 - **Portraits.** A picture next to every name: on the map, in event cards and in the character list. Main characters show official art that changes with the season; everyone else a drawn silhouette. See [Portraits](#portraits).
 - **The story so far.** Every event up to the viewing episode, newest first. Events whose place is not established are listed as *not pinned on the map*.
-- **Field notes.** One note per place per viewing episode. A place's earlier notes appear under the editor; later notes never show in earlier views.
 - **Search** covers places (including alternative spellings such as Karanese or Wall Sheena), people and events, always within the viewing episode.
 
 Keyboard: `/` search, `[` and `]` previous and next milestone. With the map focused: arrow keys move, `+` and `-` zoom, `0` resets. On a trackpad or mouse, hold Ctrl (⌘ on a Mac) and scroll to zoom; plain scrolling scrolls the page. On a phone, one finger scrolls the page and two fingers move or zoom the map.
@@ -34,7 +36,7 @@ The map separates **confirmed events**, **characters' beliefs**, and **approxima
 
 ## Local storage
 
-Notes, map style and viewing/cutoff preferences use this browser's local storage, key `scout-atlas:v1`. Nothing is transmitted or synced between devices. Opening `index.html` directly and opening it through the local server use different storage. Two tabs can be open at once: each merges the other's notes instead of overwriting them. If the saved value ever cannot be read, it is kept under `scout-atlas:v1:unreadable:<time>` and the atlas starts fresh. When storage is unavailable, the interface still works, but notes last only for the session.
+Map style and viewing/cutoff preferences use this browser's local storage, key `scout-atlas:v1`. Nothing is transmitted or synced between devices. Opening `index.html` directly and opening it through the local server use different storage. If the saved value cannot be read, it is kept under `scout-atlas:v1:unreadable:<time>` and the atlas starts fresh. Exploration still works when storage is unavailable. The Field notes tab and place-note editors have been removed; existing notes remain in storage without being displayed or modified.
 
 ## Portraits
 
@@ -60,7 +62,7 @@ Summaries are short, original paraphrases. Season 1 milestones draw on the anime
 
 **External sources are not bounded by this app's spoiler cutoff.** They can contain later information. The app does not fetch or embed their contents.
 
-Place cards contain only what is known at the episode they first appear. `firstEpisode` is this edition's visibility threshold, not a claim that something first appears in that exact episode. All curated content through episode 47 remains inspectable in the JavaScript source. Personal notes are user-authored and cannot be automatically certified free of spoilers.
+Place cards contain only what is known at the episode they first appear. `firstEpisode` is this edition's visibility threshold, not a claim that something first appears in that exact episode. All curated content through episode 47 remains inspectable in the JavaScript source.
 
 ## Files
 
@@ -80,14 +82,14 @@ Place cards contain only what is known at the episode they first appear. `firstE
 ## Checks
 
 ```bash
-node scripts/etc/js/scout-atlas/tests/data-lint.cjs    # 20 checks, ~30 ms, no browser
-node scripts/etc/js/scout-atlas/tests/browser.cjs      # 34 checks, headless Chrome
+node scripts/etc/js/scout-atlas/tests/data-lint.cjs    # 22 checks, ~30 ms, no browser
+node scripts/etc/js/scout-atlas/tests/browser.cjs      # 38 checks, headless Chrome
 ATLAS_URL=http://127.0.0.1:8765 node scripts/etc/js/scout-atlas/tests/browser.cjs
 ```
 
-Run them from `/opt/odoo/odoo17` or anywhere else: Playwright resolves from the workspace's `node_modules`. The browser checks use `/usr/bin/google-chrome` (override with `CHROME=`) in isolated contexts and never touch your own browser's notes.
+Run them from `/opt/odoo/odoo17` or anywhere else: Playwright resolves from the workspace's `node_modules`. The browser checks use `/usr/bin/google-chrome` (override with `CHROME=`) in isolated contexts and never touch your own browser's saved preferences.
 
-The data lint checks ids, references, seasons, geometry and kinds, and that **no text visible at episode N names a place, person or name version the atlas only introduces after N**. The browser checks cover episode boundaries (derived from the data, not a hand-written list), identities changing at their episode, unpinned events, portraits staying beside their own pin, label overlap at every milestone on desktop and laptop screens, notes across reloads and two tabs, the cutoff, search, map controls, wheel and keyboard, storage failures, saved map styles, portraits, phone layout, and that no request leaves the folder.
+The data lint checks ids, references, seasons, geometry and kinds, and that **no text visible at episode N names a place, person or name version the atlas only introduces after N**. The browser checks cover episode boundaries (derived from the data, not a hand-written list), identities changing at their episode, unpinned events, portraits staying beside their own pin, label overlap at every milestone on desktop and laptop screens, removal of field notes, retention of legacy saved data, cutoff synchronization between tabs, the cutoff, search, map controls, wheel and keyboard, storage failures, saved map styles, full episode titles, expanded maps and galleries, filter and focus restoration, gallery density, portraits, keyboard access to character disclosures, phone navigation staying reachable without covering footer controls, phone layout, and that no request leaves the folder.
 
 ## Dataset structure
 

@@ -22,9 +22,63 @@
     e37detail: wiki("Scream_%28Episode%29"),
     orvud: wiki("Orvud_District")
   };
-  function chapter(number, title, shortTitle, description, sourceUrl, events) {
+  // English episode titles through the viewer's ceiling, including episodes without map events.
+  // Seasons 1–2 checked against the English episode tables; Season 3 retains its sourced titles.
+  const episodeTitles = [
+    "To You, in 2000 Years: The Fall of Shiganshina, Part 1",
+    "That Day: The Fall of Shiganshina, Part 2",
+    "A Dim Light Amid Despair: Humanity's Comeback, Part 1",
+    "The Night of the Closing Ceremony: Humanity's Comeback, Part 2",
+    "First Battle: The Struggle for Trost, Part 1",
+    "The World the Girl Saw: The Struggle for Trost, Part 2",
+    "Small Blade: The Struggle for Trost, Part 3",
+    "I Can Hear His Heartbeat: The Struggle for Trost, Part 4",
+    "Whereabouts of His Left Arm: The Struggle for Trost, Part 5",
+    "Response: The Struggle for Trost, Part 6",
+    "Idol: The Struggle for Trost, Part 7",
+    "Wound: The Struggle for Trost, Part 8",
+    "Primal Desire: The Struggle for Trost, Part 9",
+    "Can't Look into His Eyes Yet: Eve of the Counterattack, Part 1",
+    "Special Operations Squad: Eve of the Counterattack, Part 2",
+    "What Needs to Be Done Now: Eve of the Counterattack, Part 3",
+    "Female Titan: The 57th Exterior Scouting Mission, Part 1",
+    "Forest of Giant Trees: The 57th Exterior Scouting Mission, Part 2",
+    "Bite: The 57th Exterior Scouting Mission, Part 3",
+    "Erwin Smith: The 57th Exterior Scouting Mission, Part 4",
+    "Crushing Blow: The 57th Exterior Scouting Mission, Part 5",
+    "The Defeated: The 57th Exterior Scouting Mission, Part 6",
+    "Smile: Assault on Stohess, Part 1",
+    "Mercy: Assault on Stohess, Part 2",
+    "Wall: Assault on Stohess, Part 3",
+    "Beast Titan",
+    "I'm Home",
+    "Southwestward",
+    "Soldier",
+    "Historia",
+    "Warrior",
+    "Close Combat",
+    "The Hunters",
+    "Opening",
+    "Children",
+    "Charge",
+    "Scream",
+    "Smoke Signal",
+    "Pain",
+    "Old Story",
+    "Trust",
+    "Reply",
+    "Sin",
+    "Wish",
+    "Outside the Walls of Orvud District",
+    "Ruler of the Walls",
+    "Friends",
+  ].map((title, index) => ({
+    number: index + 1, title,
+    sourceUrl: `https://en.wikipedia.org/wiki/Attack_on_Titan_season_${index < 25 ? 1 : index < 37 ? 2 : 3}`
+  }));
+  function chapter(number, shortTitle, description, sourceUrl, events) {
     return {
-      id: `episode-${number}`, number, title, shortTitle, description, sourceUrl,
+      id: `episode-${number}`, number, title: episodeTitles[number - 1].title, shortTitle, description, sourceUrl,
       events: events.map((event, index) => ({
         id: `episode-${number}-event-${index + 1}`,
         kind: "confirmed", people: [], sourceUrl, ...event
@@ -33,6 +87,7 @@
   }
   window.ATLAS_DATA = {
     maxEpisode: 47,
+    episodeTitles,
     // Season boundaries in overall numbers. The current season has no `last` until it is complete.
     seasons: [
       { season: 1, first: 1, last: 25 },
@@ -40,92 +95,92 @@
       { season: 3, first: 38 }
     ],
     episodes: [
-      chapter(1, "To You, in 2000 Years", "Shiganshina", "Start at the southern district of Wall Maria, where Eren, Mikasa, and Armin live.", official(1), [
+      chapter(1, "Shiganshina", "Start at the southern district of Wall Maria, where Eren, Mikasa, and Armin live.", official(1), [
         { locationId: "shiganshina", people: ["eren", "mikasa", "armin"], title: "Life at the outer wall", summary: "Shiganshina is Eren, Mikasa, and Armin’s home. Eren wants to see the world beyond the walls.", connection: "This district gives the opening story its geographical starting point." },
         { locationId: "shiganshina", people: ["colossal"], title: "The gate is breached", summary: "The Colossal Titan breaks Shiganshina’s outer gate, allowing Titans into the district.", connection: "The attack turns the town’s protective boundary into an entry point.", sourceUrl: wiki("Shiganshina_District_%28Anime%29") }
       ]),
-      chapter(5, "First Battle", "Trost under attack", "Five years later, the fighting is at Trost, a different district on the southern edge of Wall Rose.", official(5), [
+      chapter(5, "Trost under attack", "Five years later, the fighting is at Trost, a different district on the southern edge of Wall Rose.", official(5), [
         { locationId: "trost", people: ["colossal", "eren"], title: "A different gate", summary: "The Colossal Titan has breached Trost’s outer gate. Eren attacks, but the Titan disappears in steam.", connection: "Trost belongs to Wall Rose; it is not Shiganshina or Wall Maria." },
         { locationId: "trost", title: "The district becomes a battlefield", summary: "Soldiers prepare to face Titans entering Trost. The immediate task is to defend the district and protect its people.", connection: "A breach in the district’s outer gate threatens access toward the territory behind Wall Rose." }
       ]),
-      chapter(8, "Hearing the Heartbeat", "Reach the supplies", "The battle remains inside Trost. Reaching the supply headquarters is essential to the trapped soldiers.", official(8), [
+      chapter(8, "Reach the supplies", "The battle remains inside Trost. Reaching the supply headquarters is essential to the trapped soldiers.", official(8), [
         { locationId: "trost", people: ["armin", "mikasa"], title: "A plan to reach headquarters", summary: "Armin proposes drawing the Titan that helped Mikasa toward the supply headquarters so it can attack the Titans there.", connection: "The immediate objective is a building within Trost, not a new town or another wall." },
         { locationId: "trost", people: ["jean", "mikasa", "connie"], title: "The soldiers converge", summary: "Jean’s group reaches the headquarters as Mikasa and Connie also move toward it.", connection: "Separate groups in the district are working toward the same supply point." }
       ]),
-      chapter(13, "Primal Desires", "Seal Trost", "Eren’s Titan form becomes central to the operation to close Trost’s breached gate.", official(13), [
+      chapter(13, "Seal Trost", "Eren’s Titan form becomes central to the operation to close Trost’s breached gate.", official(13), [
         { locationId: "trost", people: ["armin", "eren"], title: "Protect the carrier", summary: "After Armin reaches him, Eren carries the boulder. Soldiers draw nearby Titans away so he can reach the gate.", connection: "This turns the struggle for survival into a coordinated operation at the original breach." },
         { locationId: "trost", people: ["eren"], title: "The breach is sealed", summary: "Eren places the boulder in the opening and blocks the damaged gate.", connection: "This closes the breach at Trost; it does not recover Shiganshina or the lost territory of Wall Maria." }
       ]),
-      chapter(16, "What Needs to Be Done Now", "Leave from Karanes", "The Survey Corps prepares an expedition and departs through Karanes, on the east side of Wall Rose.", sources.e16, [
+      chapter(16, "Leave from Karanes", "The Survey Corps prepares an expedition and departs through Karanes, on the east side of Wall Rose.", sources.e16, [
         { locationId: "karanes", people: ["eren"], title: "The expedition departs", summary: "The Survey Corps leaves Karanes for its 57th expedition. Eren and recruits who chose the Scouts take part.", connection: "Karanes is an eastern exit from Wall Rose; the earlier battle was at southern Trost." }
       ]),
-      chapter(18, "Forest of Giant Trees", "Into the forest", "During the expedition outside Wall Rose, the formation encounters the Female Titan and enters a forest.", official(18), [
+      chapter(18, "Into the forest", "During the expedition outside Wall Rose, the formation encounters the Female Titan and enters a forest.", official(18), [
         { locationId: "giant-forest", people: ["eren", "levi"], title: "The center enters the trees", summary: "The central column, including Eren and Levi’s squad, moves into a forest of giant trees while other soldiers remain outside.", connection: "The expedition is in the territory between Wall Rose and Wall Maria, not beyond every wall." },
         { locationId: "giant-forest", people: ["female-titan", "eren"], title: "Terrain changes the encounter", summary: "The tall trunks provide anchor points for mobility gear. The Female Titan pursues Eren’s group into the forest.", connection: "Tree cover creates a very different situation from riding across open ground.", sourceUrl: wiki("Forest_of_Giant_Trees_%28Anime%29") }
       ]),
-      chapter(22, "The Defeated", "Rescue and retreat", "Levi and Mikasa focus on retrieving Eren from the Female Titan during the failed expedition.", official(22), [
+      chapter(22, "Rescue and retreat", "Levi and Mikasa focus on retrieving Eren from the Female Titan during the failed expedition.", official(22), [
         { locationId: "giant-forest", people: ["levi", "mikasa", "female-titan"], title: "Recover Eren", summary: "Levi and Mikasa pursue the Female Titan. Levi makes recovering Eren the priority and succeeds in freeing him.", connection: "The objective changes from confronting the enemy to bringing Eren back alive." },
         { locationId: "karanes", title: "Return through Karanes", summary: "The expedition returns through Karanes after heavy losses.", connection: "This closes the journey that began at the same eastern gate. The precise return route is not mapped.", sourceUrl: wiki("Calaneth_District_%28Anime%29") }
       ]),
-      chapter(25, "Wall", "Stohess", "The conflict is now in Stohess, a district on the eastern edge of the innermost wall, Sina.", sources.e25, [
+      chapter(25, "Stohess", "The conflict is now in Stohess, a district on the eastern edge of the innermost wall, Sina.", sources.e25, [
         { locationId: "stohess", people: ["eren", "annie"], title: "The battle in Stohess", summary: "Eren fights Annie in her Female Titan form in Stohess, causing major destruction in the district.", connection: "This moves the confrontation inward from the expedition territory to a populated district at Wall Sina." },
         { locationId: "stohess", people: ["annie"], title: "Annie is enclosed in crystal", summary: "Annie seals herself inside a crystal. The Scouts secure her, but cannot obtain answers from her.", connection: "Capturing a person and understanding their motives are separate outcomes.", sourceUrl: sources.e25detail }
       ]),
-      chapter(28, "Southwestward", "Search Wall Rose", "Teams search for a possible breach after Titans appear inside Wall Rose. Reports and observations do not yet explain how they arrived.", sources.e28, [
+      chapter(28, "Search Wall Rose", "Teams search for a possible breach after Titans appear inside Wall Rose. Reports and observations do not yet explain how they arrived.", sources.e28, [
         { locationId: "ragako", people: ["connie"], title: "Questions at Ragako", summary: "Connie’s home village is wrecked. The absence of bodies and the remaining horses make a simple explanation difficult.", connection: "These observations raise questions; they do not establish what happened to the villagers.", sourceUrl: sources.e28detail },
         { locationId: "utgard", title: "Shelter at Utgard", summary: "Searching soldiers take shelter at Utgard Castle. Titans approach and attack despite the darkness.", connection: "The castle is inside Wall Rose, near its perimeter. Its exact position is approximate here.", sourceUrl: sources.e28detail }
       ]),
-      chapter(29, "Soldier", "Utgard at night", "The soldiers at Utgard face a night attack with limited means to defend themselves.", sources.e29, [
+      chapter(29, "Utgard at night", "The soldiers at Utgard face a night attack with limited means to defend themselves.", sources.e29, [
         { locationId: "utgard", title: "The defenders are overwhelmed", summary: "Experienced soldiers fight the Titans while the recruits shelter in the castle. Their defense collapses as the attackers close in.", connection: "This continues the attack at the same castle introduced in the previous milestone." },
         { locationId: "utgard", people: ["ymir", "connie"], title: "Ymir transforms", summary: "Ymir takes Connie’s knife, jumps from the tower, and transforms into a Titan.", connection: "A new fact about Ymir is revealed here. It does not explain every other mystery surrounding the attack." }
       ]),
-      chapter(31, "Warrior", "On Wall Rose", "The survivors regroup on Wall Rose. The absence of a discovered breach leaves the earlier crisis unresolved.", sources.e31, [
+      chapter(31, "On Wall Rose", "The survivors regroup on Wall Rose. The absence of a discovered breach leaves the earlier crisis unresolved.", sources.e31, [
         { locationId: "wall-rose-south", people: ["hannes"], title: "No breach found", summary: "Hannes reports that the search has found no hole in Wall Rose. The Scouts prepare to regroup at Trost.", connection: "The planned destination is Trost, but this conversation happens on the wall; those are different locations." },
         { locationId: "wall-rose-south", people: ["reiner", "bertholdt", "mikasa", "eren"], title: "Reiner and Bertholdt reveal themselves", summary: "Reiner identifies himself as the Armored Titan and Bertholdt as the Colossal Titan. After Mikasa attacks, both transform, and Eren transforms to confront them.", connection: "The identities are established at this point. Their full motives and wider circumstances remain unanswered." }
       ]),
-      chapter(37, "Scream", "The return", "Eren’s rescue reaches its conclusion. The Scouts survive with new observations and important unanswered questions.", sources.e37, [
+      chapter(37, "The return", "Eren’s rescue reaches its conclusion. The Scouts survive with new observations and important unanswered questions.", sources.e37, [
         { locationId: "rescue-field", people: ["eren", "smiling-titan", "hannes"], title: "An unexplained response", summary: "After Eren strikes the smiling Titan’s hand, nearby Titans attack it. They later turn toward Reiner and Bertholdt, giving the Scouts an opening to escape.", connection: "The response is observed; the mechanism and limits of Eren’s power are not explained.", sourceUrl: sources.e37detail },
         { locationId: "wall-rose-south", people: ["eren", "ymir", "reiner", "bertholdt"], title: "Retreat toward Wall Rose", summary: "The surviving Scouts ride back toward Wall Rose with Eren. Ymir chooses to leave with Reiner and Bertholdt.", connection: "This marks the direction of retreat, not an exact gate or verified road.", sourceUrl: sources.e37detail },
         { locationId: "ragako", people: ["hange"], title: "A theory about Ragako", summary: "Hange reports evidence suggesting Ragako’s residents became Titans, while acknowledging the lack of proof. The pin marks the village being discussed, not the report’s meeting room.", kind: "belief", connection: "The earlier village observations now support a theory. Its cause is still unknown.", sourceUrl: sources.e37detail }
       ]),
-      chapter(38, "Smoke Signal", "A new Levi squad", "Eren and the other 104th recruits join a new Levi squad, while the Scouts learn that their enemy now includes people inside the walls.", sources.s3, [
+      chapter(38, "A new Levi squad", "Eren and the other 104th recruits join a new Levi squad, while the Scouts learn that their enemy now includes people inside the walls.", sources.s3, [
         { locationId: null, people: ["hange", "eren"], title: "Can Eren’s Titan harden?", summary: "Hange runs experiments to find out whether Eren can harden his Titan body at will, the plan for sealing the hole in Wall Maria.", connection: "The goal is still to close Wall Maria. The squad works from a hidden location that this map does not place." },
         { locationId: "trost", people: ["nick", "hange"], title: "Pastor Nick is murdered", summary: "Word comes that Pastor Nick has been killed. Hange concludes that the Central Military Police did it, and a letter from Erwin reaches Levi.", connection: "The threat to the Scouts now comes from people inside the walls, not only from Titans.", sourceUrl: sources.s3summary }
       ]),
-      chapter(39, "Pain", "Taken", "The wagon carrying Eren and Historia is attacked, and Levi meets a man from his past.", sources.s3, [
+      chapter(39, "Taken", "The wagon carrying Eren and Historia is attacked, and Levi meets a man from his past.", sources.s3, [
         { locationId: null, people: ["eren", "historia"], title: "Eren and Historia are taken", summary: "The wagon carrying Eren and Historia is attacked and both are carried off.", connection: "Where they are taken is not shown to the Scouts, so the atlas does not pin it." },
         { locationId: null, people: ["levi", "kenny", "jean"], title: "Levi and Kenny", summary: "A man Levi calls Kenny blocks his pursuit. They fight to kill: people against people, both using vertical maneuvering equipment. Jean and the others are drawn into the fighting.", connection: "Levi and Kenny share a past. This episode does not explain it." }
       ]),
-      chapter(40, "Old Story", "The Reiss secret", "Historia wakes beside a man who says he is her father, Rod Reiss. Hange and Erwin each move toward the same secret.", sources.s3, [
+      chapter(40, "The Reiss secret", "Historia wakes beside a man who says he is her father, Rod Reiss. Hange and Erwin each move toward the same secret.", sources.s3, [
         { locationId: null, people: ["historia", "rod"], title: "Historia meets her father", summary: "Rod Reiss, who says he is Historia’s father, holds her and tells her a serious secret about the Reiss family.", connection: "The place where she wakes is not named, so it is not pinned." },
         { locationId: null, people: ["hange"], title: "Hange gets an answer", summary: "Hange makes a captured Military Police officer talk and learns the Reiss family’s secret too." },
         { locationId: null, people: ["erwin", "pixis"], title: "Erwin meets Pixis", summary: "Erwin tells Pixis that he is determined to change the course of humanity’s history." }
       ]),
-      chapter(41, "Trust", "Framed", "Accused of killing a civilian, the Survey Corps hides in a forest. Two Military Police patrollers stumble onto them.", sources.s3, [
+      chapter(41, "Framed", "Accused of killing a civilian, the Survey Corps hides in a forest. Two Military Police patrollers stumble onto them.", sources.s3, [
         { locationId: null, title: "Hunted as murderers", summary: "A Military Police scheme pins a civilian’s murder on the Survey Corps, and its soldiers go into hiding.", connection: "The forest where they hide is not named, so it is not pinned." },
         { locationId: null, people: ["marlo", "hitch", "armin", "levi", "jean"], title: "Marlo and Hitch", summary: "Military Police officers Marlo and Hitch spot Armin fetching water and are captured by Levi’s group. Marlo, doubting his own branch’s methods, offers to help. Levi leaves the two in Jean’s charge." }
       ]),
-      chapter(42, "Reply", "Erwin’s trial", "Erwin faces a final trial in the king’s hall while his execution is prepared.", sources.s3, [
+      chapter(42, "Erwin’s trial", "Erwin faces a final trial in the king’s hall while his execution is prepared.", sources.s3, [
         { locationId: "capital", people: ["erwin"], title: "The last trial", summary: "In the king’s hall, Erwin argues that losing the Survey Corps would cost humanity its spear. No one listens, and he is led away toward execution.", connection: "The decision about the Scouts’ future is made at the centre of the walls, not at the front line." },
         { locationId: "capital", title: "A breach is reported", summary: "Word arrives that the Colossal and Armored Titans have broken through Wall Rose. The report is false: the rulers’ response to it exposes them, and the government loses its hold on power.", connection: "The report tested how those in power would react. No Titan attack took place.", sourceUrl: sources.s3summary }
       ]),
-      chapter(43, "Sin", "Under the chapel", "Eren wakes in chains beneath a chapel, with Historia standing beside her father.", sources.s3, [
+      chapter(43, "Under the chapel", "Eren wakes in chains beneath a chapel, with Historia standing beside her father.", sources.s3, [
         { locationId: "reiss-chapel", people: ["eren", "historia", "rod"], title: "In chains", summary: "Eren wakes chained up beneath the chapel. Historia is standing with Rod.", connection: "He is held underground, out of sight of the rest of the Scouts." },
         { locationId: "reiss-chapel", people: ["eren", "rod", "grisha"], kind: "belief", title: "A memory returns", summary: "When Rod and Historia touch Eren’s back, a buried memory surfaces. Rod says that on a night five years ago, Eren’s father, Grisha Yeager, took his family from him.", connection: "The memory is Eren’s; the account of what it means is Rod’s." }
       ]),
-      chapter(44, "Wish", "An inherited power", "Rod explains what the Reiss family has passed down, and Historia accepts it as her duty.", sources.s3, [
+      chapter(44, "An inherited power", "Rod explains what the Reiss family has passed down, and Historia accepts it as her duty.", sources.s3, [
         { locationId: "reiss-chapel", people: ["rod", "eren"], kind: "belief", title: "What the Reiss family kept", summary: "Rod says a Titan power handed down through his family for generations is now inside Eren.", connection: "This is Rod’s explanation. How the power works is not shown." },
         { locationId: "reiss-chapel", people: ["historia", "eren"], title: "Historia’s duty", summary: "Historia declares it her mission to take that power, inherit the world’s history and rid the world of Titans. Eren, overwhelmed by guilt, resolves to leave humanity’s fate to her." }
       ]),
-      chapter(45, "Outside the Walls of Orvud District", "Rod transforms", "Historia turns against her father, and Rod becomes a Titan larger than the Colossal.", sources.s3, [
+      chapter(45, "Rod transforms", "Historia turns against her father, and Rod becomes a Titan larger than the Colossal.", sources.s3, [
         { locationId: "reiss-chapel", people: ["historia", "rod", "eren"], title: "Historia refuses", summary: "Historia defies Rod and tries to escape with Eren. Rod takes in the drug spilled on the floor and turns into a Titan.", connection: "The plan Rod built around Historia fails because she refuses it." },
         { locationId: "reiss-chapel", people: ["eren"], title: "Bigger than the Colossal", summary: "The Scouts rescue Historia and the still-chained Eren while Rod’s Titan keeps forming, larger even than the Colossal Titan. Eren chooses to trust himself again, and his friends come through the collapse alive.", connection: "The cavern beneath the chapel does not survive the transformation." }
       ]),
-      chapter(46, "Ruler of the Walls", "Stand at Orvud", "Rod’s Titan climbs out and heads slowly for Orvud District, burning the trees around it.", sources.s3, [
+      chapter(46, "Stand at Orvud", "Rod’s Titan climbs out and heads slowly for Orvud District, burning the trees around it.", sources.s3, [
         { locationId: "orvud", people: ["erwin"], title: "No evacuation", summary: "Erwin chooses not to evacuate Orvud. Its residents stay as bait so the Titan is stopped before damage reaches the heart of Wall Sina, and the goal is to lose no one.", connection: "The battle is fought outside a district wall, with civilians still behind it." },
         { locationId: "orvud", people: ["rod"], title: "A burning Titan", summary: "The Titan gives off intense heat and scorches the trees as it moves. The Survey Corps prepares to take it on.", connection: "Its path runs from the chapel to Orvud; the route drawn by this map is not exact." }
       ]),
-      chapter(47, "Friends", "The true ruler", "Rod’s Titan falls at Orvud, and Kenny, badly hurt, meets Levi one last time.", sources.s3, [
+      chapter(47, "The true ruler", "Rod’s Titan falls at Orvud, and Kenny, badly hurt, meets Levi one last time.", sources.s3, [
         { locationId: "orvud", people: ["historia", "rod"], title: "Historia’s final blow", summary: "Rod’s Titan is brought down. Historia deals the final blow herself and, in front of residents and soldiers, declares that she is the true ruler.", connection: "The fight ends at Orvud’s wall, not inside the district." },
         { locationId: "reiss-chapel", people: ["kenny", "levi"], title: "Kenny and Levi", summary: "Kenny lies badly wounded after escaping the collapsed chapel and remembers his life. Levi finds him, and Kenny takes out a syringe holding the Titan drug. Before he dies, he tells Levi he was his mother’s brother.", connection: "This answers the question of how Levi and Kenny were connected, raised in episode 39.", sourceUrl: sources.s3summary }
       ])

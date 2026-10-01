@@ -39,6 +39,21 @@ check('unique ids', bad => {
 check('episodes ascending and unique', bad => {
   d.episodes.forEach((e, i) => { if (i && e.number <= d.episodes[i - 1].number) bad(e.id); });
 });
+check('episode titles cover exactly the allowed episodes', bad => {
+  const titles = d.episodeTitles || [];
+  if (titles.length !== d.maxEpisode) bad('the title catalog must stop at maxEpisode');
+  titles.forEach((episode, index) => {
+    if (episode.number !== index + 1) bad(`unexpected title number at entry ${index + 1}`);
+    if (typeof episode.title !== 'string' || !episode.title.trim()) bad(`E${episode.number} has no title`);
+    if (!/^https:\/\//.test(episode.sourceUrl || '')) bad(`E${episode.number} has no title source`);
+  });
+});
+check('milestones use the published episode title', bad => {
+  const titles = new Map((d.episodeTitles || []).map(episode => [episode.number, episode.title]));
+  d.episodes.forEach(episode => {
+    if (titles.get(episode.number) !== episode.title) bad(`E${episode.number} differs from the title catalog`);
+  });
+});
 check('seasons are contiguous and cover every episode', bad => {
   if (d.seasons[0]?.first !== 1) bad('the first season must start at episode 1');
   d.seasons.forEach((s, i) => {

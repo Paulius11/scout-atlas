@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101b18">
   <meta name="description" content="An unofficial, episode-aware Attack on Titan atlas. Explore the places, people and events you have already watched.">
   <title>Scout Atlas · Attack on Titan companion</title>
@@ -25,8 +25,8 @@
     <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-16a3 3 0 0 1 0 6m3 10v-3a6 6 0 0 0-2-4"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
     <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></symbol>
-    <symbol id="i-note" viewBox="0 0 24 24"><path d="M15 3H5v18h14V9M15 3v6h4m-4-6 4 6M8 13h8m-8 4h6"/></symbol>
     <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 1 8M3 4v6h6"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
     <symbol id="i-prev" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
     <symbol id="i-next" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
     <symbol id="i-wall" viewBox="0 0 24 24"><path d="M3 20V8h3V5h3v3h6V5h3v3h3v12Zm0-6h18"/></symbol>
@@ -43,7 +43,6 @@
         <button class="nav-item active" data-view="map" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span>Map</span></button>
         <button class="nav-item" data-view="recap"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span class="label-long">The story so far</span><span class="label-short">Story</span></button>
         <button class="nav-item" data-view="characters"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg><span class="label-long">Characters</span><span class="label-short">People</span><span id="character-count" class="count">0</span></button>
-        <button class="nav-item" data-view="notes"><svg class="icon" aria-hidden="true"><use href="#i-note"/></svg><span class="label-long">Field notes</span><span class="label-short">Notes</span><span id="note-count" class="count">0</span></button>
       </nav>
 
       <section class="progress-section" aria-labelledby="progress-heading">
@@ -156,25 +155,38 @@
             </svg>
             <div class="compass-rose" aria-hidden="true"><span>N</span><svg viewBox="0 0 60 60"><path d="m30 5 6 19 19 6-19 6-6 19-6-19-19-6 19-6Z" fill="none" stroke="currentColor"/><path d="m30 5 6 19-6 6-6-6Z" fill="currentColor"/><circle cx="30" cy="30" r="2" fill="currentColor"/></svg></div>
             <details class="map-legend" id="map-legend"><summary>Key</summary><div class="legend-items"><span><i class="legend-pin"></i>Place</span><span><i class="legend-area"></i>Approximate area</span><span><i class="legend-now"></i>This episode</span><span><i class="legend-person"></i>Last recorded here</span><span class="legend-lost-item"><i class="legend-lost"></i>Lost to the Titans</span><small>Schematic: distances and shapes are approximate.</small></div></details>
-            <div class="zoom-controls" role="group" aria-label="Map controls"><button id="zoom-in" aria-label="Zoom in">+</button><span id="zoom-level">100%</span><button id="zoom-out" aria-label="Zoom out">−</button><div></div><button id="reset-map" aria-label="Reset map"><svg class="icon" aria-hidden="true"><use href="#i-reset"/></svg></button></div>
+            <div class="zoom-controls" role="group" aria-label="Map controls"><button id="zoom-in" aria-label="Zoom in">+</button><span id="zoom-level">100%</span><button id="zoom-out" aria-label="Zoom out">−</button><div></div><button id="reset-map" aria-label="Reset map"><svg class="icon" aria-hidden="true"><use href="#i-reset"/></svg></button><div></div><button id="expand-map" aria-label="Expand map" aria-haspopup="dialog" aria-controls="expanded-map-dialog" title="Expand map"><svg class="icon" aria-hidden="true"><use href="#i-expand"/></svg></button></div>
             <p id="map-hint" class="map-hint" role="status" aria-live="polite"></p>
             <div id="person-card" class="person-card" hidden></div>
           </div>
           <aside id="location-panel" class="location-panel" aria-label="Selected place"></aside>
         </div>
         <div class="timeline">
-          <div class="timeline-heading"><h2><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Connect the moments<span>Key events, in episode order</span></h2><span id="timeline-count" class="timeline-count"></span></div>
+          <div class="timeline-heading"><h2><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Episode trail<span>Selected moments</span></h2><span id="timeline-count" class="timeline-count"></span></div>
           <div class="timeline-track" id="timeline-track"></div>
         </div>
       </section>
 
       <section id="recap-view" class="secondary-view" hidden aria-label="The story so far"></section>
       <section id="characters-view" class="secondary-view" hidden aria-label="Characters"></section>
-      <section id="notes-view" class="secondary-view" hidden aria-label="Your field notes"></section>
       <footer class="page-footer"><span><span class="status-dot" aria-hidden="true"></span><span id="footer-cutoff"></span></span><button id="map-guide">How to read this map</button></footer>
     </main>
   </div>
 
+  <dialog id="expanded-map-dialog" aria-labelledby="expanded-map-title" aria-describedby="expanded-map-episode">
+    <header class="expanded-map-header">
+      <div><h2 id="expanded-map-title">The walled territory</h2><p id="expanded-map-episode"></p></div>
+      <button type="button" id="close-expanded-map" class="expanded-map-close">Back to atlas<svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </header>
+    <div id="expanded-map-slot"></div>
+  </dialog>
+  <dialog id="expanded-gallery-dialog" aria-labelledby="expanded-gallery-title" aria-describedby="expanded-gallery-episode">
+    <header class="expanded-gallery-header">
+      <div><h2 id="expanded-gallery-title">Characters</h2><p id="expanded-gallery-episode"></p></div>
+      <button type="button" id="close-expanded-gallery" class="expanded-map-close">Back to gallery<svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </header>
+    <div id="expanded-gallery-slot"></div>
+  </dialog>
   <dialog id="progress-dialog" aria-labelledby="progress-title">
     <form id="progress-form">
       <div class="dialog-heading"><p class="dialog-kicker">Your pace, your world</p><button type="button" class="icon-button close-dialog" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
@@ -198,7 +210,7 @@
     </div>
     <p>A portrait on the map means <strong>last recorded here</strong>, not a live location. Names and descriptions change as the story reveals more, and only up to the episode you are viewing.</p>
     <p>Main characters show official art from the anime’s site, matched to the season you are viewing; everyone else has a drawn silhouette in their regiment’s colour. To add your own pictures, put them in the <strong>portraits</strong> folder and list them in <strong>portraits/portraits.js</strong>, using images from episodes you have already watched.</p>
-    <p>Notes and watch progress are saved in this browser. Source references are in the project’s data file; external pages may contain later spoilers.</p>
+    <p>Watch progress and map preferences are saved in this browser. Source references are in the project’s data file; external pages may contain later spoilers.</p>
     <button class="primary-button close-dialog">Back to exploring</button>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
