@@ -476,6 +476,7 @@ svg.avatar.type-titan .avatar-disc { stroke-dasharray: 4 3; }
 .avatar-cut { fill: none; stroke: var(--disc); stroke-width: 1.6; stroke-linecap: round; }
 .avatar-line { fill: none; stroke: var(--ring); stroke-width: 1.6; opacity: .6; }
 img.avatar { object-fit: cover; border: 2px solid var(--ring); background: var(--disc); }
+svg.avatar.image-portrait { border: 2px solid var(--ring); background: var(--disc); overflow: hidden; }
 .people-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
 .person-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 2px; border: 1px solid var(--line-strong); border-radius: 20px; background: rgba(255, 255, 255, .03); font-size: 13px; color: var(--text-2); }
 .person-chip:hover { border-color: rgba(223, 182, 126, .5); }
@@ -574,6 +575,7 @@ img.avatar { object-fit: cover; border: 2px solid var(--ring); background: var(-
 .note-episode { flex-shrink: 0; min-width: 32px; font-size: 12px; line-height: 1.9; color: var(--accent); }
 .character-card .avatar-lg { width: 56px; height: 56px; border-radius: 7px; flex-shrink: 0; box-shadow: 0 3px 10px rgba(24, 29, 19, .1); }
 .character-card svg.avatar-lg { border-radius: 50%; box-shadow: none; }
+.character-card svg.avatar-lg.image-portrait { border-radius: 7px; box-shadow: 0 3px 10px rgba(24, 29, 19, .1); }
 .character-tools input::placeholder { color: var(--muted); opacity: 1; }
 
 /* ---------- Footer, dialogs, toast ---------- */
@@ -594,6 +596,7 @@ body.map-expanded, body.gallery-expanded, body.character-detail-open { overflow:
 .character-detail-identity { display: flex; align-items: center; gap: 16px; }
 .character-detail-identity .avatar-lg { flex-shrink: 0; width: 72px; height: 72px; border-radius: 10px; }
 .character-detail-identity svg.avatar-lg { border-radius: 50%; }
+.character-detail-identity svg.avatar-lg.image-portrait { border-radius: 10px; }
 .character-detail-identity .character-description { margin: 0; font-size: 14px; }
 .character-detail-notes { margin-top: 24px; }
 .character-detail-notes h3 { margin: 0; font: 600 13px/1.4 var(--sans); color: var(--text); }

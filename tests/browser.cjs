@@ -17,6 +17,10 @@ const storageKey = 'scout-atlas:v1';
 global.window = {};
 require(path.resolve(__dirname, '../data.js'));
 const data = window.ATLAS_DATA;
+const portraitsFile = path.resolve(__dirname, '../portraits/portraits.js');
+if (require('node:fs').existsSync(portraitsFile)) require(portraitsFile);
+const portraits = window.ATLAS_PORTRAITS || {};
+const portraitVersions = id => Array.isArray(portraits[id]) ? portraits[id] : typeof portraits[id] === 'string' ? [{ from: 1, file: portraits[id] }] : [];
 const MAX = data.maxEpisode;
 const milestones = data.episodes.map(e => e.number);
 const at = (list, episode) => list.filter(v => v.from <= episode).sort((a, b) => b.from - a.from)[0];
@@ -1268,33 +1272,149 @@ async function main() {
 
     const fetched = require('node:fs').existsSync(path.resolve(__dirname, '../portraits/eren-s3.jpg'));
     if (fetched) {
-      await test('portraits change with the season art and load', async () => {
+      await test('portraits change with the season art and episode stills stay behind their boundary', async () => {
         await view(page, 'characters');
         await episode(page, 37);
-        assert.match(await page.locator('#character-eren img.avatar').getAttribute('src'), /eren-s2\.jpg$/);
+        assert.match(await page.locator('#character-eren [data-portrait]').getAttribute('data-portrait'), /eren-s2\.jpg$/);
         await episode(page, 38);
-        assert.match(await page.locator('#character-eren img.avatar').getAttribute('src'), /eren-s3\.jpg$/);
-        await page.waitForFunction(() => [...document.querySelectorAll('#characters-view img.avatar')].every(img => img.complete));
-        const broken = await page.locator('#characters-view img.avatar').evaluateAll(imgs => imgs.filter(img => !img.naturalWidth).map(img => img.src));
-        assert.deepEqual(broken, []);
-        assert.equal(await page.locator('#character-armored svg.avatar').count(), 1, 'someone without a picture gets a silhouette');
+        assert.match(await page.locator('#character-eren [data-portrait]').getAttribute('data-portrait'), /eren-s3\.jpg$/);
+        assert.equal(await page.locator('#character-armored [data-portrait]').count(), 1, 'the Armored Titan has a real picture');
         await episode(page, 43);
-        assert.equal(await page.locator('#character-grisha svg.avatar').count(), 1, 'an episode still never shows before its episode');
+        const earlyGrisha = at(portraitVersions('grisha'), 43);
+        assert.equal(await page.locator('#character-grisha [data-portrait]').getAttribute('data-portrait'), `grisha/${earlyGrisha.file}`);
+        assert.equal(await page.locator('#character-grisha [data-portrait="grisha/grisha-e44.jpg"]').count(), 0, 'the E44 still never appears before E44');
         await episode(page, 44);
-        assert.match(await page.locator('#character-grisha img.avatar').getAttribute('src'), /grisha-e44\.jpg$/);
+        assert.match(await page.locator('#character-grisha [data-portrait]').getAttribute('data-portrait'), /grisha-e44\.jpg$/);
         await view(page, 'map');
         await episode(page, MAX);
       });
+
+      await test('every visible person and Titan has a real portrait and all bundled versions decode', async () => {
+        const illustrated = await createPage();
+        await view(illustrated, 'characters');
+        const cast = data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= MAX);
+        assert.equal(cast.length, 56, 'the E87 cast contains 56 people and Titans');
+        assert.equal(await illustrated.locator('.character-card').count(), cast.length);
+        for (const character of cast) {
+          const portrait = illustrated.locator(`#character-${character.id} [data-portrait]`);
+          const version = at(portraitVersions(character.id), MAX);
+          assert.ok(version, `${character.id} has a portrait version by the ceiling`);
+          assert.equal(await portrait.count(), 1, `${character.id} has exactly one real gallery picture`);
+          assert.equal(await portrait.getAttribute('data-portrait'), `${character.id}/${version.file}`);
+          const actual = await portrait.evaluate(element => ({
+            tag: element.tagName.toLowerCase(),
+            source: element.getAttribute('src') || element.getAttribute('href'),
+            framed: Boolean(element.closest('svg.avatar.image-portrait')),
+            viewBox: element.closest('svg.avatar.image-portrait')?.getAttribute('viewBox') || null,
+            sourceSize: element.tagName.toLowerCase() === 'image' ? [Number(element.getAttribute('width')), Number(element.getAttribute('height'))] : null
+          }));
+          assert.ok(['img', 'image'].includes(actual.tag), `${character.id} uses an HTML or SVG image`);
+          assert.equal(actual.source, `portraits/${version.file}`);
+          if (version.crop) {
+            assert.equal(actual.framed, true, `${character.id} uses its source framing`);
+            assert.deepEqual(actual.viewBox.split(/\s+/).map(Number), version.crop, `${character.id} frame`);
+            assert.deepEqual(actual.sourceSize, version.sourceSize, `${character.id} source dimensions`);
+          }
+        }
+        const versions = Object.values(portraits).flatMap(entry => Array.isArray(entry) ? entry : [{ from: 1, file: entry }]);
+        const files = [...new Set(versions.map(version => version.file))];
+        const decoded = await illustrated.evaluate(async files => Promise.all(files.map(async file => {
+          const image = new Image();
+          image.src = new URL(`portraits/${file}`, location.href).href;
+          try {
+            await image.decode();
+            return { file, width: image.naturalWidth, height: image.naturalHeight };
+          } catch (error) { return { file, error: error.name }; }
+        })), files);
+        assert.deepEqual(decoded.filter(image => image.error || !image.width || !image.height), [], 'every bundled portrait decodes, including SVG image sources');
+        for (const version of versions.filter(version => version.sourceSize)) {
+          const image = decoded.find(image => image.file === version.file);
+          assert.deepEqual([image.width, image.height], version.sourceSize, `${version.file} framing matches the decoded image`);
+        }
+        await assertNoHorizontalOverflow(illustrated, 'fully illustrated gallery');
+      });
+
+      await test('every dated portrait version appears from its own episode and never earlier', async () => {
+        const dated = await createPage();
+        await view(dated, 'characters');
+        for (const [id] of Object.entries(portraits)) {
+          const character = data.characters.find(character => character.id === id);
+          if (!character || character.type === 'group') continue;
+          for (const version of portraitVersions(id)) {
+            if (version.from > 1) {
+              await episode(dated, version.from - 1);
+              assert.equal(await dated.locator(`#characters-view [data-portrait="${id}/${version.file}"]`).count(), 0, `${id}/${version.file} is hidden before E${version.from}`);
+              const previous = at(portraitVersions(id), version.from - 1);
+              const picture = dated.locator(`#character-${id} [data-portrait]`);
+              if (character.firstEpisode <= version.from - 1 && previous) {
+                assert.equal(await picture.getAttribute('data-portrait'), `${id}/${previous.file}`, `${id} retains its earlier picture`);
+              } else assert.equal(await picture.count(), 0, `${id} has no fabricated earlier portrait`);
+            }
+            await episode(dated, Math.max(version.from, character.firstEpisode));
+            assert.equal(await dated.locator(`#character-${id} [data-portrait]`).getAttribute('data-portrait'), `${id}/${version.file}`, `${id}/${version.file} appears at E${version.from}`);
+          }
+        }
+      });
+
+      await test('framed map portraits keep the same bounds as their marker disc', async () => {
+        const frameEpisodes = [...new Set(data.characters.flatMap(character => (character.positions || []).map(position => position.episode)))].filter(number =>
+          data.characters.some(character => {
+            const version = at(portraitVersions(character.id), number);
+            const position = (character.positions || []).filter(position => position.episode <= number).sort((a, b) => b.episode - a.episode)[0];
+            return version?.crop && position?.locationId;
+          }));
+        assert.ok(frameEpisodes.length > 0, 'a framed portrait has a recorded map position');
+        for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
+          const mapped = await createPage(viewport);
+          let count = 0;
+          for (const number of frameEpisodes) {
+            await episode(mapped, number);
+            await mapped.locator('#reset-map').click();
+            for (let zoom = 0; zoom < 2; zoom++) {
+              if (zoom) await mapped.locator('#zoom-in').click();
+              const frames = await mapped.locator('#location-markers .map-person').evaluateAll(chips => chips.filter(chip => chip.querySelector('foreignObject [data-portrait]')).map(chip => {
+                const disc = chip.querySelector('.avatar-disc');
+                const box = chip.getBoundingClientRect();
+                const discBox = disc.getBoundingClientRect();
+                const local = chip.getBBox();
+                const localDisc = disc.getBBox();
+                const frame = chip.querySelector('foreignObject');
+                return { id: chip.dataset.person,
+                  screen: [box.x, box.y, box.width, box.height],
+                  disc: [discBox.x, discBox.y, discBox.width, discBox.height],
+                  local: [local.x, local.y, local.width, local.height],
+                  localDisc: [localDisc.x, localDisc.y, localDisc.width, localDisc.height],
+                  frameSize: [Number(frame.getAttribute('width')), Number(frame.getAttribute('height'))] };
+              }));
+              count += frames.length;
+              for (const frame of frames) {
+                assert.deepEqual(frame.frameSize, [21, 21], `${frame.id} retains a small map frame`);
+                assert.ok(frame.screen.every((value, index) => Math.abs(value - frame.disc[index]) <= 2), `E${number} ${frame.id} image inflates its on-screen marker bounds`);
+                assert.ok(frame.local.every((value, index) => Math.abs(value - frame.localDisc[index]) <= 2), `E${number} ${frame.id} source geometry inflates collision bounds`);
+              }
+            }
+          }
+          assert.ok(count > 0, `${viewport.width}px renders framed map portraits`);
+          await assertNoHorizontalOverflow(mapped, `${viewport.width}px framed map portraits`);
+        }
+      });
     }
 
-    await test('listed portraits that are missing or outside the folder fall back to emblems', async () => {
-      const listed = await createPage(undefined, () => {
-        Object.defineProperty(window, 'ATLAS_PORTRAITS', { configurable: true, get: () => ({ levi: 'missing-for-test.png', historia: '../outside.png' }), set: () => {} });
-      });
-      await view(listed, 'characters');
-      await listed.waitForFunction(() => !document.querySelector('#character-levi img'));
-      assert.equal(await listed.locator('#character-levi svg.avatar').count(), 1);
-      assert.equal(await listed.locator('#character-historia img').count(), 0);
+    await test('missing and unsafe portraits fall back to emblems for both image rendering paths', async () => {
+      for (const framed of [false, true]) {
+        const listed = await createPage(undefined, framed ? () => {
+          Object.defineProperty(window, 'ATLAS_PORTRAITS', { configurable: true, get: () => ({
+            levi: [{ from: 14, file: 'missing-framed-for-test.png', crop: [0, 0, 100, 100], sourceSize: [100, 100] }],
+            historia: [{ from: 4, file: '../outside.png', crop: [0, 0, 100, 100], sourceSize: [100, 100] }]
+          }), set: () => {} });
+        } : () => {
+          Object.defineProperty(window, 'ATLAS_PORTRAITS', { configurable: true, get: () => ({ levi: 'missing-for-test.png', historia: '../outside.png' }), set: () => {} });
+        });
+        await view(listed, 'characters');
+        await listed.waitForFunction(() => !document.querySelector('#character-levi [data-portrait]'));
+        assert.equal(await listed.locator('#character-levi svg.avatar:not(.image-portrait)').count(), 1);
+        assert.equal(await listed.locator('#character-historia [data-portrait]').count(), 0);
+      }
     });
 
     await test('phone layout fits, keeps every tab reachable, and fills the map', async () => {

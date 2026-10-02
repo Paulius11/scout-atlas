@@ -30,7 +30,7 @@ Then visit <http://127.0.0.1:8765>. Check first whether a server is already runn
 - **Portrait cards.** Point at a portrait on the map for a larger picture, where and when that person was recorded, and what happens there involving them. Click the portrait to pin the card (Escape or a click elsewhere closes it); on a phone, tap it. The card links to that person's gallery and detail panel.
 - **Characters.** **Everyone** fills one continuous portrait grid; faction filters keep their counts and let you narrow the list. Five columns fit a typical desktop gallery; phones use two. Select anywhere on a character card, or use Enter or Space, to read the full role, latest three dated observations and last recorded place link in a detail panel: at the right side of the window on desktop, or as a bottom sheet on phones. Older observations fold into **Earlier**. Closing the panel returns keyboard focus to the card and keeps the gallery's scroll position and filters. **Expand gallery** opens the Characters tab across the window with the same search and faction filters; use **Back to gallery** or Escape to return. Names, identities and all details follow the viewing episode.
 - **Season 4 records.** Episodes 60–87 add 84 events, 23 people and Titans, two groups and updates for 22 existing entries. New faction filters appear only when their members are known. Later observations clear older map positions when the person is elsewhere or their whereabouts are unknown. From episode 80, the wall circles show dashed former boundaries, explained in **Key**; earlier episodes restore their original appearance.
-- **Portraits.** A picture next to every name: on the map, in event cards and in the character list. Main characters show official art that changes with the season; everyone else a drawn silhouette. See [Portraits](#portraits).
+- **Portraits.** All 56 people and Titans have a bundled picture by episode 87, used in the gallery, detail panels, events and map. Pictures follow their own safe episode threshold; an earlier view can show a silhouette until an image is established. Groups keep regiment emblems. See [Portraits](#portraits).
 - **The story so far.** Every event up to the viewing episode, newest first. Verified setting names also appear for events listed as *not pinned on the map*, without invented coordinates. Flashbacks and planned destinations are distinguished from current observations.
 - **Search** covers places (including alternative spellings such as Karanese or Wall Sheena), people and all events, always within the viewing episode. An unpinned result opens its matching recap and places keyboard focus there, including when searching an expanded map.
 
@@ -44,20 +44,21 @@ Map style and viewing/cutoff preferences use this browser's local storage, key `
 
 ## Portraits
 
-26 of the 56 people and Titans have a picture. The new entries use drawn emblems.
-- **Main characters:** official character art from the anime's site, cropped to round portraits. Season 2 art is used up to episode 37 and Season 3 art from episode 38.
-- **Supporting cast and three Titans:** Carla, Hannes, Pixis, Grisha, and the Colossal, Female and Beast Titans are cropped from official episode stills. Each still shows only from its own episode, so Grisha's (from episode 44) appears only from 44.
-- **Faces the official pages never show up close:** Pastor Nick, Kenny, Rod, Marlo and Hitch use their character portraits from MyAnimeList or AniList.
-- **No picture:** the Armored Titan and the smiling Titan keep a drawn Titan silhouette. No usable image exists without risking who they turn out to be.
-- **Not yet pictured:** Keith Shadis, Dina, Zeke and Kruger keep their emblems, and the four-legged Titan (from episode 54) a silhouette. The official Season 3 character list has no art for them, and Titans are never looked up by name.
+All 56 people and Titans have pictures by episode 87, across 71 image versions. The 30 previously missing entries now have portraits, and three groups retain their regiment emblems. The portrait folder is about 3.5 MB and works offline.
 
-The pictures are official or fan-database art kept for personal use, committed in `portraits/` (the scripts repo is private), so a fresh clone has them and nothing needs downloading. To re-create or re-crop them:
+- **Main characters:** the existing official Season 2 and Season 3 art remains. Season 2 art stands in for the early episodes; Season 3 art appears from episode 38.
+- **Supporting cast:** official character thumbnails and reviewed fan-database portraits fill the remaining faces. Hannes and Grisha now have pictures from episode 1, and Historia from episode 4. Carla's earlier crop showed Mikasa; it has been replaced with a reviewed Carla portrait.
+- **Titans:** reviewed episode frames show the Titan forms without revealing an identity early. The Female Titan now has an image from episode 17. The four-legged Titan's image starts at episode 55, after its atlas introduction at 54; the War Hammer image starts at 65, after its name is known at 61. Those earlier views intentionally keep a silhouette.
+- **Source framing:** 35 additional image files keep their downloaded bytes unchanged. [`additional-sources.json`](portraits/additional-sources.json) records each source URL, review date, SHA-256 hash, safe episode, `crop` and `sourceSize`, with episode references where needed. SVG frames the face from that metadata rather than rewriting the image. Existing cropped portrait files remain in use.
+
+The pictures are official or fan-database art kept for personal use in `portraits/` (the scripts repo is private), so a fresh clone has them and nothing needs downloading. To refresh source files and rebuild the manifest, or rebuild only the local metadata:
 
 ```bash
-python3 scripts/etc/js/scout-atlas/portraits/fetch_portraits.py   # only to refresh; needs Pillow and the network
+python3 scripts/etc/js/scout-atlas/portraits/fetch_portraits.py   # refresh; needs Pillow and the network
+python3 scripts/etc/js/scout-atlas/portraits/fetch_portraits.py --manifest-only   # offline metadata rebuild
 ```
 
-The script writes the images and [`portraits/portraits.js`](portraits/portraits.js). Each id maps to a file, or to a list of `{ from, file }` versions chosen by the viewing episode. To add your own picture, put it in `portraits/` and add a line, for example `rod: "rod.jpg"`. Supported: `.jpg`, `.jpeg`, `.png`, `.webp`, file names only; a file that fails to load falls back to the silhouette. **Use pictures from episodes you have already watched.** The data lint rejects season art listed before its season starts.
+The script reads both the legacy crop recipes and the additional source catalog, so regeneration keeps the supporting cast. It writes [`portraits/portraits.js`](portraits/portraits.js); `--manifest-only` uses existing files and makes no downloads or image changes. Each id maps to a file, or to `{ from, file, crop?, sourceSize? }` versions chosen by the viewing episode. Add reviewed new images to the source catalog with their safe threshold and provenance, then rebuild the manifest. Supported: `.jpg`, `.jpeg`, `.png`, `.webp`, file names only; a file that fails to load falls back to the silhouette. **Use pictures within the viewer's authorized episode range.** The data lint rejects season art or episode stills listed before their safe episode, validates framing and requires a bundled picture for every person and Titan by the edition ceiling.
 
 Character ids: `eren`, `mikasa`, `armin`, `levi`, `erwin`, `hange`, `jean`, `connie`, `sasha`, `historia`, `ymir`, `reiner`, `bertholdt`, `annie`, `hannes`, `pixis`, `nick`, `kenny`, `rod`, `marlo`, `hitch`, `keith`, `grisha`, `dina`, `zeke`, `kruger`, `carla`, `colossal`, `armored`, `female-titan`, `beast`, `four-legged-titan`, `smiling-titan`, `gabi`, `falco`, `colt`, `magath`, `udo`, `zofia`, `pieck`, `porco`, `willy`, `tybur-sister`, `kiyomi`, `yelena`, `onyankopon`, `niccolo`, `floch`, `kaya`, `louise`, `xaver`, `founder-ymir`, `marcel`, `ramzi`, `jaw-titan`, `war-hammer`.
 
@@ -78,7 +79,8 @@ Place cards contain only what is known at the episode they first appear. `firstE
 | `app.js` | Rendering, episode filtering, label layout, camera, local state |
 | `data.js` | Seasons, milestones, places, characters and positions |
 | `portraits/portraits.js` | Which picture each character shows, by episode |
-| `portraits/fetch_portraits.py` | Re-creates the committed portrait images (download and crop) |
+| `portraits/additional-sources.json` | Reviewed source URLs, hashes, episode thresholds and face framing |
+| `portraits/fetch_portraits.py` | Refreshes images and rebuilds the manifest; `--manifest-only` works offline |
 | `tests/data-lint.cjs` | Data checks, including the spoiler boundary |
 | `tests/browser.cjs` | Browser regression checks |
 
@@ -87,8 +89,8 @@ Place cards contain only what is known at the episode they first appear. `firstE
 ## Checks
 
 ```bash
-node scripts/etc/js/scout-atlas/tests/data-lint.cjs    # 27 checks, no browser
-node scripts/etc/js/scout-atlas/tests/browser.cjs      # 56 checks, headless Chrome
+node scripts/etc/js/scout-atlas/tests/data-lint.cjs    # 28 checks, no browser
+node scripts/etc/js/scout-atlas/tests/browser.cjs      # 59 checks, headless Chrome
 ATLAS_URL=http://127.0.0.1:8765 node scripts/etc/js/scout-atlas/tests/browser.cjs
 ```
 

@@ -242,9 +242,27 @@ check('portraits: known ids, safe file names, ordered versions', bad => {
     if (!Array.isArray(versions)) { bad(`${id}: not a file name or a list`); continue; }
     versions.forEach((v, i) => {
       if (!/^[\w.-]+\.(jpe?g|png|webp)$/i.test(v.file || '')) bad(`${id}: bad file name ${v.file}`);
+      else if (!fs.existsSync(path.resolve(__dirname, '../portraits', v.file))) bad(`${id}: missing file ${v.file}`);
+      if (!Number.isInteger(v.from) || v.from < 1) bad(`${id}: invalid starting episode`);
+      if (Array.isArray(entry) && v.from < person[id]?.firstEpisode) bad(`${id}: picture appears before the character`);
       if (v.from > d.maxEpisode) bad(`${id}: version from E${v.from} is past the ceiling`);
       if (i && v.from <= versions[i - 1].from) bad(`${id}: versions not ascending`);
+      if (v.crop !== undefined || v.sourceSize !== undefined) {
+        const crop = v.crop, size = v.sourceSize;
+        if (!Array.isArray(crop) || crop.length !== 4 || !Array.isArray(size) || size.length !== 2
+          || ![...crop, ...size].every(Number.isFinite)) { bad(`${id}: invalid source frame`); return; }
+        const [x, y, width, height] = crop;
+        if (x < 0 || y < 0 || width <= 0 || height <= 0 || width !== height
+          || x + width > size[0] || y + height > size[1]) bad(`${id}: source frame does not fit the image`);
+      }
     });
+  }
+});
+check('every person and Titan has a bundled portrait by the edition ceiling', bad => {
+  for (const character of d.characters.filter(character => character.type !== 'group')) {
+    const entry = portraits[character.id];
+    const versions = Array.isArray(entry) ? entry : typeof entry === 'string' ? [{ from: 1, file: entry }] : [];
+    if (!versions.some(version => version.from <= d.maxEpisode)) bad(`${character.id}: no picture`);
   }
 });
 // Season art (file names ending -s<N>) may only show from that season's first episode on.

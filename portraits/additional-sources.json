@@ -1,0 +1,647 @@
+[
+  {
+    "id": "armored",
+    "from": 2,
+    "file": "armored-e02.jpg",
+    "sourceUrl": "https://media.myshows.me/episodes/normal/e/5b/e5b6321ff77064ced8c12f0c509315d5.jpg",
+    "sourcePageUrl": "https://myshows.me/view/episode/1779614/",
+    "sourceSize": [
+      960,
+      540
+    ],
+    "crop": [
+      35,
+      0,
+      535,
+      535
+    ],
+    "verification": "E2 episode thumbnail: Armored Titan charging the inner Shiganshina gate. Visually verified the anime Titan form; no human identity is shown in the face frame.",
+    "sha256": "058f63a0a1c981ba49447514f674c972f70dd21e681ed7dc4c039715543db551",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "carla",
+    "from": 1,
+    "file": "carla-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/n62475-CExspVnLfweu.png",
+    "sourceSize": [
+      230,
+      360
+    ],
+    "crop": [
+      0,
+      5,
+      230,
+      230
+    ],
+    "sha256": "550de9ca8572f65fc6ed5e48d65f0c9127fdebab513eab8dc9e8a1d6e8157058",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "colt",
+    "from": 60,
+    "file": "colt-portrait.png",
+    "sourceUrl": "https://shingeki.tv/final/character/img/colt_thumb.png",
+    "crop": [
+      57,
+      25,
+      136,
+      136
+    ],
+    "sourceSize": [
+      240,
+      670
+    ],
+    "sha256": "f32a3da89b9d518d04fe2530eb0d653ee1c402a8b2ecdaed5bddb24250cf3e0b",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "dina",
+    "from": 57,
+    "file": "dina-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b133215-ifxjiTHsEGNl.png",
+    "sourceSize": [
+      230,
+      230
+    ],
+    "crop": [
+      34,
+      4,
+      164,
+      164
+    ],
+    "sha256": "6ea7d596ff3597a9ab124b3d3407f21427ac2c70e775a4a79e256f0fa5c82f47",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "falco",
+    "from": 60,
+    "file": "falco-portrait.png",
+    "sourceUrl": "https://shingeki.tv/final/character/img/falco_thumb.png",
+    "crop": [
+      60,
+      109,
+      126,
+      126
+    ],
+    "sourceSize": [
+      220,
+      670
+    ],
+    "sha256": "d411b502d23cf89992811ca965e04e2186dade94a44f788c8099f9caeca48351",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "female-titan",
+    "from": 17,
+    "file": "female-titan-e17.jpg",
+    "sourceUrl": "https://m.media-amazon.com/images/M/MV5BMDUxMmUwYzEtYzAxZS00ODAwLTg2YzgtZGI3MTdhMDA4MDA2XkEyXkFqcGc%40._V1_.jpg",
+    "sourcePageUrl": "https://www.imdb.com/title/tt3104218/mediaviewer/rm2968560897/",
+    "episodeReferenceUrl": "https://attackontitan.fandom.com/wiki/Female_Titan:_The_57th_Exterior_Scouting_Mission,_Part_1",
+    "sourceSize": [
+      1920,
+      1080
+    ],
+    "crop": [
+      430,
+      0,
+      1080,
+      1080
+    ],
+    "verification": "IMDb E17 media gallery still shows the Female Titan looking down at Armin after pulling back his hood; E17 wiki scene agrees. Visually verified the Titan form only, without its human identity; existing E18/E24 versions can remain.",
+    "sha256": "b3587e294626b6a809940691837e5721440d65fae15e5a70f9e8459c3688fbb4",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "floch",
+    "from": 49,
+    "file": "floch-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b127703-qNIccR0yPZKu.png",
+    "sourceSize": [
+      230,
+      358
+    ],
+    "crop": [
+      0,
+      65,
+      230,
+      230
+    ],
+    "sha256": "c629d9b70a9fa3779c5810308b1466330f448bf54b83a28006847121b5b43f78",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "founder-ymir",
+    "from": 78,
+    "file": "founder-ymir-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b199551-UNzb9vgcbOIx.png",
+    "sourceSize": [
+      230,
+      345
+    ],
+    "crop": [
+      0,
+      15,
+      230,
+      230
+    ],
+    "sha256": "e3f0c8ac001d913191fe4517f0b618a4669e7b1b82b96477b12e368716ea16fe",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "four-legged-titan",
+    "from": 55,
+    "file": "four-legged-titan-e55.png",
+    "sourceUrl": "https://i.imgflip.com/4uy231.png",
+    "sourcePageUrl": "https://imgflip.com/meme/293842189/Cart-titan",
+    "episodeReferenceUrl": "https://attackontitan.fandom.com/wiki/Midnight_Sun_(Episode)",
+    "sourceSize": [
+      1400,
+      700
+    ],
+    "crop": [
+      190,
+      40,
+      350,
+      350
+    ],
+    "verification": "Uncaptioned anime screenshot: the Cart Titan races at Jean and Hange before taking Reiner. E55 episode summary matches that scene. The tight face frame excludes Jean/Hange and Zeke; start55 despite data introduction54.",
+    "sha256": "cf5ae29862b4f029a47c5a446c0f056b508f6302681b475e3403498f0353774e",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "gabi",
+    "from": 60,
+    "file": "gabi-portrait.png",
+    "sourceUrl": "https://shingeki.tv/final/character/img/gabi_thumb.png",
+    "crop": [
+      55,
+      100,
+      128,
+      128
+    ],
+    "sourceSize": [
+      220,
+      670
+    ],
+    "sha256": "bb8903d829ebaff4892c05d9ae95442a8b11a2b0306221134ea25b079714c115",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "grisha",
+    "from": 1,
+    "file": "grisha-portrait.webp",
+    "sourceUrl": "https://shikimori.io/uploads/poster/characters/62477/main_2x-6d6c932b25b706914511347f19889921.webp",
+    "sourceSize": [
+      450,
+      700
+    ],
+    "crop": [
+      55,
+      40,
+      340,
+      340
+    ],
+    "sha256": "7f3643c3c5f323969a47e16ccfd53af2cc35a2d69f5d0b2eb6ccbad97b20edba",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "hannes",
+    "from": 1,
+    "file": "hannes-portrait.jpg",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b46492-5kRaMLDCVD0B.jpg",
+    "sourceSize": [
+      230,
+      345
+    ],
+    "crop": [
+      0,
+      10,
+      230,
+      230
+    ],
+    "sha256": "e28dd4c34c35fc4921dd33d1d19c07a57fbc35f4c486ea553358c6b88d44ab62",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "jaw-titan",
+    "from": 60,
+    "file": "jaw-titan-e60.jpg",
+    "sourceUrl": "https://www.denofgeek.com/wp-content/uploads/2020/12/Attack-On-Titan-401-Jaw-Titan-Attacks.jpg",
+    "sourcePageUrl": "https://www.denofgeek.com/tv/attack-on-titan-season-4-episode-1-review-the-other-side-of-the-sea/",
+    "sourceSize": [
+      1208,
+      675
+    ],
+    "crop": [
+      190,
+      0,
+      665,
+      665
+    ],
+    "verification": "The E60 review dated2020-12-06 credits the photo to Funimation. Visually verified the masked blond Jaw Titan during the Fort Slava assault; no human identity visible.",
+    "sha256": "ab7f41964da21572a200d049369cd0717c4e7cb2ca031017884a51cf2c545a5d",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "kaya",
+    "from": 70,
+    "file": "kaya-portrait.jpg",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/n132738-I8jNSdoNIhZI.jpg",
+    "sourceSize": [
+      230,
+      353
+    ],
+    "crop": [
+      20,
+      10,
+      200,
+      200
+    ],
+    "sha256": "d728e00d270849ac477de043a16cfdf83170710ced10e10d8e1d846f1aaeda2d",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "keith",
+    "from": 3,
+    "file": "keith-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/n84305-15nngV5nTUp6.png",
+    "sourceSize": [
+      230,
+      360
+    ],
+    "crop": [
+      0,
+      45,
+      230,
+      230
+    ],
+    "sha256": "73a3c964947b9fd81af730780f8e104e5c5ceee83e337ce3e16f045fc4a486b2",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "kiyomi",
+    "from": 64,
+    "file": "kiyomi-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b202799-WlK66SqrhzED.png",
+    "crop": [
+      0,
+      30,
+      230,
+      230
+    ],
+    "sourceSize": [
+      230,
+      345
+    ],
+    "sha256": "24623b9b44a63458fd518c69a4cb9aff7fb41edc1465cd947097defd2d95165d",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "kruger",
+    "from": 57,
+    "file": "kruger-portrait.jpg",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b131440-ynAPKMtrhhj1.jpg",
+    "sourceSize": [
+      230,
+      358
+    ],
+    "crop": [
+      5,
+      70,
+      225,
+      225
+    ],
+    "sha256": "1c5e82e7483e9039b1946c5a8eb18a084bb993420cfc1db669b1ac977f1866a7",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "louise",
+    "from": 70,
+    "file": "louise-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b209870-urk2Tf2nV0mQ.png",
+    "sourceSize": [
+      230,
+      345
+    ],
+    "crop": [
+      0,
+      40,
+      230,
+      230
+    ],
+    "sha256": "211b24ed944fb426e89a7b9791d97dcd68bbed573648ae59aababd5241dc5013",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "magath",
+    "from": 60,
+    "file": "magath-portrait.jpg",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b131763-YNYd9scK4Den.jpg",
+    "crop": [
+      0,
+      30,
+      230,
+      230
+    ],
+    "sourceSize": [
+      230,
+      345
+    ],
+    "sha256": "5e94e89c64d54cd989e01c19b47be4dc4c36b9f2356fb2caf905f5884991a382",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "marcel",
+    "from": 62,
+    "file": "marcel-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b127683-VDnuXVkMerjU.png",
+    "sourceSize": [
+      230,
+      345
+    ],
+    "crop": [
+      0,
+      0,
+      230,
+      230
+    ],
+    "sha256": "1cd51f7ce9ebb5add34f3c566a07a1e4d7d438b4f133ed93e2c2487d2c0b4d41",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "niccolo",
+    "from": 68,
+    "file": "niccolo-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b133218-G3SQp19jnFIJ.png",
+    "crop": [
+      0,
+      50,
+      230,
+      230
+    ],
+    "sourceSize": [
+      230,
+      345
+    ],
+    "sha256": "fae802bc415049f87ba4203d5f3c9fb2a31ed9af81eeb2d6a75069ef4c5aa704",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "onyankopon",
+    "from": 68,
+    "file": "onyankopon-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b192909-81EoCndP0uEH.png",
+    "crop": [
+      0,
+      0,
+      230,
+      230
+    ],
+    "sourceSize": [
+      230,
+      345
+    ],
+    "sha256": "99b77811ddfeb3883a45dd36dd69d717ef5d79f8404b07cfc3140127a9676cad",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "pieck",
+    "from": 61,
+    "file": "pieck-portrait.png",
+    "sourceUrl": "https://shingeki.tv/final/character/img/pieck_thumb.png",
+    "crop": [
+      41,
+      53,
+      135,
+      135
+    ],
+    "sourceSize": [
+      220,
+      670
+    ],
+    "sha256": "d3e37c3f46f238a5716677a7b4eb456cd972dadd011819b1a4dda92f4f31742b",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "porco",
+    "from": 61,
+    "file": "porco-portrait.png",
+    "sourceUrl": "https://shingeki.tv/final/character/img/porco_thumb.png",
+    "crop": [
+      67,
+      24,
+      134,
+      134
+    ],
+    "sourceSize": [
+      220,
+      670
+    ],
+    "sha256": "dc5d2a0fe376f27e401de2ecc1cef733298013db295c59fed5bc3456e7233868",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "ramzi",
+    "from": 87,
+    "file": "ramzi-portrait.jpg",
+    "sourceUrl": "https://sportshub.cbsistatic.com/i/2023/03/02/90ac2a38-255c-4da4-8b4e-adde4cdc995e/attack-on-titan-ramzi.jpg",
+    "sourceSize": [
+      900,
+      506
+    ],
+    "crop": [
+      395,
+      125,
+      360,
+      360
+    ],
+    "sha256": "1e59a9054bbb8add2c774ab996ec085728c0d2bbaa510e0df88553e20b438c1b",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "smiling-titan",
+    "from": 1,
+    "file": "smiling-titan-e01.jpg",
+    "sourceUrl": "https://blog-imgs-51.fc2.com/y/a/r/yaraon/1365269554690.jpg",
+    "sourcePageUrl": "https://onepixeljumpdotcom.wordpress.com/2013/04/07/and-so-was-the-end-of-humanity-attack-on-titan/",
+    "sourceSize": [
+      1920,
+      1080
+    ],
+    "crop": [
+      460,
+      0,
+      1080,
+      1080
+    ],
+    "verification": "An E1 recap dated2013-04-07 embeds this close-up of the smiling Titan. The anime Titan face is shown alone, without its human identity.",
+    "sha256": "3a01ffb684c604e8a9a1a74301ac336cba1fa55b047a298850f847a20c1a65dd",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "tybur-sister",
+    "from": 65,
+    "file": "tybur-sister-portrait.jpg",
+    "sourceUrl": "https://pbs.twimg.com/media/Er-XG-jXcAMoSb0.jpg",
+    "crop": [
+      157,
+      6,
+      230,
+      230
+    ],
+    "sourceSize": [
+      546,
+      546
+    ],
+    "sha256": "497651bcc9b2888778f27ef7af2a226eca9d2957a95ee5291f07431b13fb1f47",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "udo",
+    "from": 60,
+    "file": "udo-portrait.png",
+    "sourceUrl": "https://shingeki.tv/final/character/img/udo_thumb.png",
+    "crop": [
+      50,
+      113,
+      128,
+      128
+    ],
+    "sourceSize": [
+      220,
+      670
+    ],
+    "sha256": "1ab709a39ad97754ebcd1b599a614c92d732591ccd453d9f378d2b3f376738c5",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "war-hammer",
+    "from": 65,
+    "file": "war-hammer-e65.jpg",
+    "sourceUrl": "https://pbs.twimg.com/media/EsDYdWcW4AMDYn-.jpg",
+    "sourcePageUrl": "https://x.com/AoTWiki/status/1351317888943185925",
+    "episodeReferenceUrl": "https://attackontitan.fandom.com/wiki/The_War_Hammer_Titan_(Episode)",
+    "sourceSize": [
+      1080,
+      1080
+    ],
+    "crop": [
+      235,
+      0,
+      740,
+      740
+    ],
+    "verification": "AoTWiki episode65 article tweet posted2021-01-18 contains the anime War Hammer mask close-up. Visible form is its E65 debut. Start65 rather than61 to avoid showing its form before it appears; no human identity image.",
+    "sha256": "16bcfaa84dfa26c1567f00f7d133716413e1bb98219072a60445133e7ac8cbf7",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "willy",
+    "from": 63,
+    "file": "willy-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b131762-kOPlEZO6nkyC.png",
+    "crop": [
+      0,
+      12,
+      230,
+      230
+    ],
+    "sourceSize": [
+      230,
+      345
+    ],
+    "sha256": "ef7c3104cc45081a14b129b0190bb005eb3aa8a5ba1b83cd44dd97323cebdf0d",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "xaver",
+    "from": 74,
+    "file": "xaver-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b140852-TdGBEPLEJ2Mr.png",
+    "sourceSize": [
+      230,
+      345
+    ],
+    "crop": [
+      0,
+      25,
+      230,
+      230
+    ],
+    "sha256": "aad9bd5297f2714bfd41db481390e630732c22063e877ff73e33f31506685a4e",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "yelena",
+    "from": 67,
+    "file": "yelena-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b133216-HKl61n4F7eYv.png",
+    "crop": [
+      0,
+      45,
+      230,
+      230
+    ],
+    "sourceSize": [
+      230,
+      345
+    ],
+    "sha256": "c9ae6758110702c38ed062ef5cd6f4263e20fb5ffa02a2f450802d59651cf8f8",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "zeke",
+    "from": 57,
+    "file": "zeke-e57.jpg",
+    "sourceUrl": "https://image.idntimes.com/post/20201225/zeke-yeager-681999268b889c791bab644d923ccdb6.jpg",
+    "sourceSize": [
+      797,
+      451
+    ],
+    "crop": [
+      175,
+      0,
+      451,
+      451
+    ],
+    "sha256": "b477ee8f4e6d21a2374cf1839c03afaff95d1cc1390caad1b2dfd0ffea3c6641",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "zeke",
+    "from": 60,
+    "file": "zeke-portrait.png",
+    "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b125661-FiqFvAtNlL0v.png",
+    "sourceSize": [
+      230,
+      345
+    ],
+    "crop": [
+      0,
+      40,
+      230,
+      230
+    ],
+    "sha256": "468d0e4284dd88432949afe725b76654dfe76036069b2bc4674d8f96aad2ae3c",
+    "reviewed": "2026-10-02"
+  },
+  {
+    "id": "zofia",
+    "from": 60,
+    "file": "zofia-portrait.png",
+    "sourceUrl": "https://shingeki.tv/final/character/img/zofia_thumb.png",
+    "crop": [
+      46,
+      96,
+      130,
+      130
+    ],
+    "sourceSize": [
+      220,
+      670
+    ],
+    "sha256": "776eedd5f843ace849e6425184f03a7193308cffb5cdb1cbbec0c90de1ec3bad",
+    "reviewed": "2026-10-02"
+  }
+]

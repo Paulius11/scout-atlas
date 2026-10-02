@@ -144,12 +144,28 @@
   /* ---------- Portraits: a drawn emblem, or an image listed in portraits/portraits.js ---------- */
   const portraitFiles = window.ATLAS_PORTRAITS && typeof window.ATLAS_PORTRAITS === 'object' ? window.ATLAS_PORTRAITS : {};
   const brokenPortraits = new Set();
-  // An entry is a file name, or a list of { from, file } versions chosen by the viewing episode.
-  const portraitOf = id => {
+  // Source images stay unchanged; optional crop/sourceSize metadata frames their faces in SVG.
+  const portraitVersion = id => {
     const entry = portraitFiles[id];
-    const file = Array.isArray(entry) ? at(entry, state.viewing)?.file : entry;
+    return Array.isArray(entry) ? at(entry, state.viewing) : { file: entry };
+  };
+  const portraitOf = id => {
+    const file = portraitVersion(id)?.file;
     return typeof file === 'string' && /^[\w.-]+\.(jpe?g|png|webp)$/i.test(file) && !brokenPortraits.has(`${id}/${file}`) ? `portraits/${file}` : null;
   };
+  const portraitFrame = id => {
+    const version = portraitVersion(id);
+    const crop = version?.crop;
+    const size = version?.sourceSize;
+    if (!Array.isArray(crop) || crop.length !== 4 || !Array.isArray(size) || size.length !== 2
+      || ![...crop, ...size].every(Number.isFinite)) return null;
+    const [x, y, width, height] = crop;
+    return x >= 0 && y >= 0 && width > 0 && height > 0 && x + width <= size[0] && y + height <= size[1]
+      ? { crop, size } : null;
+  };
+  function framedPortrait(id, src, frame) {
+    return `<image href="${escapeHTML(src)}" width="${frame.size[0]}" height="${frame.size[1]}" preserveAspectRatio="none" data-portrait="${escapeHTML(`${id}/${src.slice(10)}`)}"/>`;
+  }
   // A listed file that fails to load falls back to the emblem.
   document.addEventListener('error', event => {
     const key = event.target.closest?.('[data-portrait]')?.dataset.portrait;
@@ -167,13 +183,16 @@
   function avatar(character, size = 'md') {
     const src = portraitOf(character.id);
     const classes = `avatar avatar-${size} faction-${factionOf(character)} type-${character.type}`;
+    const frame = src && portraitFrame(character.id);
+    if (frame) return `<svg class="${classes} image-portrait" viewBox="${frame.crop.join(' ')}" aria-hidden="true">${framedPortrait(character.id, src, frame)}</svg>`;
     if (src) return `<img class="${classes}" src="${escapeHTML(src)}" alt="" data-portrait="${escapeHTML(`${character.id}/${src.slice(10)}`)}">`;
     return `<svg class="${classes}" viewBox="0 0 40 40" aria-hidden="true"><circle class="avatar-disc" cx="20" cy="20" r="18"/><g clip-path="url(#avatar-glyph-clip)">${GLYPHS[character.type] || GLYPHS.person}</g></svg>`;
   }
   function mapAvatar(character, x, y, entering = false) {
     const src = portraitOf(character.id);
+    const frame = src && portraitFrame(character.id);
     return `<g class="map-person faction-${factionOf(character)} type-${character.type}${entering ? ' enter' : ''}" data-person="${escapeHTML(character.id)}" transform="translate(${x} ${y})"><circle class="avatar-disc" r="11.5"/>${src
-      ? `<image data-portrait="${escapeHTML(`${character.id}/${src.slice(10)}`)}" href="${escapeHTML(src)}" x="-10.5" y="-10.5" width="21" height="21" clip-path="url(#avatar-clip)" preserveAspectRatio="xMidYMid slice"/>`
+      ? (frame ? `<foreignObject x="-10.5" y="-10.5" width="21" height="21" clip-path="url(#avatar-clip)"><svg width="21" height="21" viewBox="${frame.crop.join(' ')}">${framedPortrait(character.id, src, frame)}</svg></foreignObject>` : `<image data-portrait="${escapeHTML(`${character.id}/${src.slice(10)}`)}" href="${escapeHTML(src)}" x="-10.5" y="-10.5" width="21" height="21" clip-path="url(#avatar-clip)" preserveAspectRatio="xMidYMid slice"/>`)
       : `<g transform="translate(-10.5 -10.5) scale(.525)" clip-path="url(#avatar-glyph-clip)">${GLYPHS[character.type] || GLYPHS.person}</g>`}</g>`;
   }
   function peopleList(ids, { compact = false } = {}) {
