@@ -648,40 +648,47 @@
     ['Civilians and nobility', ['civilian', 'crown']]
   ];
   function characterCard(character) {
+    return `<article class="character-card faction-${factionOf(character)}${revealOf(character) ? ' revealed' : ''}${state.focusCharacter === character.id ? ' focused' : ''}" id="character-${escapeHTML(character.id)}" data-character="${escapeHTML(character.id)}" tabindex="-1">
+      <h3 class="character-card-heading"><button type="button" class="character-card-button" data-show-character="${escapeHTML(character.id)}" aria-label="Open details for ${escapeHTML(nameOf(character))}" aria-haspopup="dialog" aria-controls="character-detail-dialog" aria-expanded="false">${avatar(character, 'lg')}<span class="character-card-copy"><span class="character-name">${escapeHTML(nameOf(character))}</span><span class="character-role" title="${escapeHTML(roleOf(character))}">${escapeHTML(roleOf(character))}</span></span><svg class="icon character-card-chevron" aria-hidden="true"><use href="#i-next"/></svg></button></h3>
+    </article>`;
+  }
+  function characterDetails(character) {
     const revealed = revealOf(character);
     const position = lastPosition(character);
     const place = position?.locationId ? getLocation(position.locationId) : null;
     const notes = (character.notes || []).filter(note => note.episode <= state.viewing).sort((a, b) => b.episode - a.episode);
     const noteItem = note => `<li><span class="note-episode">E${pad(note.episode)}</span><span>${escapeHTML(note.text)}</span></li>`;
-    return `<article class="character-card faction-${factionOf(character)}${revealed ? ' revealed' : ''}${state.focusCharacter === character.id ? ' focused' : ''}" id="character-${escapeHTML(character.id)}" data-character="${escapeHTML(character.id)}" tabindex="-1">
-      <header>${avatar(character, 'lg')}<div><h3>${escapeHTML(nameOf(character))}</h3><p class="character-role" title="${escapeHTML(roleOf(character))}">${escapeHTML(roleOf(character))}</p></div></header>
-      <details class="character-about"><summary>About <span class="sr-only">${escapeHTML(nameOf(character))}</span></summary>
-        <p class="character-description">${escapeHTML(roleOf(character))}</p>
+    return `<div class="character-detail-identity">${avatar(character, 'lg')}<p class="character-description">${escapeHTML(roleOf(character))}</p></div>
         ${revealed ? `<p class="reveal-line">Revealed in episode ${character.revealedAs.episode}: <button class="inline-link" data-open-character="${escapeHTML(revealed.id)}">${escapeHTML(nameOf(revealed))}</button></p>` : ''}
-        ${notes.length ? `<ol class="character-notes">${notes.slice(0, 3).map(noteItem).join('')}</ol>` : ''}
-        ${notes.length > 3 ? `<details class="more-notes"><summary>Earlier (${notes.length - 3})</summary><ol class="character-notes">${notes.slice(3).map(noteItem).join('')}</ol></details>` : ''}
-        <footer>${position ? (place
+        ${notes.length ? `<section class="character-detail-notes"><h3>Known so far</h3><ol class="character-notes">${notes.slice(0, 3).map(noteItem).join('')}</ol>${notes.length > 3 ? `<details class="more-notes"><summary>Earlier (${notes.length - 3})</summary><ol class="character-notes">${notes.slice(3).map(noteItem).join('')}</ol></details>` : ''}</section>` : ''}
+        <footer class="character-detail-footer">${position ? (place
           ? `<button class="card-link" data-open-place="${escapeHTML(place.id)}">Last recorded at ${escapeHTML(place.name)}, episode ${position.episode}</button>`
           : `<span>Last recorded in episode ${position.episode}, somewhere this map does not place.</span>`) : ''}<span class="since">In the atlas from episode ${character.firstEpisode}</span></footer>
-      </details>
-    </article>`;
+    `;
   }
   function renderCharacters() {
     const query = state.characterFilter.trim().toLocaleLowerCase();
     const matches = visibleCharacters().filter(character => character.type !== 'group' && (!query
       || [nameOf(character), roleOf(character), ...(character.aliases || [])].join(' ').toLocaleLowerCase().includes(query)));
-    const sections = CHARACTER_SECTIONS.filter(([title]) => state.characterFaction === 'all' || state.characterFaction === title).map(([title, keys]) => {
+    const sortCharacters = (a, b) => Boolean(revealOf(a)) - Boolean(revealOf(b)) || a.firstEpisode - b.firstEpisode;
+    const sections = state.characterFaction === 'all'
+      ? (matches.length ? `<h2 class="sr-only">Characters</h2><div class="character-grid">${matches.sort(sortCharacters).map(characterCard).join('')}</div>` : '')
+      : CHARACTER_SECTIONS.filter(([title]) => state.characterFaction === title).map(([title, keys]) => {
       const members = matches.filter(character => keys.includes(factionOf(character)))
-        .sort((a, b) => Boolean(revealOf(a)) - Boolean(revealOf(b)) || a.firstEpisode - b.firstEpisode);
+        .sort(sortCharacters);
       return members.length ? `<section class="character-section"><h2>${title}<span>${members.length}</span></h2><div class="character-grid">${members.map(characterCard).join('')}</div></section>` : '';
     }).join('');
     const counts = Object.fromEntries(CHARACTER_SECTIONS.map(([title, keys]) => [title, matches.filter(character => keys.includes(factionOf(character))).length]));
     const chips = [['all', 'Everyone', matches.length], ...CHARACTER_SECTIONS.map(([title]) => [title, title, counts[title]])]
       .filter(([, , count], index) => index === 0 || count)
       .map(([value, label, count]) => `<button class="filter-chip" data-faction-filter="${escapeHTML(value)}" aria-pressed="${state.characterFaction === value}">${escapeHTML(label)} <span>${count}</span></button>`).join('');
-    $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><div class="gallery-actions"><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"><button type="button" id="expand-gallery" class="expand-gallery" aria-haspopup="dialog" aria-controls="expanded-gallery-dialog">${icon('expand')}Expand gallery</button></div></div>${sections || '<p class="search-empty">No character matches that filter at this episode.</p>'}`;
+    // The one expansion button lives beside the title on phones, and beside search elsewhere.
+    $('#mobile-gallery-action').replaceChildren();
+    $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><div class="gallery-actions"><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"><button type="button" id="expand-gallery" class="expand-gallery" aria-label="Expand gallery" title="Expand gallery" aria-haspopup="dialog" aria-controls="expanded-gallery-dialog">${icon('expand')}<span class="expand-gallery-label">Expand gallery</span></button></div></div>${sections || '<p class="search-empty">No character matches that filter at this episode.</p>'}`;
+    syncGalleryAction();
   }
   function render({ save = true } = {}) {
+    if (state.view !== 'characters') closeCharacterDetails({ restoreFocus: false });
     if (state.view !== 'map') closeExpandedMap();
     if (state.view !== 'characters') closeExpandedGallery();
     closeCard();
@@ -698,6 +705,7 @@
     renderTimeline();
     renderRecap();
     renderCharacters();
+    syncCharacterDetails();
     // Search results are rebuilt from the current visibility boundary, never retained across it.
     $('#location-search').value = '';
     $('#search-results').hidden = true;
@@ -734,6 +742,8 @@
   function openCharacter(id) {
     const character = getCharacter(id);
     if (!character) return;
+    // Identity links within a detail panel keep the underlying gallery and return target.
+    if (characterDetailDialog.open) { showCharacterDetails(id); return; }
     state.view = 'characters';
     state.focusCharacter = id;
     state.characterFilter = '';
@@ -741,7 +751,8 @@
     render();
     const card = $(`#character-${CSS.escape(id)}`);
     card?.scrollIntoView({ block: 'center' });
-    card?.focus({ preventScroll: true });
+    card?.querySelector('.character-card-button')?.focus({ preventScroll: true });
+    showCharacterDetails(id);
   }
   function setEpisode(number, { follow = false } = {}) {
     state.viewing = Math.min(state.cutoff, episodeNumber(number));
@@ -1044,15 +1055,99 @@
   }, true);
   $('#show-changes').addEventListener('click', () => { state.changesOnly = !state.changesOnly; renderChanges(); scheduleLayout(); });
 
+  /* ---------- Character details: native focus trap, episode-aware content, gallery return ---------- */
+  const characterDetailDialog = $('#character-detail-dialog');
+  let detailCharacterId = null;
+  let detailReturnId = null;
+  let detailScrollY = 0;
+  let detailGalleryScrollTop = 0;
+  function restoreCharacterDetails({ restoreFocus = true } = {}) {
+    if (!detailCharacterId) return;
+    const returnId = detailReturnId;
+    detailCharacterId = null;
+    detailReturnId = null;
+    document.body.classList.remove('character-detail-open');
+    $('#character-detail-title').textContent = '';
+    $('#character-detail-episode').textContent = '';
+    $('#character-detail-body').replaceChildren();
+    $$('.character-card-button').forEach(button => button.setAttribute('aria-expanded', 'false'));
+    if (restoreFocus && state.view === 'characters') {
+      const button = returnId && $(`[data-show-character="${CSS.escape(returnId)}"]`);
+      (button || $('#character-filter'))?.focus({ preventScroll: true });
+      window.scrollTo({ top: detailScrollY, behavior: 'instant' });
+      $('#expanded-gallery-slot').scrollTop = detailGalleryScrollTop;
+    }
+  }
+  function closeCharacterDetails(options) {
+    if (characterDetailDialog.open) characterDetailDialog.close();
+    restoreCharacterDetails(options);
+  }
+  function syncCharacterDetails() {
+    if (!detailCharacterId) return;
+    const character = getCharacter(detailCharacterId);
+    if (!character || state.view !== 'characters') {
+      state.focusCharacter = null;
+      closeCharacterDetails();
+      return;
+    }
+    const body = $('#character-detail-body');
+    const hadBodyFocus = body.contains(document.activeElement);
+    $('#character-detail-title').textContent = nameOf(character);
+    $('#character-detail-episode').textContent = `As of E${pad(state.viewing)} · ${titleOfEpisode(state.viewing)}`;
+    body.innerHTML = characterDetails(character);
+    $$('.character-card').forEach(card => card.classList.toggle('focused', card.dataset.character === character.id));
+    $$('.character-card-button').forEach(button => button.setAttribute('aria-expanded', String(button.dataset.showCharacter === character.id)));
+    if (hadBodyFocus) $('#close-character-detail').focus({ preventScroll: true });
+  }
+  function showCharacterDetails(id) {
+    if (!getCharacter(id)) return;
+    if (!characterDetailDialog.open) {
+      detailReturnId = document.activeElement.closest('[data-show-character]')?.dataset.showCharacter || id;
+      detailScrollY = window.scrollY;
+      detailGalleryScrollTop = $('#expanded-gallery-slot').scrollTop;
+    }
+    detailCharacterId = id;
+    state.focusCharacter = id;
+    syncCharacterDetails();
+    $('#character-detail-body').scrollTop = 0;
+    if (!characterDetailDialog.open) {
+      document.body.classList.add('character-detail-open');
+      characterDetailDialog.showModal();
+    }
+    $('#close-character-detail').focus({ preventScroll: true });
+  }
+  $('#close-character-detail').addEventListener('click', () => closeCharacterDetails());
+  characterDetailDialog.addEventListener('cancel', event => {
+    event.preventDefault();
+    closeCharacterDetails();
+  });
+  characterDetailDialog.addEventListener('close', () => {
+    if (!characterDetailDialog.open) restoreCharacterDetails();
+  });
+
   /* ---------- Expanded gallery: reuse the same cards, filters and episode boundary ---------- */
   const expandedGalleryDialog = $('#expanded-gallery-dialog');
   const charactersView = $('#characters-view');
   const charactersHome = charactersView.parentElement;
   let galleryScrollY = 0;
+  function syncGalleryAction({ inGallery = false } = {}) {
+    const button = $('#expand-gallery');
+    if (!button) return;
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
+    const target = !inGallery && !expandedGalleryDialog.open && mobile && state.view === 'characters'
+      ? $('#mobile-gallery-action') : $('.gallery-actions', charactersView);
+    if (button.parentElement !== target) {
+      const hadFocus = document.activeElement === button;
+      target.append(button);
+      if (hadFocus) button.focus({ preventScroll: true });
+    }
+  }
+  window.matchMedia('(max-width: 760px)').addEventListener('change', () => syncGalleryAction());
   function restoreExpandedGallery() {
     if (!$('#expanded-gallery-slot').contains(charactersView)) return;
     charactersHome.insertBefore(charactersView, $('.page-footer'));
     document.body.classList.remove('gallery-expanded');
+    syncGalleryAction();
     window.scrollTo({ top: galleryScrollY, behavior: 'instant' });
     if (state.view === 'characters') $('#expand-gallery')?.focus({ preventScroll: true });
   }
@@ -1063,6 +1158,7 @@
   function openExpandedGallery() {
     if (state.view !== 'characters' || expandedGalleryDialog.open) return;
     galleryScrollY = window.scrollY;
+    syncGalleryAction({ inGallery: true });
     $('#expanded-gallery-slot').append(charactersView);
     document.body.classList.add('gallery-expanded');
     expandedGalleryDialog.showModal();
@@ -1190,6 +1286,8 @@
       return;
     }
     if (event.target.closest('#expand-gallery')) { openExpandedGallery(); return; }
+    const characterCardButton = event.target.closest('[data-show-character]');
+    if (characterCardButton) { showCharacterDetails(characterCardButton.dataset.showCharacter); return; }
     const chip = event.target.closest('.map-person');
     if (chip) { openCard(chip, true); return; }
     if (event.target.closest('[data-close-card]')) { closeCard(); return; }

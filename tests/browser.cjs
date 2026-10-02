@@ -67,6 +67,15 @@ async function setCutoff(page, value) {
 }
 async function view(page, name) { await page.locator(`.primary-nav [data-view="${name}"]`).click(); }
 async function episode(page, number) { await page.locator('#episode-select').selectOption(String(number)); }
+async function characterDetails(page, id) {
+  await page.locator(`#character-${id} .character-card-button`).click();
+  assert.equal(await page.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true);
+  return page.locator('#character-detail-body');
+}
+async function closeCharacterDetails(page) {
+  await page.locator('#close-character-detail').click();
+  assert.equal(await page.locator('#character-detail-dialog').evaluate(dialog => dialog.open), false);
+}
 // Label, caption and portrait boxes of every visible marker, after the label layout has run.
 async function labelBoxes(page) {
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -195,23 +204,102 @@ async function main() {
       }
     });
 
-    await test('compact gallery displays the current cast without losing readable details', async () => {
+    await test('Everyone fills one continuous gallery and each card opens readable details', async () => {
       const compact = await createPage();
       await view(compact, 'characters');
       const count = data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= MAX).length;
       assert.equal(await compact.locator('.character-card').count(), count);
+      assert.equal(await compact.locator('.character-grid').count(), 1, 'Everyone uses one grid');
+      assert.equal(await compact.locator('.character-section h2').count(), 0, 'Everyone has no faction breaks');
+      assert.equal(await compact.locator('.character-about').count(), 0, 'cards have no repeated About row');
+      const rows = await compact.locator('.character-card').evaluateAll(cards => {
+        const rows = new Map();
+        for (const card of cards) {
+          const y = Math.round(card.getBoundingClientRect().top);
+          rows.set(y, (rows.get(y) || 0) + 1);
+        }
+        return [...rows.values()];
+      });
+      assert.ok(rows.length > 1);
+      assert.ok(rows.slice(0, -1).every(count => count === rows[0]), 'every row except the last should be filled');
       const visible = await compact.locator('.character-card').evaluateAll(cards => cards.filter(card => {
         const rect = card.getBoundingClientRect();
         return rect.top >= 0 && rect.bottom <= innerHeight;
       }).length);
-      assert.ok(visible >= 10, `only ${visible} complete cards fit on a desktop`);
-      const about = compact.locator('#character-eren .character-about');
-      assert.equal(await about.locator('footer').isVisible(), false, 'metadata starts folded');
-      await about.locator(':scope > summary').focus();
-      await compact.keyboard.press('Enter');
-      assert.equal(await about.locator('footer').isVisible(), true);
-      assert.equal(await about.locator('.character-description').innerText(), at(data.characters.find(character => character.id === 'eren').role, MAX).text);
+      assert.ok(visible >= 20, `only ${visible} complete cards fit on a desktop`);
+      const body = await characterDetails(compact, 'eren');
+      assert.equal(await compact.locator('#character-detail-title').innerText(), at(data.characters.find(character => character.id === 'eren').name, MAX).text);
+      assert.equal(await body.locator('.character-description').innerText(), at(data.characters.find(character => character.id === 'eren').role, MAX).text);
+      assert.equal(await body.locator('footer').isVisible(), true, 'metadata is available in the details panel');
+      await closeCharacterDetails(compact);
       await assertNoHorizontalOverflow(compact, 'compact gallery');
+    });
+
+    await test('whole character cards work by mouse, Enter and Space and return to the same filtered gallery', async () => {
+      const gallery = await createPage();
+      await view(gallery, 'characters');
+      await gallery.locator('#character-filter').fill('Levi');
+      const matches = await gallery.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character));
+      const card = gallery.locator('#character-levi');
+      const opener = card.locator('.character-card-button');
+      assert.equal(await opener.getAttribute('aria-label'), `Open details for ${at(data.characters.find(character => character.id === 'levi').name, MAX).text}`);
+      const cardBox = await card.boundingBox();
+      const buttonBox = await opener.boundingBox();
+      assert.ok(buttonBox.width >= cardBox.width - 4 && buttonBox.height >= cardBox.height - 4, 'the full card is the click target');
+      for (const key of [null, 'Enter', 'Space']) {
+        await opener.focus();
+        const scroll = await gallery.evaluate(() => scrollY);
+        if (key) await gallery.keyboard.press(key);
+        else await opener.click({ position: { x: buttonBox.width - 10, y: buttonBox.height - 10 } });
+        assert.equal(await gallery.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true, `${key || 'mouse'} opens details`);
+        assert.equal(await gallery.evaluate(() => Boolean(document.activeElement.closest('#character-detail-dialog'))), true, 'focus enters the details panel');
+        await gallery.keyboard.press('Tab');
+        assert.equal(await gallery.evaluate(() => Boolean(document.activeElement.closest('#character-detail-dialog'))), true, 'focus stays in the details panel');
+        await gallery.keyboard.press('Escape');
+        assert.equal(await gallery.locator('#character-detail-dialog').evaluate(dialog => dialog.open), false);
+        assert.equal(await opener.evaluate(element => element === document.activeElement), true, 'focus returns to the initiating card');
+        assert.equal(await gallery.locator('#character-filter').inputValue(), 'Levi');
+        assert.deepEqual(await gallery.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character)), matches);
+        assert.ok(Math.abs(await gallery.evaluate(() => scrollY) - scroll) < 2, 'closing preserves gallery scroll');
+      }
+    });
+
+    await test('the phone gallery starts higher, uses full-width search and keeps expansion beside the heading', async () => {
+      for (const { width, height } of [{ width: 390, height: 844 }, { width: 320, height: 740 }]) {
+        const phone = await createPage({ width, height });
+        await view(phone, 'characters');
+        const first = await phone.locator('.character-card').first().boundingBox();
+        assert.ok(first.y < 330, `${width}px: first card starts at ${Math.round(first.y)}px`);
+        const visible = await phone.locator('.character-card').evaluateAll(cards => cards.filter(card => {
+          const rect = card.getBoundingClientRect();
+          const navTop = document.querySelector('.primary-nav').getBoundingClientRect().top;
+          return rect.top >= 0 && rect.bottom <= navTop;
+        }).length);
+        assert.ok(visible >= (width === 390 ? 6 : 4), `${width}px: only ${visible} complete cards are visible`);
+        const clipped = await phone.locator('.character-name').evaluateAll(names => names.filter(name => {
+          const box = name.getBoundingClientRect();
+          const card = name.closest('.character-card').getBoundingClientRect();
+          return name.scrollWidth > name.clientWidth + 1 || box.left < card.left || box.right > card.right || box.top < card.top || box.bottom > card.bottom;
+        }).map(name => name.textContent));
+        assert.deepEqual(clipped, [], 'character names remain readable inside their cards');
+        assert.equal(await phone.locator('#expand-gallery').evaluate(element => element.parentElement.id), 'mobile-gallery-action');
+        const title = await phone.locator('.page-title-row h1').boundingBox();
+        const expansion = await phone.locator('#expand-gallery').boundingBox();
+        assert.ok(expansion.y < title.y + title.height && title.y < expansion.y + expansion.height, 'expansion shares the title row');
+        const filter = await phone.locator('#character-filter').boundingBox();
+        const toolbar = await phone.locator('.gallery-actions').boundingBox();
+        assert.ok(filter.width > toolbar.width * .95, 'gallery search fills its row');
+        assert.equal((await phone.locator('label[for="episode-select"]').innerText()).trim(), 'Viewing episode');
+        await assertNoHorizontalOverflow(phone, `${width}px compact gallery`);
+        await phone.locator('#expand-gallery').focus();
+        await phone.setViewportSize({ width: 1440, height: 1040 });
+        await phone.waitForFunction(() => document.querySelector('#expand-gallery').parentElement.classList.contains('gallery-actions'));
+        assert.equal(await phone.locator('#expand-gallery').evaluate(element => element === document.activeElement), true, 'moving expansion to desktop retains focus');
+        await phone.setViewportSize({ width, height });
+        await phone.waitForFunction(() => document.querySelector('#expand-gallery').parentElement.id === 'mobile-gallery-action');
+        assert.equal(await phone.locator('#expand-gallery').evaluate(element => element === document.activeElement), true, 'moving expansion back to the phone heading retains focus');
+        assert.equal(await phone.locator('#expand-gallery').count(), 1, 'breakpoint changes move the existing button');
+      }
     });
 
     await test('expanded gallery keeps filters, contains focus, restores the tab and respects episode limits', async () => {
@@ -245,11 +333,17 @@ async function main() {
         await gallery.locator('#expand-gallery').click();
         // Pick an episode with a real recorded position; a later episode can be entirely unpinned.
         const pinned = pinnedPersonAt(lastPinnedEpisode);
-        await gallery.locator(`#character-${pinned.id} .character-about > summary`).click();
-        const placeLink = gallery.locator(`#character-${pinned.id} [data-open-place]`);
+        await characterDetails(gallery, pinned.id);
+        assert.equal(await gallery.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), true, 'details open above the expanded gallery');
+        await gallery.keyboard.press('Escape');
+        assert.equal(await gallery.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), true, 'closing details keeps the gallery expanded');
+        assert.equal(await gallery.locator(`#character-${pinned.id} .character-card-button`).evaluate(element => element === document.activeElement), true);
+        await characterDetails(gallery, pinned.id);
+        const placeLink = gallery.locator('#character-detail-body [data-open-place]');
         const id = await placeLink.getAttribute('data-open-place');
         await placeLink.click();
         assert.equal(await gallery.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), false);
+        assert.equal(await gallery.locator('#character-detail-dialog').evaluate(dialog => dialog.open), false);
         assert.equal(await gallery.locator('#map-view').isVisible(), true);
         assert.equal(await gallery.locator('.map-marker.selected').getAttribute('data-location'), id);
         await setCutoff(gallery, 1);
@@ -461,7 +555,10 @@ async function main() {
       await expanded.locator('#person-card [data-open-character]').click();
       assert.equal(await expanded.locator('#expanded-map-dialog').evaluate(element => element.open), false);
       assert.equal(await expanded.locator('#characters-view').isVisible(), true);
-      assert.equal(await expanded.locator(`#character-${id}`).evaluate(element => element === document.activeElement), true);
+      assert.equal(await expanded.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true);
+      assert.equal(await expanded.locator('#character-detail-title').innerText(), at(data.characters.find(character => character.id === id).name, lastPinnedEpisode).text);
+      await closeCharacterDetails(expanded);
+      assert.equal(await expanded.locator(`#character-${id} .character-card-button`).evaluate(element => element === document.activeElement), true);
       assert.equal(await expanded.locator('#map-stage').evaluate(element => element.parentElement.classList.contains('atlas-body')), true);
     });
 
@@ -550,20 +647,37 @@ async function main() {
       await view(page, 'characters');
       for (const [n, other] of [[29, 30], [30, 40], [40, MAX]]) {
         await episode(page, n);
-        const card = await page.locator('#character-historia h3').innerText();
+        const card = await page.locator('#character-historia .character-name').innerText();
         assert.equal(card, at(historia.name, n).text);
         if (other !== MAX) assert.ok(!(await readUi(page)).includes(at(historia.name, other).text), `${at(historia.name, other).text} shown at E${n}`);
       }
       for (const titan of data.characters.filter(c => c.revealedAs)) {
         const who = data.characters.find(c => c.id === titan.revealedAs.id);
         await episode(page, titan.revealedAs.episode - 1);
-        assert.equal(await page.locator(`#character-${titan.id} .reveal-line`).count(), 0, `${titan.id} revealed early`);
+        await characterDetails(page, titan.id);
+        assert.equal(await page.locator('#character-detail-body .reveal-line').count(), 0, `${titan.id} revealed early`);
+        await closeCharacterDetails(page);
         await episode(page, titan.revealedAs.episode);
-        await page.locator(`#character-${titan.id} .character-about > summary`).click();
-        assert.match(await page.locator(`#character-${titan.id} .reveal-line`).innerText(), new RegExp(at(who.name, titan.revealedAs.episode).text));
+        await characterDetails(page, titan.id);
+        assert.match(await page.locator('#character-detail-body .reveal-line').innerText(), new RegExp(at(who.name, titan.revealedAs.episode).text));
+        await closeCharacterDetails(page);
       }
       await view(page, 'map');
       await episode(page, MAX);
+    });
+
+    await test('identity links open the related character in the same details panel', async () => {
+      const linked = await createPage();
+      await episode(linked, 31);
+      await view(linked, 'characters');
+      await characterDetails(linked, 'armored');
+      await linked.locator('#character-detail-body [data-open-character="reiner"]').click();
+      assert.equal(await linked.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true);
+      assert.equal(await linked.locator('#character-detail-title').innerText(), at(data.characters.find(character => character.id === 'reiner').name, 31).text);
+      assert.equal(await linked.locator('#character-detail-dialog').count(), 1, 'related people reuse one panel');
+      assert.equal(await linked.evaluate(() => Boolean(document.activeElement.closest('#character-detail-dialog'))), true);
+      await closeCharacterDetails(linked);
+      assert.equal(await linked.locator('#characters-view').isVisible(), true);
     });
 
     await test('Season 3 places and people stay hidden at episode 37', async () => {
@@ -608,29 +722,37 @@ async function main() {
         assert.deepEqual(await bounded.locator('#recap-view .recap-meta').evaluateAll(items => [...new Set(items.map(item => Number(/Episode (\d+)/.exec(item.textContent)[1])))]), [...milestones].reverse());
       });
 
-      await test('Season 4 character details follow the viewing episode and clear stale map positions', async () => {
+      await test('Season 4 cards and detail panels follow every character update and clear stale map positions', async () => {
         const cast = await createPage();
         await view(cast, 'characters');
         for (let number = 59; number <= MAX; number++) {
           await episode(cast, number);
           const cards = await cast.locator('.character-card').evaluateAll(items => items.map(item => ({
             id: item.dataset.character,
-            name: item.querySelector('h3').textContent,
-            role: item.querySelector('.character-description').textContent,
-            classes: [...item.classList],
-            noteEpisodes: [...item.querySelectorAll('.note-episode')].map(note => Number(note.textContent.slice(1))),
-            place: item.querySelector('[data-open-place]')?.dataset.openPlace || null
+            name: item.querySelector('.character-name').textContent,
+            classes: [...item.classList]
           })));
           const expected = data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= number);
           assert.deepEqual(cards.map(card => card.id).sort(), expected.map(character => character.id).sort(), `E${number} cast`);
           for (const character of expected) {
             const card = cards.find(item => item.id === character.id);
             assert.equal(card.name, at(character.name, number).text, `E${number} ${character.id} name`);
-            assert.equal(card.role, at(character.role, number).text, `E${number} ${character.id} role`);
             assert.ok(card.classes.includes(`faction-${at(character.faction, number).key}`), `E${number} ${character.id} faction`);
-            assert.deepEqual(card.noteEpisodes, (character.notes || []).filter(note => note.episode <= number).map(note => note.episode).sort((a, b) => b - a), `E${number} ${character.id} notes`);
-            const position = (character.positions || []).filter(item => item.episode <= number).sort((a, b) => b.episode - a.episode)[0];
-            assert.equal(card.place, position?.locationId || null, `E${number} ${character.id} last place`);
+            const changes = new Set([59, MAX, character.firstEpisode,
+              ...character.name.map(item => item.from), ...character.role.map(item => item.from),
+              ...character.faction.map(item => item.from), ...(character.notes || []).map(item => item.episode),
+              ...(character.positions || []).map(item => item.episode)]);
+            if (changes.has(number)) {
+              const body = await characterDetails(cast, character.id);
+              assert.equal(await cast.locator('#character-detail-title').innerText(), at(character.name, number).text, `E${number} ${character.id} detail name`);
+              assert.equal(await body.locator('.character-description').innerText(), at(character.role, number).text, `E${number} ${character.id} role`);
+              const noteEpisodes = await body.locator('.note-episode').evaluateAll(notes => notes.map(note => Number(note.textContent.slice(1))));
+              assert.deepEqual(noteEpisodes, (character.notes || []).filter(note => note.episode <= number).map(note => note.episode).sort((a, b) => b - a), `E${number} ${character.id} notes`);
+              const position = (character.positions || []).filter(item => item.episode <= number).sort((a, b) => b.episode - a.episode)[0];
+              const place = await body.locator('[data-open-place]').count() ? await body.locator('[data-open-place]').getAttribute('data-open-place') : null;
+              assert.equal(place, position?.locationId || null, `E${number} ${character.id} last place`);
+              await closeCharacterDetails(cast);
+            }
           }
           const unpinned = expected.filter(character => {
             const position = (character.positions || []).filter(item => item.episode <= number).sort((a, b) => b.episode - a.episode)[0];
@@ -639,6 +761,32 @@ async function main() {
           for (const character of unpinned) assert.equal(await cast.locator(`#location-markers [data-person="${character.id}"]`).count(), 0, `E${number} ${character.id} keeps a stale portrait`);
         }
         await assertNoHorizontalOverflow(cast, 'Season 4 gallery');
+      });
+
+      await test('another tab lowering the episode limit refreshes or closes open character details safely', async () => {
+        const drawer = await createPage();
+        const other = await createPage(undefined, undefined, drawer.context());
+        await view(drawer, 'characters');
+        await characterDetails(drawer, 'eren');
+        await other.evaluate(key => localStorage.setItem(key, JSON.stringify({ cutoff: 13, edition: window.ATLAS_DATA.maxEpisode })), storageKey);
+        await drawer.waitForFunction(() => document.querySelector('#episode-select').value === '13');
+        if (await drawer.locator('#character-detail-dialog').evaluate(dialog => dialog.open)) {
+          assert.equal(await drawer.locator('#character-detail-body .character-description').innerText(), at(data.characters.find(character => character.id === 'eren').role, 13).text);
+          assert.ok((await drawer.locator('#character-detail-body .note-episode').evaluateAll(notes => notes.map(note => Number(note.textContent.slice(1))))).every(number => number <= 13));
+          await closeCharacterDetails(drawer);
+        }
+        await setCutoff(drawer, MAX);
+        await episode(drawer, MAX);
+        await drawer.locator('#expand-gallery').click();
+        const introduced = data.characters.find(character => character.type !== 'group' && character.firstEpisode >= 60);
+        await characterDetails(drawer, introduced.id);
+        await other.evaluate(key => localStorage.setItem(key, JSON.stringify({ cutoff: 59, edition: window.ATLAS_DATA.maxEpisode })), storageKey);
+        await drawer.waitForFunction(() => document.querySelector('#episode-select').value === '59');
+        assert.equal(await drawer.locator('#character-detail-dialog').evaluate(dialog => dialog.open), false, 'a character no longer introduced must close');
+        assert.equal(await drawer.locator(`#character-${introduced.id}`).count(), 0);
+        assert.equal(await drawer.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), true, 'the underlying expanded gallery remains available');
+        assert.equal(await drawer.evaluate(() => Boolean(document.activeElement.closest('#expanded-gallery-dialog'))), true, 'focus stays in the surviving modal');
+        await drawer.locator('#close-expanded-gallery').click();
       });
 
       await test('an unpinned Season 4 event can be found without inventing a map pin', async () => {
@@ -691,8 +839,9 @@ async function main() {
       const labels = await page.locator('#location-markers [data-location]').evaluateAll(items => items.map(item => item.getAttribute('aria-label')).join(' '));
       assert.ok(!labels.includes('Eren Yeager'), 'Eren must not keep a pin while his whereabouts are unknown');
       await view(page, 'characters');
-      await page.locator('#character-eren .character-about > summary').click();
-      assert.match(await page.locator('#character-eren footer').innerText(), /does not place/);
+      await characterDetails(page, 'eren');
+      assert.match(await page.locator('#character-detail-body footer').innerText(), /does not place/);
+      await closeCharacterDetails(page);
       await view(page, 'map');
       await episode(page, MAX);
     });
@@ -756,7 +905,9 @@ async function main() {
         await chip.click();
         await page.locator('#person-card [data-open-character="historia"]').click();
         assert.equal(await page.locator('#characters-view').isVisible(), true);
-        assert.match(await page.evaluate(() => document.activeElement.id), /character-historia/);
+        assert.equal(await page.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true);
+        assert.equal(await page.locator('#character-detail-title').innerText(), at(data.characters.find(character => character.id === 'historia').name, 45).text);
+        await closeCharacterDetails(page);
         await view(page, 'map');
       } finally { await episode(page, MAX); }
     });
@@ -775,6 +926,8 @@ async function main() {
       assert.ok(card.y + card.height <= sheet.y, 'the place sheet must not cover the portrait card');
       await phone.locator('#person-card [data-open-character]').tap();
       assert.equal(await phone.locator('#characters-view').isVisible(), true);
+      assert.equal(await phone.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true);
+      await assertNoHorizontalOverflow(phone, 'phone character details');
     });
 
     for (const viewport of [{ width: 1440, height: 1040 }, { width: 1366, height: 768 }]) {
@@ -861,20 +1014,21 @@ async function main() {
       } finally { await episode(page, MAX); }
     });
 
-    await test('character groups filter with chips; long histories fold away', async () => {
+    await test('character groups filter with chips and older history remains available in details', async () => {
       await view(page, 'characters');
       await page.locator('[data-faction-filter="Titans and Titan shifters"]').click();
       const sections = await page.locator('.character-section h2').evaluateAll(els => els.map(el => el.firstChild.textContent.trim()));
       assert.deepEqual(sections, ['Titans and Titan shifters']);
+      assert.equal(await page.locator('.character-grid').count(), 1);
       await page.locator('[data-faction-filter="all"]').click();
-      const about = page.locator('#character-eren .character-about');
-      assert.equal(await about.locator('ol.character-notes').first().isVisible(), false, 'longer details start folded');
-      await about.locator(':scope > summary').focus();
-      await page.keyboard.press('Enter');
-      assert.equal(await about.locator('ol.character-notes').first().isVisible(), true, 'About opens with the keyboard');
-      assert.ok(await about.locator('.more-notes summary').count() === 1, 'older notes fold behind a summary');
-      await about.locator('.more-notes summary').click();
-      assert.equal(await about.locator('.more-notes ol').isVisible(), true, 'older history remains readable');
+      assert.equal(await page.locator('.character-section h2').count(), 0);
+      const body = await characterDetails(page, 'eren');
+      assert.equal(await body.locator('ol.character-notes').first().isVisible(), true, 'recent notes are readable immediately');
+      assert.equal(await body.locator('.more-notes summary').count(), 1, 'older notes fold behind a summary');
+      assert.equal(await body.locator('.more-notes ol').isVisible(), false);
+      await body.locator('.more-notes summary').click();
+      assert.equal(await body.locator('.more-notes ol').isVisible(), true, 'older history remains readable');
+      await closeCharacterDetails(page);
       await view(page, 'map');
     });
 
@@ -1004,7 +1158,9 @@ async function main() {
       await page.locator('#location-search').fill('Kenny');
       await page.locator('[data-open-character="kenny"]').first().click();
       assert.equal(await page.locator('#characters-view').isVisible(), true);
-      assert.match(await page.evaluate(() => document.activeElement.id), /character-kenny/);
+      assert.equal(await page.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true);
+      assert.equal(await page.locator('#character-detail-title').innerText(), at(data.characters.find(character => character.id === 'kenny').name, MAX).text);
+      await closeCharacterDetails(page);
       await view(page, 'map');
     });
 

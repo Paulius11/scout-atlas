@@ -70,12 +70,12 @@
       <header class="page-heading">
         <div class="heading-text">
           <p class="page-kicker">A scout’s field guide</p>
-          <h1 id="page-title">Find your bearings.</h1>
+          <div class="page-title-row"><h1 id="page-title">Find your bearings.</h1><div id="mobile-gallery-action"></div></div>
           <p id="page-description">The places, the people, and the pieces coming together.</p>
         </div>
         <div class="heading-controls">
           <div class="episode-control">
-            <label for="episode-select">Show the world as of</label>
+            <label for="episode-select">Viewing episode</label>
             <div class="stepper">
               <button id="prev-milestone" class="step-button" aria-label="Previous milestone"><svg class="icon" aria-hidden="true"><use href="#i-prev"/></svg></button>
               <div class="select-wrap"><select id="episode-select"></select></div>
@@ -201,6 +201,13 @@
       <button type="button" id="close-expanded-gallery" class="expanded-map-close">Back to gallery<svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
     </header>
     <div id="expanded-gallery-slot"></div>
+  </dialog>
+  <dialog id="character-detail-dialog" aria-labelledby="character-detail-title" aria-describedby="character-detail-episode">
+    <header class="character-detail-header">
+      <div><p id="character-detail-episode"></p><h2 id="character-detail-title"></h2></div>
+      <button type="button" id="close-character-detail" class="icon-button" aria-label="Close character details"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </header>
+    <div id="character-detail-body" class="character-detail-body"></div>
   </dialog>
   <dialog id="progress-dialog" aria-labelledby="progress-title">
     <form id="progress-form">
