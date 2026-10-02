@@ -20,6 +20,9 @@ const data = window.ATLAS_DATA;
 const MAX = data.maxEpisode;
 const milestones = data.episodes.map(e => e.number);
 const at = (list, episode) => list.filter(v => v.from <= episode).sort((a, b) => b.from - a.from)[0];
+const pinnedPersonAt = number => data.characters.find(character => character.type !== 'group' && character.firstEpisode <= number &&
+  (character.positions || []).filter(position => position.episode <= number).sort((a, b) => b.episode - a.episode)[0]?.locationId);
+const lastPinnedEpisode = [...milestones].reverse().find(number => pinnedPersonAt(number));
 // Everything the atlas introduces after episode 1: none of it may show while viewing episode 1.
 const laterNames = [
   ...data.locations.filter(l => l.firstEpisode > 1).map(l => l.name),
@@ -150,7 +153,7 @@ async function main() {
       const scaled = await createPage();
       await scaled.locator('[data-map-extent="walls"]').click();
       for (const [name, km] of Object.entries(data.mapGeometry.wallRadiusKm)) {
-        const shape = scaled.locator(`#wall-geometry [data-wall="${name}"]`).first();
+        const shape = scaled.locator(`#wall-geometry [data-wall="${name}"]`).nth(1);
         assert.ok(Math.abs(Number(await shape.getAttribute('rx')) - km * data.mapGeometry.unitsPerKm) < .001);
         assert.equal(await shape.getAttribute('ry'), await shape.getAttribute('rx'));
         const bounds = await shape.boundingBox();
@@ -159,7 +162,7 @@ async function main() {
       }
       for (let step = 0; step < 2; step++) {
         const bar = await scaled.locator('#map-scale span').boundingBox();
-        const maria = await scaled.locator('#wall-geometry [data-wall="maria"]').first().boundingBox();
+        const maria = await scaled.locator('#wall-geometry [data-wall="maria"]').nth(1).boundingBox();
         assert.ok(Math.abs(bar.width / maria.width - 100 / 960) < .003, '100 km bar disagrees with wall diameter');
         await scaled.locator('#zoom-in').click();
       }
@@ -238,9 +241,10 @@ async function main() {
         assert.equal(await gallery.locator('#expand-gallery').evaluate(element => element === document.activeElement), true);
         assert.equal(await gallery.locator('body').evaluate(element => element.classList.contains('gallery-expanded')), false);
         await gallery.locator('#character-filter').fill('');
+        await episode(gallery, lastPinnedEpisode);
         await gallery.locator('#expand-gallery').click();
-        // Someone whose latest recorded position at the ceiling has a place on the map.
-        const pinned = data.characters.find(c => c.type !== 'group' && (c.positions || []).filter(p => p.episode <= MAX).sort((a, b) => b.episode - a.episode)[0]?.locationId);
+        // Pick an episode with a real recorded position; a later episode can be entirely unpinned.
+        const pinned = pinnedPersonAt(lastPinnedEpisode);
         await gallery.locator(`#character-${pinned.id} .character-about > summary`).click();
         const placeLink = gallery.locator(`#character-${pinned.id} [data-open-place]`);
         const id = await placeLink.getAttribute('data-open-place');
@@ -390,6 +394,10 @@ async function main() {
       await changed.locator('#show-changes').click();
       const pinned = data.episodes.find(item => item.number === MAX).events.filter(event => event.locationId);
       for (const event of pinned) assert.equal(await changed.locator(`[data-change-event="${event.id}"]`).count(), 1);
+      // A later episode can happen entirely beyond this map. Exercise a mapped event
+      // without requiring the latest recap to invent a location to satisfy this check.
+      const latestMapped = data.episodes.findLast(item => item.events.some(event => event.locationId));
+      await episode(changed, latestMapped.number);
       const first = changed.locator('[data-change-place]').first();
       const id = await first.getAttribute('data-change-place');
       await first.click();
@@ -445,9 +453,10 @@ async function main() {
 
     await test('opening a character from the expanded map restores the atlas and shows their card', async () => {
       const expanded = await createPage();
+      await episode(expanded, lastPinnedEpisode);
       await expanded.locator('#expand-map').click();
-      const portrait = expanded.locator('.map-person').first();
-      const id = await portrait.getAttribute('data-person');
+      const id = pinnedPersonAt(lastPinnedEpisode).id;
+      const portrait = expanded.locator(`.map-person[data-person="${id}"]`);
       await portrait.click();
       await expanded.locator('#person-card [data-open-character]').click();
       assert.equal(await expanded.locator('#expanded-map-dialog').evaluate(element => element.open), false);
@@ -568,6 +577,111 @@ async function main() {
       await page.locator('#location-search').fill('');
       await episode(page, MAX);
     });
+
+    if (data.seasons.some(season => season.season === 4)) {
+      await test('Season 4 is available through the ceiling and stays hidden below episode 60', async () => {
+        const bounded = await createPage();
+        const season = data.seasons.find(item => item.season === 4);
+        assert.equal(season.first, 60);
+        const fourth = bounded.locator('#episode-select optgroup').last();
+        assert.deepEqual(await fourth.locator('option').evaluateAll(options => options.map(option => Number(option.value))), Array.from({ length: MAX - 59 }, (_, index) => index + 60));
+        await setCutoff(bounded, 59);
+        assert.equal(await bounded.locator('#episode-select option').count(), 59);
+        assert.equal(await bounded.locator('#episode-select optgroup').count(), 3);
+        assert.deepEqual(await bounded.locator('#location-markers [data-location]').evaluateAll(items => items.map(item => item.dataset.location)), data.locations.filter(location => location.firstEpisode <= 59).map(location => location.id));
+        await view(bounded, 'characters');
+        assert.deepEqual((await bounded.locator('.character-card').evaluateAll(items => items.map(item => item.dataset.character))).sort(), data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= 59).map(character => character.id).sort());
+        const later = data.characters.filter(character => character.firstEpisode > 59);
+        assert.ok(later.length > 0, 'Season 4 introduces a cast in the gallery');
+        const text = await readUi(bounded);
+        for (const character of later) assert.ok(!text.includes(at(character.name, character.firstEpisode).text), `${character.id} appears before Season 4`);
+        await view(bounded, 'map');
+        for (const character of later) {
+          await bounded.locator('#location-search').fill(at(character.name, character.firstEpisode).text);
+          assert.equal(await bounded.locator(`[data-open-character="${character.id}"]`).count(), 0, `${character.id} is searchable before introduction`);
+        }
+        await bounded.locator('#location-search').fill('');
+        await setCutoff(bounded, MAX);
+        await episode(bounded, MAX);
+        await view(bounded, 'recap');
+        assert.equal(await bounded.locator('.recap-intro h2').innerText(), data.episodeTitles[MAX - 1].title);
+        assert.deepEqual(await bounded.locator('#recap-view .recap-meta').evaluateAll(items => [...new Set(items.map(item => Number(/Episode (\d+)/.exec(item.textContent)[1])))]), [...milestones].reverse());
+      });
+
+      await test('Season 4 character details follow the viewing episode and clear stale map positions', async () => {
+        const cast = await createPage();
+        await view(cast, 'characters');
+        for (let number = 59; number <= MAX; number++) {
+          await episode(cast, number);
+          const cards = await cast.locator('.character-card').evaluateAll(items => items.map(item => ({
+            id: item.dataset.character,
+            name: item.querySelector('h3').textContent,
+            role: item.querySelector('.character-description').textContent,
+            classes: [...item.classList],
+            noteEpisodes: [...item.querySelectorAll('.note-episode')].map(note => Number(note.textContent.slice(1))),
+            place: item.querySelector('[data-open-place]')?.dataset.openPlace || null
+          })));
+          const expected = data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= number);
+          assert.deepEqual(cards.map(card => card.id).sort(), expected.map(character => character.id).sort(), `E${number} cast`);
+          for (const character of expected) {
+            const card = cards.find(item => item.id === character.id);
+            assert.equal(card.name, at(character.name, number).text, `E${number} ${character.id} name`);
+            assert.equal(card.role, at(character.role, number).text, `E${number} ${character.id} role`);
+            assert.ok(card.classes.includes(`faction-${at(character.faction, number).key}`), `E${number} ${character.id} faction`);
+            assert.deepEqual(card.noteEpisodes, (character.notes || []).filter(note => note.episode <= number).map(note => note.episode).sort((a, b) => b - a), `E${number} ${character.id} notes`);
+            const position = (character.positions || []).filter(item => item.episode <= number).sort((a, b) => b.episode - a.episode)[0];
+            assert.equal(card.place, position?.locationId || null, `E${number} ${character.id} last place`);
+          }
+          const unpinned = expected.filter(character => {
+            const position = (character.positions || []).filter(item => item.episode <= number).sort((a, b) => b.episode - a.episode)[0];
+            return position && position.locationId === null;
+          });
+          for (const character of unpinned) assert.equal(await cast.locator(`#location-markers [data-person="${character.id}"]`).count(), 0, `E${number} ${character.id} keeps a stale portrait`);
+        }
+        await assertNoHorizontalOverflow(cast, 'Season 4 gallery');
+      });
+
+      await test('an unpinned Season 4 event can be found without inventing a map pin', async () => {
+        const searched = await createPage();
+        const entry = data.episodes.findLast(item => item.number >= 60 && item.events.some(event => !event.locationId && event.placeName));
+        assert.ok(entry, 'Season 4 records named settings beyond the schematic map');
+        const event = entry.events.find(item => !item.locationId && item.placeName);
+        await episode(searched, entry.number);
+        const markerCount = await searched.locator('#location-markers .map-marker').count();
+        await searched.locator('#expand-map').click();
+        await searched.locator('#location-search').fill(event.title);
+        const result = searched.locator(`#search-results [data-open-event="${event.id}"]`);
+        assert.equal(await result.count(), 1);
+        assert.ok((await result.innerText()).includes(event.placeName), 'search names the recorded setting');
+        await result.click();
+        assert.equal(await searched.locator('#expanded-map-dialog').evaluate(dialog => dialog.open), false);
+        assert.equal(await searched.locator('#recap-view').isVisible(), true);
+        const card = searched.locator(`#recap-${event.id}`);
+        assert.equal(await card.evaluate(element => element === document.activeElement), true, 'search places focus on the matching recap');
+        assert.equal(await card.locator('.unpinned').count(), 1);
+        assert.equal(await card.locator('[data-open-event]').count(), 0, 'the off-map setting has no fabricated map link');
+        assert.equal(await searched.locator('#location-markers .map-marker').count(), markerCount);
+        await assertNoHorizontalOverflow(searched, 'unpinned event search');
+      });
+
+      await test('the map marks former wall boundaries from episode 80 and restores earlier walls', async () => {
+        const historical = await createPage();
+        await historical.locator('[data-map-extent="walls"]').click();
+        await historical.locator('#map-legend summary').click();
+        for (const number of [79, 80, 79]) {
+          await episode(historical, number);
+          const fallen = number >= 80;
+          assert.equal(await historical.locator('#atlas-map').evaluate(element => element.classList.contains('former-walls')), fallen, `E${number} main map`);
+          assert.equal(await historical.locator('#map-overview').evaluate(element => element.classList.contains('former-walls')), fallen, `E${number} overview`);
+          assert.equal(await historical.locator('#map-title-text').innerText(), fallen ? 'Former walled territory' : 'The walled territory');
+          assert.equal(await historical.locator('#wall-status-note').isVisible(), fallen);
+          for (const name of Object.keys(data.mapGeometry.wallRadiusKm)) {
+            const wall = historical.locator(`#wall-geometry [data-wall="${name}"]`).nth(1);
+            assert.equal(await wall.evaluate(element => getComputedStyle(element).strokeDasharray !== 'none'), fallen, `E${number} ${name} boundary style`);
+          }
+        }
+      });
+    }
 
     await test('unpinned events and whereabouts are not drawn on the map', async () => {
       await episode(page, 39);
@@ -828,6 +942,10 @@ async function main() {
         // [saved state, expected cutoff, expect the "progress followed" toast]
         [{ cutoff: 47, viewing: 40 }, MAX, MAX > 47],   // saved before `edition` existed: the episode-47 edition
         [{ cutoff: 47, edition: 47, viewing: 47 }, MAX, MAX > 47],
+        ...(MAX > 59 ? [
+          [{ cutoff: 59, edition: 59, viewing: 59 }, MAX, true],
+          [{ cutoff: 58, edition: 59, viewing: 58 }, 58, false]
+        ] : []),
         [{ cutoff: 13, viewing: 13 }, 13, false],
         [{ cutoff: 46, edition: 47, viewing: 46 }, 46, false],
         [{ cutoff: MAX, edition: MAX, viewing: MAX }, MAX, false]
@@ -953,7 +1071,7 @@ async function main() {
     await test('recap event links open the map on the event', async () => {
       await view(page, 'recap');
       await assertNoHorizontalOverflow(page, 'desktop recap');
-      const last = data.episodes[data.episodes.length - 1].events.find(e => e.locationId);
+      const last = data.episodes.findLast(entry => entry.events.some(event => event.locationId)).events.find(event => event.locationId);
       await page.locator(`[data-open-event="${last.id}"]`).click();
       assert.equal(await page.locator('#map-view').isVisible(), true);
       assert.equal(await page.locator('#location-panel [data-event-id]').first().getAttribute('data-event-id'), last.id);

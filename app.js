@@ -37,8 +37,8 @@
     }
   } catch { /* Exploration also works when browser storage is unavailable. */ }
 
-  // `edition` is the atlas's ceiling when this browser last saved. The ceiling only rises once the viewer
-  // has watched further, so a viewer who had reached the old ceiling follows it up. Saves from before the
+  // `edition` is the atlas's ceiling when this browser last saved. Content extensions are explicitly
+  // authorized by the viewer, so a viewer at the old ceiling follows it up. Saves from before the
   // field existed come from the episode-47 edition.
   const LEGACY_EDITION = 47;
   const savedEdition = Number.isInteger(stored.edition) ? stored.edition : LEGACY_EDITION;
@@ -134,7 +134,7 @@
     $('#show-changes').setAttribute('aria-pressed', String(state.changesOnly));
     panel.innerHTML = `<header><strong>Episode ${state.viewing}</strong><span role="status">${changes.length} recorded ${changes.length === 1 ? 'change' : 'changes'}</span></header><div class="change-list">${changes.length ? changes.map(change => {
       const place = getLocation(change.locationId);
-      const copy = `<strong>${escapeHTML(change.title)}</strong><small>${place ? `${escapeHTML(place.name)} · ` : ''}${escapeHTML(change.summary)}</small>`;
+      const copy = `<strong>${escapeHTML(change.title)}</strong><small>${place || change.placeName ? `${escapeHTML(place?.name || change.placeName)} · ` : ''}${escapeHTML(change.summary)}</small>`;
       return place ? `<button data-change-place="${escapeHTML(place.id)}"${change.type === 'Event' ? ` data-change-event="${escapeHTML(change.id)}"` : ''}>${copy}</button>` : `<div class="change-unpinned">${copy}<span>${change.type === 'Event' ? 'Not pinned on the map' : 'Territory'}</span></div>`;
     }).join('') : '<p class="search-empty">No changes are recorded for this episode. Earlier records remain on the map.</p>'}</div>`;
     $('#location-markers').classList.toggle('changes-mode', state.changesOnly);
@@ -267,6 +267,13 @@
     $('#territory-art').innerHTML = belt?.state === 'lost'
       ? `<path class="lost-ground" fill-rule="evenodd" d="${ellipsePath(RINGS.maria)} ${ellipsePath(RINGS.rose)}"><title>Lost to the Titans since episode ${belt.from}</title></path>`
       : '';
+    const walls = statusOf('walls:all');
+    const fallen = walls?.state === 'fallen';
+    $('#atlas-map').classList.toggle('former-walls', fallen);
+    $('#map-overview').classList.toggle('former-walls', fallen);
+    $('#island-wall-label text').textContent = fallen ? 'Former walls' : 'The walls';
+    $('#wall-status-note').hidden = !fallen;
+    $('#wall-status-note').textContent = fallen ? walls.note : '';
   }
   const coastPoints = geometry.islandOutline.map(([x, y]) => [600 + (x - geometry.islandReferenceCenter[0]) * geometry.islandReferenceScale, 405 + (y - geometry.islandReferenceCenter[1]) * geometry.islandReferenceScale]);
   // Closed curves round the reference's outline without turning it into an oval.
@@ -610,7 +617,8 @@
     $('#timeline-count').textContent = `${episodes.length} of ${data.episodes.length} milestones`;
     $('#timeline-track').innerHTML = episodes.map(episode => {
       const places = [...new Set(episode.events.map(event => event.locationId).filter(Boolean))].map(getLocation).filter(Boolean);
-      const where = places.length ? places.map(place => place.mapLabel || place.name).join(', ') : 'Not pinned on the map';
+      const settings = [...new Set(episode.events.map(event => event.placeName).filter(Boolean))];
+      const where = places.length ? places.map(place => place.mapLabel || place.name).join(', ') : settings.join(', ') || 'Not pinned on the map';
       return `<button class="timeline-event ${episode.number === state.viewing ? 'active' : ''}" data-episode="${episode.number}" title="${escapeHTML(episode.title)}" aria-label="View episode ${episode.number}: ${escapeHTML(episode.title)}, ${escapeHTML(where)}" ${episode.number === state.viewing ? 'aria-current="step"' : ''}><span class="time-number">E${pad(episode.number)}</span><strong>${escapeHTML(episode.title)}</strong><span class="time-place">${escapeHTML(where)}</span></button>`;
     }).join('');
     centerTimeline();
@@ -626,12 +634,15 @@
     $('#recap-view').innerHTML = `<div class="recap-intro">${icon('shield')}<div><p class="panel-kicker">Briefing, episode ${state.viewing}</p><h2>${escapeHTML(titleOfEpisode(state.viewing))}</h2><p>${escapeHTML(currentEpisode?.description || `No new milestone is mapped for episode ${state.viewing}. Below are the selected events established by this point.`)}</p><p class="coverage-note">A selective recap, newest first. Some events happen in places the atlas cannot pin.</p></div></div><div class="recap-grid">${events.map((event, index) => {
       const location = event.locationId ? getLocation(event.locationId) : null;
       if (event.locationId && !location) return '';
-      return `<article class="recap-card${index === 0 ? ' recap-lead' : ''}">${index === 0 ? '<p class="recap-label">Latest recorded moment</p>' : ''}<p class="recap-meta">Episode ${event.episode}${location ? `, ${escapeHTML(location.name)}` : ''}</p><h3>${escapeHTML(event.title)}</h3><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}${knowledgeBadge(event.kind)}${peopleList(event.people, { compact: true })}${location ? `<button class="card-link" data-open-event="${escapeHTML(event.id)}">Find it on the map</button>` : '<p class="unpinned">Not pinned on the map</p>'}</article>`;
+      return `<article id="recap-${escapeHTML(event.id)}" tabindex="-1" class="recap-card${index === 0 ? ' recap-lead' : ''}">${index === 0 ? '<p class="recap-label">Latest recorded moment</p>' : ''}<p class="recap-meta">Episode ${event.episode}${location || event.placeName ? `, ${escapeHTML(location?.name || event.placeName)}` : ''}</p><h3>${escapeHTML(event.title)}</h3><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}${knowledgeBadge(event.kind)}${peopleList(event.people, { compact: true })}${location ? `<button class="card-link" data-open-event="${escapeHTML(event.id)}">Find it on the map</button>` : '<p class="unpinned">Not pinned on the map</p>'}</article>`;
     }).join('')}</div>`;
   }
   const CHARACTER_SECTIONS = [
     ['Survey Corps', ['survey']],
     ['Titans and Titan shifters', ['titan', 'shifter']],
+    ['Marleyan military', ['marley']],
+    ['Anti-Marleyan Volunteers', ['volunteer']],
+    ['Yeagerists', ['yeagerist']],
     ['Training Corps', ['cadet']],
     ['Military and police', ['garrison', 'mp', 'central']],
     ['Civilians and nobility', ['civilian', 'crown']]
@@ -762,11 +773,11 @@
     const has = (...values) => values.flat().filter(Boolean).join(' ').toLocaleLowerCase().includes(query);
     const places = visibleLocations().filter(location => has(location.name, location.mapLabel, location.subtitle, location.tags, location.aliases)).slice(0, 6);
     const people = visibleCharacters().filter(character => character.type !== 'group' && has(nameOf(character), roleOf(character), character.aliases)).slice(0, 6);
-    const events = visibleEvents().filter(event => event.locationId && getLocation(event.locationId) && has(event.title, event.summary)).slice(-5).reverse();
+    const events = visibleEvents().filter(event => (!event.locationId || getLocation(event.locationId)) && has(event.title, event.summary, event.placeName)).slice(-5).reverse();
     const group = (title, items) => (items.length ? `<p class="search-group">${title}</p>${items.join('')}` : '');
     results.innerHTML = (group('Places', places.map(location => `<button data-search-location="${escapeHTML(location.id)}"><span>${escapeHTML(location.name)}</span><small>${escapeHTML(location.subtitle)}</small></button>`))
       + group('People', people.map(character => `<button class="search-person" data-open-character="${escapeHTML(character.id)}">${avatar(character, 'xs')}<span>${escapeHTML(nameOf(character))}<small>${escapeHTML(roleOf(character))}</small></span></button>`))
-      + group('Events', events.map(event => `<button data-open-event="${escapeHTML(event.id)}"><span>${escapeHTML(event.title)}</span><small>Episode ${event.episode}, ${escapeHTML(getLocation(event.locationId).name)}</small></button>`)))
+      + group('Events', events.map(event => `<button data-open-event="${escapeHTML(event.id)}"><span>${escapeHTML(event.title)}</span><small>Episode ${event.episode} · ${escapeHTML(getLocation(event.locationId)?.name || event.placeName || 'Recap')}${event.locationId ? '' : ' · Read recap'}</small></button>`)))
       || '<p class="search-empty">Nothing matching is recorded by this episode.</p>';
     results.hidden = false;
   }
@@ -806,8 +817,11 @@
     map.dataset.detail = detailZoom < 1 ? 'overview' : detailZoom < 1.5 ? 'places' : 'detail';
     stage.dataset.extent = state.mapExtent;
     $$('[data-map-extent]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mapExtent === state.mapExtent)));
-    $('#map-title-text').textContent = state.mapExtent === 'island' ? 'Paradis Island' : 'The walled territory';
-    $('#map-geography-badge').textContent = state.mapExtent === 'island' ? 'Approximate coast' : 'Scaled walls';
+    const fallen = statusOf('walls:all')?.state === 'fallen';
+    const mapTitle = state.mapExtent === 'island' ? 'Paradis Island' : fallen ? 'Former walled territory' : 'The walled territory';
+    $('#map-title-text').textContent = mapTitle;
+    $('#expanded-map-title').textContent = mapTitle;
+    $('#map-geography-badge').textContent = state.mapExtent === 'island' ? 'Approximate coast' : fallen ? 'Former boundaries' : 'Scaled walls';
     $('#map-scale').hidden = state.mapExtent === 'island';
     if (ctm?.a > 0) {
       $('#map-scale span').style.width = `${100 * geometry.unitsPerKm * ctm.a * zoom}px`;
@@ -1209,6 +1223,13 @@
     if (eventLink) {
       const storyEvent = visibleEvents().find(item => item.id === eventLink.dataset.openEvent);
       if (storyEvent?.locationId) { state.activeEvent = storyEvent.id; selectLocation(storyEvent.locationId, { focus: true }); }
+      else if (storyEvent) {
+        closeExpandedMap();
+        showView('recap');
+        const card = $(`#recap-${CSS.escape(storyEvent.id)}`);
+        card?.scrollIntoView({ block: 'center' });
+        card?.focus({ preventScroll: true });
+      }
       return;
     }
     if (!event.target.closest('.search-wrap')) $('#search-results').hidden = true;

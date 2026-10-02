@@ -27,7 +27,7 @@ const person = Object.fromEntries(d.characters.map(c => [c.id, c]));
 const positions = d.characters.flatMap(c => (c.positions || []).map(p => ({ ...p, owner: c })));
 const VERSIONED = ['name', 'role', 'faction'];
 const KINDS = ['district', 'village', 'castle', 'forest', 'wall', 'field', 'chapel', 'capital', 'sea'];
-const FACTIONS = ['civilian', 'cadet', 'survey', 'garrison', 'mp', 'central', 'crown', 'shifter', 'titan'];
+const FACTIONS = ['civilian', 'cadet', 'survey', 'garrison', 'mp', 'central', 'crown', 'shifter', 'titan', 'marley', 'volunteer', 'yeagerist'];
 // The same geometry supplies the main map, labels, overview and these containment checks.
 const walls = Object.fromEntries(Object.entries(d.mapGeometry.wallRadiusKm).map(([name, km]) => [name, [km * d.mapGeometry.unitsPerKm, km * d.mapGeometry.unitsPerKm]]));
 const ring = (l, wall) => ((l.x - 600) / walls[wall][0]) ** 2 + ((l.y - 405) / walls[wall][1]) ** 2;
@@ -87,6 +87,23 @@ check('nothing past maxEpisode', bad => {
   });
   positions.forEach(p => late(`${p.owner.id} position`, p.episode));
 });
+check('story boundaries are valid overall episode numbers', bad => {
+  const within = (label, number) => {
+    if (!Number.isInteger(number) || number < 1 || number > d.maxEpisode) bad(`${label}: ${number}`);
+  };
+  d.locations.forEach(l => within(`${l.id} introduction`, l.firstEpisode));
+  d.characters.forEach(c => {
+    within(`${c.id} introduction`, c.firstEpisode);
+    VERSIONED.forEach(field => (c[field] || []).forEach(v => within(`${c.id}.${field}`, v.from)));
+    (c.notes || []).forEach(n => within(`${c.id} note`, n.episode));
+    if (c.revealedAs) within(`${c.id} reveal`, c.revealedAs.episode);
+    (c.positions || []).forEach((position, index, list) => {
+      within(`${c.id} position`, position.episode);
+      if (index && position.episode <= list[index - 1].episode) bad(`${c.id} positions must be chronological, with one observation per episode`);
+    });
+  });
+  (d.status || []).forEach(item => within(item.target, item.from));
+});
 check('references resolve', bad => {
   events.filter(e => e.locationId !== null && !place[e.locationId]).forEach(e => bad(`${e.id} -> ${e.locationId}`));
   events.forEach(e => (e.people || []).filter(id => !person[id]).forEach(id => bad(`${e.id} -> person ${id}`)));
@@ -124,6 +141,11 @@ check('known kinds, types and factions', bad => {
   d.characters.forEach(c => (c.faction || []).filter(f => !FACTIONS.includes(f.key)).forEach(f => bad(`${c.id}: ${f.key}`)));
   d.locations.filter(l => l.label && !['left', 'right', 'below'].includes(l.label.side)).forEach(l => bad(`${l.id} label side`));
 });
+check('event settings and explanations are nonempty text', bad => {
+  events.forEach(event => ['placeName', 'connection'].forEach(field => {
+    if (event[field] !== undefined && (typeof event[field] !== 'string' || !event[field].trim())) bad(`${event.id}.${field}`);
+  }));
+});
 check('places fit their walls or island view', bad => {
   d.locations.forEach(l => {
     const bounds = l.kind === 'sea' ? d.mapGeometry.islandView : { x: 0, y: 0, width: 1200, height: 920 };
@@ -154,21 +176,24 @@ check('a village is not captioned as a district', bad => {
 const introduced = new Map();
 const introduce = (token, episode) => { if (!introduced.has(token) || introduced.get(token) > episode) introduced.set(token, episode); };
 const IGNORED_WORDS = new Set(['The', 'Titan', 'Pastor', 'District', 'Royal', 'Family', 'Wall']);
+// A displayed identity may contain a generic description such as "a soldier's sister".
+// Only proper-name words carry a separate introduction boundary; the full identity still does.
+const properNameWords = text => text.split(/\s+/).filter(word => word.length >= 4 && /^[A-Z]/.test(word) && !IGNORED_WORDS.has(word));
 d.locations.forEach(l => introduce(l.name, l.firstEpisode));
 d.characters.forEach(c => (c.name || []).forEach(v => {
   introduce(v.text, v.from);
-  if (c.type === 'person') v.text.split(/\s+/).filter(word => word.length >= 4 && !IGNORED_WORDS.has(word)).forEach(word => introduce(word, v.from));
+  if (c.type === 'person') properNameWords(v.text).forEach(word => introduce(word, v.from));
 }));
 check('aliases never carry a later name', bad => {
   d.characters.forEach(c => (c.aliases || []).forEach(alias => (c.name || []).filter(v => v.from > c.firstEpisode)
-    .filter(v => alias.includes(v.text) || v.text.split(/\s+/).some(word => word.length >= 4 && alias.includes(word) && introduced.get(word) > c.firstEpisode))
+    .filter(v => alias.includes(v.text) || properNameWords(v.text).some(word => alias.includes(word) && introduced.get(word) > c.firstEpisode))
     .forEach(v => bad(`${c.id} alias "${alias}" contains "${v.text}"`))));
 });
 check('no text names something before it is introduced', bad => {
   const texts = [];
   d.episodes.forEach(e => {
     texts.push([e.number, `${e.id} title`, `${e.title} ${e.shortTitle} ${e.description}`]);
-    e.events.forEach(ev => texts.push([e.number, ev.id, `${ev.title} ${ev.summary} ${ev.connection || ''}`]));
+    e.events.forEach(ev => texts.push([e.number, ev.id, `${ev.title} ${ev.summary} ${ev.connection || ''} ${ev.placeName || ''}`]));
   });
   d.locations.forEach(l => texts.push([l.firstEpisode, l.id, `${l.subtitle} ${l.summary} ${l.why} ${l.geography} ${l.mapLabel || ''} ${(l.aliases || []).join(' ')}`]));
   d.characters.forEach(c => {
@@ -191,6 +216,8 @@ check('status records: known targets and states, visible in time, sourced', bad 
       if (!place[id] || place[id].kind !== 'district') bad(`${item.target}: not a district`);
       else if (item.from < place[id].firstEpisode) bad(`${item.target} at E${item.from} before the district is visible`);
       if (!['breached', 'sealed'].includes(item.state)) bad(`${item.target}: state ${item.state}`);
+    } else if (item.target === 'walls:all') {
+      if (item.state !== 'fallen') bad(`${item.target}: state ${item.state}`);
     } else if (item.target !== 'belt:maria-rose' || !['lost', 'held'].includes(item.state)) bad(`${item.target}: unknown target or state`);
     if (item.from > d.maxEpisode) bad(`${item.target} past the ceiling`);
     if (!/^https:\/\//.test(item.sourceUrl || '')) bad(`${item.target} has no https source`);
