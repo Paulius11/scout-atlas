@@ -25,6 +25,7 @@
     <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-16a3 3 0 0 1 0 6m3 10v-3a6 6 0 0 0-2-4"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
     <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M10 3h4l.6 2.4 2 .9 2.3-.7 2 3.4-1.7 1.7v2.6l1.7 1.7-2 3.4-2.3-.7-2 .9L14 21h-4l-.6-2.4-2-.9-2.3.7-2-3.4 1.7-1.7v-2.6L3.1 9l2-3.4 2.3.7 2-.9Z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 1 8M3 4v6h6"/></symbol>
     <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
     <symbol id="i-prev" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
@@ -44,13 +45,6 @@
         <button class="nav-item" data-view="recap"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span class="label-long">The story so far</span><span class="label-short">Story</span></button>
         <button class="nav-item" data-view="characters"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg><span class="label-long">Characters</span><span class="label-short">People</span><span id="character-count" class="count">0</span></button>
       </nav>
-
-      <section class="progress-section" aria-labelledby="progress-heading">
-        <div class="section-heading"><h2 id="progress-heading">Watch progress</h2><button class="text-button" id="edit-progress">Change</button></div>
-        <p class="progress-title"><span class="status-dot" aria-hidden="true"></span><span id="cutoff-label">Watched through episode 1</span></p>
-        <div class="progress-track" aria-hidden="true"><div id="progress-fill"></div></div>
-        <p class="progress-meta" id="season-label"></p>
-      </section>
 
       <section class="layer-section" aria-labelledby="layers-heading">
         <div class="section-heading"><h2 id="layers-heading">Map layers</h2></div>
@@ -82,7 +76,7 @@
               <button id="next-milestone" class="step-button" aria-label="Next milestone"><svg class="icon" aria-hidden="true"><use href="#i-next"/></svg></button>
             </div>
           </div>
-          <button id="spoiler-button" class="spoiler-badge" aria-label="Change your spoiler limit"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><span id="spoiler-label">Safe through E1</span></button>
+          <button type="button" id="settings-button" class="settings-button" aria-label="Atlas settings" aria-haspopup="dialog" aria-controls="settings-dialog" title="Atlas settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg></button>
         </div>
       </header>
 
@@ -182,7 +176,7 @@
 
       <section id="recap-view" class="secondary-view" hidden aria-label="The story so far"></section>
       <section id="characters-view" class="secondary-view" hidden aria-label="Characters"></section>
-      <footer class="page-footer"><span><span class="status-dot" aria-hidden="true"></span><span id="footer-cutoff"></span></span><button id="map-guide">How to read this map</button></footer>
+      <footer class="page-footer"><button id="map-guide">How to read this map</button></footer>
     </main>
   </div>
 
@@ -209,16 +203,16 @@
     </header>
     <div id="character-detail-body" class="character-detail-body"></div>
   </dialog>
-  <dialog id="progress-dialog" aria-labelledby="progress-title">
-    <form id="progress-form">
-      <div class="dialog-heading"><p class="dialog-kicker">Your pace, your world</p><button type="button" class="icon-button close-dialog" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
-      <h2 id="progress-title">Where are you in the story?</h2>
-      <p>Choose the last episode you <strong>finished</strong>, counted from the very first episode of the series.</p>
-      <label for="cutoff-input">Last completed episode</label>
-      <input id="cutoff-input" type="number" min="1" required>
+  <dialog id="settings-dialog" aria-labelledby="settings-title">
+    <form id="settings-form">
+      <div class="dialog-heading"><p class="dialog-kicker">Your preferences</p><button type="button" class="icon-button close-dialog" aria-label="Close settings"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <h2 id="settings-title">Atlas settings</h2>
+      <label for="cutoff-input">Spoiler limit <span class="optional-label">Optional</span></label>
+      <p id="limit-description" class="input-hint">Hide episode choices after the last episode you finished. Browsing earlier episodes keeps this limit.</p>
+      <input id="cutoff-input" type="number" min="1" required aria-describedby="limit-description cutoff-hint edition-hint">
       <p class="input-hint" id="cutoff-hint" aria-live="polite"></p>
       <p class="input-hint" id="edition-hint"></p>
-      <button class="primary-button" type="submit">Set my spoiler limit<svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg></button>
+      <button class="primary-button" type="submit">Save settings</button>
     </form>
   </dialog>
   <dialog id="about-dialog" aria-labelledby="about-title">
@@ -231,8 +225,8 @@
       <p><strong><span class="knowledge-dot approximate"></span>Approximate</strong> Map positions, distances, terrain, and the river are illustrative. This is not an official map.</p>
     </div>
     <p>A portrait on the map means <strong>last recorded here</strong>, not a live location. Names and descriptions change as the story reveals more, and only up to the episode you are viewing.</p>
-    <p>Main characters show official art from the anime’s site, matched to the season you are viewing; everyone else has a drawn silhouette in their regiment’s colour. To add your own pictures, put them in the <strong>portraits</strong> folder and list them in <strong>portraits/portraits.js</strong>, using images from episodes you have already watched.</p>
-    <p>Watch progress and map preferences are saved in this browser. Source references are in the project’s data file; external pages may contain later spoilers.</p>
+    <p>Character pictures follow the episode you are viewing. A silhouette means a picture is not available at that point in the story; groups use regiment emblems.</p>
+    <p>Your viewing episode, optional spoiler limit and map preferences are saved in this browser. Source references are in the project’s data file; external pages may contain later spoilers.</p>
     <button class="primary-button close-dialog">Back to exploring</button>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

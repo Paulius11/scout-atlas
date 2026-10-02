@@ -4,7 +4,7 @@ An interactive, local Attack on Titan map companion built with HTML, CSS, JavaSc
 
 **This edition stops at overall episode 87, in Season 4.** The user explicitly authorized that range. Later content is not bundled: no later titles, places, people, identities, explanations, or images.
 
-The content covers **all 87 episodes through the authorized range**, with 220 selected events, 56 people and Titans, and three groups. Each episode has its own recap; 106 events have no established map position. The viewing episode decides what the interface reveals; your completed-episode cutoff limits how far you can advance. Season 4 coverage is complete through E87; the season is not marked complete.
+The content covers **all 87 episodes through the authorized range**, with 220 selected events, 56 people and Titans, and three groups. Each episode has its own recap; 106 events have no established map position. The episode picker decides what the interface reveals. An optional **Spoiler limit** in **Atlas settings** restricts which episodes can be selected; the default includes all 87 bundled episodes. Season 4 coverage is complete through E87; the season is not marked complete.
 
 ## Run it
 
@@ -19,7 +19,8 @@ Then visit <http://127.0.0.1:8765>. Check first whether a server is already runn
 
 ## What it does
 
-- **Reading layout.** A compact heading aligns the title, episode picker and spoiler badge on one desktop row. On phones, the viewing label and spoiler action share a row above the picker; the gallery expansion icon sits beside the page heading, leaving character search its own full-width row. Place events use fine dividers; Story features the latest recorded moment above its supporting entries. **Map / Story / People** navigation stays at the bottom on phones, with room beneath content and above system gestures.
+- **Reading layout.** The episode picker is the main viewing control. The sidebar Watch progress panel and bar, permanent Safe through badge and repeated footer progress message have been removed. **Atlas settings** keeps the optional Spoiler limit available without crowding the reading layout. The gallery expansion icon sits beside the page heading on phones, leaving character search its own full-width row. Place events use fine dividers; Story features the latest recorded moment above its supporting entries. **Map / Story / People** navigation stays at the bottom on phones, with room beneath content and above system gestures.
+- **Spoiler limit.** Open the settings icon to set the highest selectable episode, or leave it at 87 to browse every included episode. Choosing an earlier viewing episode changes the map, story and characters without lowering this limit. Existing saved limits are preserved, and changes still update other atlas tabs on the same browser origin.
 - **Episode titles.** Full English titles for every episode from 1 to 87 appear in the episode picker, milestone timeline and recap heading. Every episode has a sourced recap and an entry in the timeline.
 - **Expanded map.** The expand icon beside the zoom and reset controls opens the map across the window, with episode controls, search and selected-place details. **Layers & style** holds the existing switches and palette choices. Pan, zoom, portraits and milestone shortcuts continue to work. Use **Back to atlas** or Escape to return; the selected place, episode and zoom are kept. Escape dismisses an open menu, search result or portrait card first. On a tall phone screen, the drawing fills the available height and can be panned across.
 - **Place details.** Desktop panels collapse with **Hide details**, giving the map more room. On a phone, the selected place appears in a compact bottom panel with its latest recorded event. Tap **More** or swipe up for the full story; tap **Less** or swipe down to continue exploring. The full panel scrolls independently and leaves part of the map visible.
@@ -40,7 +41,7 @@ The map separates **confirmed events**, **characters' beliefs**, and **approxima
 
 ## Local storage
 
-Map style and viewing/cutoff preferences use this browser's local storage, key `scout-atlas:v1`. When a new edition extends the atlas, a browser that was caught up with the previous edition moves its cutoff up to the new last episode and says so; one set to an earlier episode keeps its limit. Nothing is transmitted or synced between devices. Opening `index.html` directly and opening it through the local server use different storage. If the saved value cannot be read, it is kept under `scout-atlas:v1:unreadable:<time>` and the atlas starts fresh. Exploration still works when storage is unavailable. The Field notes tab and place-note editors have been removed; existing notes remain in storage without being displayed or modified.
+Map style, viewing episode and optional spoiler limit use this browser's local storage, key `scout-atlas:v1`. Existing saved cutoffs remain valid; opening settings is not required to keep their protection. Selecting an earlier episode only changes the viewing episode. When a new edition extends the atlas, a browser that was caught up with the previous edition moves its cutoff up to the new last episode and says so; one set to an earlier episode keeps its limit. Settings changes synchronize between tabs on the same origin; nothing is transmitted or synced between devices. Opening `index.html` directly and opening it through the local server use different storage. If the saved value cannot be read, it is kept under `scout-atlas:v1:unreadable:<time>` and the atlas starts fresh. Exploration still works when storage is unavailable. The Field notes tab and place-note editors have been removed; existing notes remain in storage without being displayed or modified.
 
 ## Portraits
 
@@ -90,13 +91,13 @@ Place cards contain only what is known at the episode they first appear. `firstE
 
 ```bash
 node scripts/etc/js/scout-atlas/tests/data-lint.cjs    # 28 checks, no browser
-node scripts/etc/js/scout-atlas/tests/browser.cjs      # 59 checks, headless Chrome
+node scripts/etc/js/scout-atlas/tests/browser.cjs      # 61 checks, headless Chrome
 ATLAS_URL=http://127.0.0.1:8765 node scripts/etc/js/scout-atlas/tests/browser.cjs
 ```
 
 Run them from `/opt/odoo/odoo17` or anywhere else: Playwright resolves from the workspace's `node_modules`. The browser checks use `/usr/bin/google-chrome` (override with `CHROME=`) in isolated contexts and never touch your own browser's saved preferences.
 
-The data lint checks ids, references, seasons, geometry and kinds, and that **no text visible at episode N names a place, person or name version the atlas only introduces after N**. The browser checks cover episode boundaries (derived from the data, not a hand-written list), identities changing at their episode, unpinned events, portraits staying beside their own pin, label overlap at every milestone on desktop and laptop screens, removal of field notes, retention of legacy saved data, cutoff synchronization between tabs, the cutoff, search, map controls, wheel and keyboard, storage failures, saved map styles, full episode titles, expanded maps and galleries, filter and focus restoration, gallery density, expanded-map tools and cutoff updates, progressive map detail, overview tracking, episode changes, phone panel taps and swipes, portraits, character-card keyboard access and detail panels, phone navigation staying reachable without covering footer controls, phone layout, and that no request leaves the folder.
+The data lint checks ids, references, seasons, geometry and kinds, and that **no text visible at episode N names a place, person or name version the atlas only introduces after N**. The browser checks cover episode boundaries (derived from the data, not a hand-written list), identities changing at their episode, unpinned events, portraits staying beside their own pin, label overlap at every milestone on desktop and laptop screens, removal of field notes, retention of legacy saved data, spoiler settings and cutoff synchronization between tabs, viewing changes preserving the spoiler limit, search, map controls, wheel and keyboard, storage failures, saved map styles, full episode titles, expanded maps and galleries, filter and focus restoration, gallery density, expanded-map tools and cutoff updates, progressive map detail, overview tracking, episode changes, phone panel taps and swipes, portraits, character-card keyboard access and detail panels, phone navigation staying reachable without covering content, phone layout, and that no request leaves the folder.
 
 ## Dataset structure
 

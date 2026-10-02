@@ -212,14 +212,8 @@
   }
   const milestones = () => data.episodes.map(episode => episode.number).filter(number => number <= state.cutoff);
   function updateHeader() {
-    const season = seasonOf(state.cutoff);
-    $('#cutoff-label').textContent = `Watched through episode ${state.cutoff}`;
-    $('#spoiler-label').textContent = `Safe through E${state.cutoff}`;
-    $('#season-label').textContent = season && season.last === state.cutoff ? `Season ${season.season} complete` : seasonText(state.cutoff);
-    $('#progress-fill').style.width = `${state.cutoff / MAX_EPISODE * 100}%`;
-    $('#footer-cutoff').textContent = `Your story stops at episode ${state.cutoff}. So does this atlas.`;
     $('#about-ceiling').textContent = `Its story content ends at episode ${MAX_EPISODE} (${seasonText(MAX_EPISODE).toLowerCase()}).`;
-    $('#edition-hint').textContent = `This edition covers selected events from episodes 1–${MAX_EPISODE}. Later episodes are not included.`;
+    $('#edition-hint').textContent = `Leave the limit at ${MAX_EPISODE} to browse every episode included in this atlas.`;
     $('#cutoff-input').max = String(MAX_EPISODE);
     const groups = data.seasons.filter(season => season.first <= state.cutoff).map(season => {
       const last = Math.min(state.cutoff, season.last ?? state.cutoff);
@@ -1271,18 +1265,17 @@
     if (value > MAX_EPISODE) { $('#cutoff-hint').textContent = `This edition stops at episode ${MAX_EPISODE}.`; return; }
     $('#cutoff-hint').textContent = `Episode ${value} is ${seasonText(value).toLowerCase()}, “${titleOfEpisode(value)}”.`;
   }
-  function showProgress() { $('#cutoff-input').value = state.cutoff; cutoffHint(); $('#progress-dialog').showModal(); }
+  function showSettings() { $('#cutoff-input').value = state.cutoff; cutoffHint(); $('#settings-dialog').showModal(); }
   $('#cutoff-input').addEventListener('input', cutoffHint);
-  $('#edit-progress').addEventListener('click', showProgress);
-  $('#spoiler-button').addEventListener('click', showProgress);
-  $('#progress-form').addEventListener('submit', event => {
+  $('#settings-button').addEventListener('click', showSettings);
+  $('#settings-form').addEventListener('submit', event => {
     event.preventDefault();
-    if (!$('#progress-form').reportValidity()) return;
+    if (!$('#settings-form').reportValidity()) return;
     state.cutoff = episodeNumber($('#cutoff-input').value);
     state.viewing = Math.min(state.viewing, state.cutoff);
     state.activeEvent = null;
     render();
-    $('#progress-dialog').close();
+    $('#settings-dialog').close();
     toast(`Spoiler limit set to episode ${state.cutoff}.`);
   });
   $('#about-button').addEventListener('click', () => $('#about-dialog').showModal());
@@ -1368,5 +1361,5 @@
   applyCamera();
   $('#map-legend').addEventListener('toggle', scheduleLayout);
   if (unreadableCopy) toast('Saved data could not be read. A copy was kept in this browser and the atlas started fresh.');
-  else if (extended) toast(`The atlas now reaches episode ${MAX_EPISODE}, and your watch progress followed.`);
+  else if (extended) toast(`The atlas now reaches episode ${MAX_EPISODE}, and your spoiler limit followed.`);
 })();

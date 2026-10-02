@@ -64,10 +64,10 @@ async function setLayer(page, name, checked) {
   await page.locator('#map-options').evaluate(element => { element.open = false; });
 }
 async function setCutoff(page, value) {
-  await page.locator('#spoiler-button').click();
+  await page.locator('#settings-button').click();
   await page.locator('#cutoff-input').fill(String(value));
-  await page.locator('#progress-form [type="submit"]').click();
-  await page.waitForFunction(() => !document.querySelector('#progress-dialog').open);
+  await page.locator('#settings-form [type="submit"]').click();
+  await page.waitForFunction(() => !document.querySelector('#settings-dialog').open);
 }
 async function view(page, name) { await page.locator(`.primary-nav [data-view="${name}"]`).click(); }
 async function episode(page, number) { await page.locator('#episode-select').selectOption(String(number)); }
@@ -112,7 +112,7 @@ async function main() {
 
     await test(`fresh session starts at episode ${MAX} with bounded choices`, async () => {
       assert.equal(await page.locator('#episode-select').inputValue(), String(MAX));
-      assert.match(await page.locator('#cutoff-label').innerText(), new RegExp(`episode ${MAX}$`));
+      assert.equal(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).cutoff, storageKey), MAX);
       const options = await page.locator('#episode-select option').evaluateAll(items => items.map(item => Number(item.value)));
       assert.deepEqual(options, Array.from({ length: MAX }, (_, index) => index + 1));
       assert.equal(await page.locator('#episode-select optgroup').count(), data.seasons.length);
@@ -121,6 +121,50 @@ async function main() {
       assert.equal(await page.locator('#cutoff-input').getAttribute('max'), String(MAX));
       assert.equal(await page.locator('meta[http-equiv="Content-Security-Policy"]').count(), 1);
       await assertNoHorizontalOverflow(page, 'desktop map');
+    });
+
+    await test('viewing an earlier episode keeps the saved spoiler limit and later choices available', async () => {
+      const browsing = await createPage();
+      await episode(browsing, 13);
+      assert.equal(await browsing.locator('#episode-select option').count(), MAX, 'browsing the past does not limit later choices');
+      assert.equal(await browsing.evaluate(key => JSON.parse(localStorage.getItem(key)).cutoff, storageKey), MAX);
+      await browsing.reload({ waitUntil: 'load' });
+      assert.equal(await browsing.locator('#episode-select').inputValue(), '13', 'the chosen episode survives reload');
+      assert.equal(await browsing.locator('#episode-select option').count(), MAX);
+      await episode(browsing, MAX);
+      assert.equal(await browsing.locator('#episode-select').inputValue(), String(MAX), 'returning to the current edition needs only the picker');
+    });
+
+    await test('settings stay reachable across tabs and phone widths, and Escape cancels an unsaved limit', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }, { width: 320, height: 740 }]) {
+        const settings = await createPage(viewport);
+        for (const name of ['map', 'recap', 'characters']) {
+          await view(settings, name);
+          const button = settings.getByRole('button', { name: 'Atlas settings', exact: true });
+          await button.scrollIntoViewIfNeeded();
+          const box = await button.boundingBox();
+          assert.ok(box && box.x >= 0 && box.x + box.width <= viewport.width + 1, `${viewport.width}px ${name}: settings are inside the viewport`);
+          await button.click();
+          assert.equal(await settings.locator('#settings-dialog').evaluate(dialog => dialog.open), true, `${viewport.width}px ${name}: settings open`);
+          assert.equal(await settings.locator('#cutoff-input').inputValue(), String(MAX), 'settings reflect the saved limit');
+          await settings.locator('#cutoff-input').fill('13');
+          await assertNoHorizontalOverflow(settings, `${viewport.width}px ${name} settings`);
+          await settings.keyboard.press('Escape');
+          assert.equal(await settings.locator('#settings-dialog').evaluate(dialog => dialog.open), false);
+          assert.equal(await button.evaluate(element => element === document.activeElement), true, 'closing settings restores focus');
+          assert.equal(await settings.locator('#episode-select').inputValue(), String(MAX), 'cancel leaves the chosen episode unchanged');
+          assert.equal(await settings.locator('#episode-select option').count(), MAX, 'cancel does not restrict choices');
+          assert.equal(await settings.evaluate(key => JSON.parse(localStorage.getItem(key)).cutoff, storageKey), MAX, 'cancel does not save the draft');
+        }
+        await setCutoff(settings, 13);
+        assert.equal(await settings.locator('#episode-select').inputValue(), '13', 'the optional limit still clamps the view');
+        await settings.reload({ waitUntil: 'load' });
+        assert.equal(await settings.locator('#episode-select option').count(), 13, 'the optional limit survives reload');
+        await settings.locator('#settings-button').click();
+        assert.equal(await settings.locator('#cutoff-input').inputValue(), '13', 'reopening settings discards any old draft');
+        await settings.keyboard.press('Escape');
+        await assertNoHorizontalOverflow(settings, `${viewport.width}px saved settings`);
+      }
     });
 
     await test('published titles appear for every allowed episode and stay within the cutoff', async () => {
@@ -1084,20 +1128,20 @@ async function main() {
       assert.equal(await page.locator('#episode-select').inputValue(), '13');
       const state = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
       assert.equal(state.cutoff, 13);
-      await page.locator('#spoiler-button').click();
+      await page.locator('#settings-button').click();
       await page.locator('#cutoff-input').fill(String(MAX + 1));
       assert.match(await page.locator('#cutoff-hint').innerText(), new RegExp(`stops at episode ${MAX}`));
-      await page.locator('#progress-form [type="submit"]').click();
-      assert.equal(await page.locator('#progress-dialog').evaluate(dialog => dialog.open), true, `Episode ${MAX + 1} must not be accepted`);
+      await page.locator('#settings-form [type="submit"]').click();
+      assert.equal(await page.locator('#settings-dialog').evaluate(dialog => dialog.open), true, `Episode ${MAX + 1} must not be accepted`);
       await page.locator('#cutoff-input').fill(String(MAX));
-      await page.locator('#progress-form [type="submit"]').click();
+      await page.locator('#settings-form [type="submit"]').click();
       await episode(page, MAX);
     });
 
     await test('a viewer caught up with an older edition follows the ceiling up; others keep their limit', async () => {
       const open = saved => createPage(undefined, `if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify(saved))}); }`);
       const cases = [
-        // [saved state, expected cutoff, expect the "progress followed" toast]
+        // [saved state, expected cutoff, expect the "spoiler limit followed" toast]
         [{ cutoff: 47, viewing: 40 }, MAX, MAX > 47],   // saved before `edition` existed: the episode-47 edition
         [{ cutoff: 47, edition: 47, viewing: 47 }, MAX, MAX > 47],
         ...(MAX > 59 ? [
@@ -1111,13 +1155,15 @@ async function main() {
       for (const [saved, expected, followed] of cases) {
         const p = await open(saved);
         const label = JSON.stringify(saved);
-        assert.equal(await p.locator('#cutoff-label').innerText(), `Watched through episode ${expected}`, label);
         assert.equal(await p.locator('#episode-select option').count(), expected, label);
         assert.equal(await p.locator('#episode-select').inputValue(), String(Math.min(saved.viewing, expected)), `${label}: the viewing episode stays put`);
         assert.equal(await p.locator('#toast').evaluate(el => el.classList.contains('visible')), followed, `${label}: toast`);
         if (followed) assert.match(await p.locator('#toast').innerText(), new RegExp(`episode ${MAX}\\b`));
         const stored = await p.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
         assert.deepEqual([stored.cutoff, stored.edition], [expected, MAX], `${label}: saved`);
+        await p.locator('#settings-button').click();
+        assert.equal(await p.locator('#cutoff-input').inputValue(), String(expected), `${label}: settings reflect the migrated limit`);
+        await p.keyboard.press('Escape');
         await p.close();
       }
     });
