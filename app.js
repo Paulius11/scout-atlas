@@ -61,6 +61,7 @@
     panelExpanded: !window.matchMedia('(max-width: 760px)').matches,
     card: null,
     zoom: 1,
+    mapExtent: 'walls',
     panX: 0,
     panY: 0
   };
@@ -237,15 +238,27 @@
   /* ---------- Map ---------- */
   // District outlines grow out of their wall and appear only once the district is known.
   const WALLS = { 'Wall Maria': { width: 60, depth: 27, bulge: 25, start: -11 }, 'Wall Rose': { width: 44, depth: 21, bulge: 20, start: -1 }, 'Wall Sina': { width: 32, depth: 20, bulge: 17, start: -2 } };
-  const SIDES = { right: [14, 4, 'start'], left: [-14, 4, 'end'], below: [0, 28, 'middle'], above: [0, -34, 'middle'] };
+  const SIDES = { right: [14, 4, 'start'], left: [-14, 4, 'end'], below: [0, 28, 'middle'], above: [0, -34, 'middle'], farRight: [36, 4, 'start'], farLeft: [-36, 4, 'end'], farAbove: [0, -52, 'middle'], farBelow: [0, 47, 'middle'] };
   // Portrait i sits on an arc of radius 25 px around the pin, centred on `base` degrees; slot 3 is "+N".
   const chipOffset = (base, index) => {
     const [angle, radius] = [[0, 25], [-62, 25], [62, 25], [0, 46]][index];
     return [Math.cos((base + angle) * Math.PI / 180) * radius, Math.sin((base + angle) * Math.PI / 180) * radius].map(n => Math.round(n * 10) / 10);
   };
-  // The drawing area (viewBox) hugs the walls, so the rings fill the stage.
-  const VIEW = { x: 120, y: 0, width: 960, height: 832, cx: 600, cy: 416 };
-  const RINGS = { maria: [440, 365], rose: [298, 246], sina: [162, 131] };
+  const geometry = data.mapGeometry;
+  const VIEW = geometry.wallsView;
+  const mapView = () => state.mapExtent === 'island' ? geometry.islandView : VIEW;
+  if (getLocation(state.selected)?.kind === 'sea') state.mapExtent = 'island';
+  const RINGS = Object.fromEntries(Object.entries(geometry.wallRadiusKm).map(([name, km]) => [name, [km * geometry.unitsPerKm, km * geometry.unitsPerKm]]));
+  // Main walls, name paths, and the overview share the same episode-one scale.
+  for (const [name, [rx, ry]] of Object.entries(RINGS)) {
+    $$(`[data-wall="${name}"]`).forEach(ellipse => {
+      ellipse.setAttribute('rx', rx); ellipse.setAttribute('ry', ry);
+    });
+    for (const [suffix, sweep] of [['', 1], ['-low', 0]]) {
+      $(`#wall-path-${name}${suffix}`).setAttribute('d', `M${600 - rx} 405A${rx} ${ry} 0 0 ${sweep} ${600 + rx} 405`);
+    }
+  }
+  $('#map-overview svg').setAttribute('viewBox', `${VIEW.x} ${VIEW.y} ${VIEW.width} ${VIEW.height}`);
   const ellipsePath = ([rx, ry]) => `M${600 - rx} 405a${rx} ${ry} 0 1 0 ${2 * rx} 0a${rx} ${ry} 0 1 0 ${-2 * rx} 0Z`;
   // Markers, portraits and outlines that were not on screen in the previous render fade in once.
   let shownBefore = null;
@@ -255,29 +268,29 @@
       ? `<path class="lost-ground" fill-rule="evenodd" d="${ellipsePath(RINGS.maria)} ${ellipsePath(RINGS.rose)}"><title>Lost to the Titans since episode ${belt.from}</title></path>`
       : '';
   }
-  // The coast and the desert before it: gently irregular rings beyond Wall Maria and Shiganshina's outline.
-  // The sea fills everything past the coast. Drawn only once a place of kind "sea" is visible; the desert
-  // band only from that place's `desertFrom` episode. Distances are schematic.
-  const wobblyRing = (rx, ry, waves) => {
-    const points = [];
-    for (let degrees = 0; degrees < 360; degrees += 4) {
-      const t = degrees * Math.PI / 180;
-      const scale = 1 + waves.reduce((sum, [amplitude, frequency, phase]) => sum + amplitude * Math.sin(frequency * t + phase), 0);
-      points.push(`${(600 + rx * scale * Math.cos(t)).toFixed(1)} ${(405 + ry * scale * Math.sin(t)).toFixed(1)}`);
-    }
-    return `M${points.join('L')}Z`;
-  };
-  const COAST = wobblyRing(530, 455, [[0.012, 5, 0.6], [0.008, 11, 2.1]]);
-  const DESERT_EDGE = wobblyRing(482, 414, [[0.016, 4, 1.7], [0.01, 9, 0.3]]);
+  const coastPoints = geometry.islandOutline.map(([x, y]) => [600 + (x - geometry.islandReferenceCenter[0]) * geometry.islandReferenceScale, 405 + (y - geometry.islandReferenceCenter[1]) * geometry.islandReferenceScale]);
+  // Closed curves round the reference's outline without turning it into an oval.
+  const COAST = `M${coastPoints[0].join(' ')}${coastPoints.map((p, i, points) => {
+    const previous = points[(i + points.length - 1) % points.length];
+    const next = points[(i + 1) % points.length];
+    const after = points[(i + 2) % points.length];
+    const a = p.map((v, axis) => v + (next[axis] - previous[axis]) / 8);
+    const b = next.map((v, axis) => v - (after[axis] - p[axis]) / 8);
+    return `C${a.join(' ')} ${b.join(' ')} ${next.join(' ')}`;
+  }).join('')}Z`;
   function renderSea() {
     const sea = visibleLocations().find(location => location.kind === 'sea');
-    const water = `M-2400 -2400H3600V3600H-2400Z ${COAST}`;
+    $('#map-extent-switch').hidden = !sea;
+    if (!sea && state.mapExtent === 'island') { state.mapExtent = 'walls'; state.zoom = 1; state.panX = 0; state.panY = 0; }
+    const water = `M-10000 -10000H10000V10000H-10000Z ${COAST}`;
+    // One illustrative coast approach, rather than claiming a desert surrounds the whole island.
     const desert = sea && Number.isInteger(sea.desertFrom) && sea.desertFrom <= state.viewing
-      ? `<path class="desert" fill-rule="evenodd" d="${COAST} ${DESERT_EDGE}"><title>Desert before the coast, from episode ${sea.desertFrom}</title></path><path class="desert-dunes" fill-rule="evenodd" d="${COAST} ${DESERT_EDGE}"/>`
+      ? `<g clip-path="url(#island-clip)"><path class="desert" d="M-320 650Q80 560 130 830T-140 1190Z"><title>Illustrative coastal terrain; its extent is not established</title></path><path class="desert-dunes" d="M-320 650Q80 560 130 830T-140 1190Z"/></g>`
       : '';
     $('#sea-art').innerHTML = sea
-      ? `${desert}<path class="sea-water" fill-rule="evenodd" d="${water}"/><path class="sea-waves" fill-rule="evenodd" d="${water}"/><path class="coastline" d="${COAST}"/>`
+      ? `<defs><clipPath id="island-clip"><path d="${COAST}"/></clipPath></defs>${desert}<path class="sea-water" fill-rule="evenodd" d="${water}"/><path class="sea-waves" fill-rule="evenodd" d="${water}"/><path class="coastline" d="${COAST}"/>`
       : '';
+    $('#overview-coast').setAttribute('d', sea ? COAST : '');
   }
   function renderAreas() {
     $('#area-art').innerHTML = visibleLocations().filter(location => location.area).map(location =>
@@ -322,6 +335,7 @@
       return `<g class="${escapeHTML(classes)}" data-location="${escapeHTML(location.id)}" data-side="${side}" data-rank="${rank}" data-caption="${escapeHTML(caption)}" data-change="${escapeHTML(change?.title || '')}" data-episodes="${episodes.join(', ')}" transform="translate(${Number(location.x)} ${Number(location.y)})" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escapeHTML(`Explore ${location.name}${peopleText ? `. Last recorded here: ${peopleText}` : ''}`)}">
         <g class="pin"><g class="pin-mark"><title>${escapeHTML(`${location.name} — ${location.subtitle}`)}</title><circle class="marker-hit" r="20"/><circle class="marker-pulse" r="16"/><circle class="marker-ring" r="7.5"/><circle class="marker-center" r="2.5"/></g>
           ${here.length ? `<g class="pin-people">${chips}${more}</g>` : ''}
+          <path class="label-leader"/>
           <text class="marker-label" x="${labelX}" y="${labelY}" text-anchor="${anchor}">${escapeHTML(label)}</text>
           <text class="marker-caption" x="${labelX}" y="${labelY + 15}" text-anchor="${anchor}">${escapeHTML(caption)}</text>
         </g>
@@ -354,6 +368,9 @@
       text.setAttribute('y', y + dy);
       text.setAttribute('text-anchor', anchor);
     });
+    const leader = $('.label-leader', marker);
+    const endpoint = { farRight: [28, 0], farLeft: [-28, 0], farAbove: [0, -36], farBelow: [0, 30] }[side];
+    leader.setAttribute('d', endpoint ? `M0 0L${endpoint.join(' ')}` : '');
   }
   let layoutFrame = 0;
   const scheduleLayout = () => { cancelAnimationFrame(layoutFrame); layoutFrame = requestAnimationFrame(layoutLabels); };
@@ -364,11 +381,16 @@
       const chips = $$('.pin-people > *', marker);
       if (!chips.length) continue;
       const away = marker.dataset.side === 'left' ? 0 : marker.dataset.side === 'below' ? -90 : 180;
+      const ownPin = pins.find(pin => pin.owner === marker).rect;
+      const centre = rect => [(rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2];
+      const distance = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
       let rects = [];
-      for (const base of [away, 90, -90, away + 180]) {
+      for (const base of [away, 90, -90, away + 180, 45, 135, 225, 315]) {
         chips.forEach((chip, index) => chip.setAttribute('transform', `translate(${chipOffset(base, index).join(' ')})`));
         rects = chips.map(chip => inflate(chip.getBoundingClientRect(), 1));
-        if (!rects.some(rect => taken.some(other => overlaps(other, rect)) || pins.some(pin => pin.owner !== marker && overlaps(pin.rect, rect)))) break;
+        if (!rects.some(rect => taken.some(other => overlaps(other, rect)) || pins.some(pin => pin.owner !== marker && (
+          overlaps(pin.rect, rect) || distance(centre(rect), centre(pin.rect)) < distance(centre(rect), centre(ownPin))
+        )))) break;
       }
       taken.push(...rects);
     }
@@ -385,12 +407,12 @@
       ...$$('.map-person, .people-more', marker).map(shape => ({ owner: null, chipsOf: marker, rect: inflate(shape.getBoundingClientRect(), 2) }))
     ]);
     // The overlays drawn on top of the map count as occupied too.
-    for (const overlay of $$('.map-stage > .zoom-controls, .map-stage > .map-legend, .map-stage > .compass-rose, .map-stage > .map-overview')) {
+    for (const overlay of $$('.map-stage > .zoom-controls, .map-stage > .map-legend, .map-stage > .compass-rose, .map-stage > .map-overview, .map-stage > .map-extent-switch, .map-stage > .map-scale')) {
       const rect = overlay.getBoundingClientRect();
       if (rect.width) obstacles.push({ owner: null, rect: inflate(rect, 4) });
     }
     // Zoomed in, a place's caption lists the episodes it appears in (the map as a story index).
-    const zoomed = state.zoom >= 1.5;
+    const zoomed = map.dataset.detail === 'detail';
     for (const marker of markers) {
       const eps = marker.dataset.episodes;
       const change = marker.dataset.change;
@@ -422,11 +444,12 @@
       }
       if (!done) {
         if (marker.classList.contains('selected')) {
-          // The selected place always keeps its name: take the first side that stays inside the map.
-          marker.classList.remove('caption-hidden');
-          const inside = sides.find(side => { placeLabel(marker, side); return ![label, caption].some(text => outside(text.getBoundingClientRect())); }) || preferred;
+          // Keep the selected name; its secondary caption may yield in a crowded area.
+          marker.classList.add('caption-hidden');
+          const inside = sides.find(side => { placeLabel(marker, side); return !blockedBy(false)(label.getBoundingClientRect()); })
+            || sides.find(side => { placeLabel(marker, side); return !outside(label.getBoundingClientRect()); }) || preferred;
           placeLabel(marker, inside);
-          placed.push(...[label, caption].map(text => text.getBoundingClientRect()));
+          placed.push(label.getBoundingClientRect());
         } else { placeLabel(marker, preferred); marker.classList.add('label-hidden'); }
       }
     }
@@ -669,7 +692,7 @@
     $('#search-results').hidden = true;
     $('#search-results').innerHTML = '';
     if (save) persist();
-    scheduleLayout();
+    applyCamera();
   }
 
   /* ---------- Navigation ---------- */
@@ -682,6 +705,8 @@
   function selectLocation(id, { focus = false } = {}) {
     if (!getLocation(id)) return;
     state.selected = id;
+    if (getLocation(id).kind === 'sea') { state.mapExtent = 'island'; state.zoom = 1; state.panX = 0; state.panY = 0; }
+    else if (focus) state.mapExtent = 'walls';
     state.view = 'map';
     state.panelExpanded = !window.matchMedia('(max-width: 760px)').matches;
     render();
@@ -689,8 +714,8 @@
     if (focus) {
       const location = getLocation(id);
       state.zoom = 1.45;
-      state.panX = VIEW.cx - location.x * state.zoom;
-      state.panY = VIEW.cy - location.y * state.zoom;
+      state.panX = mapView().cx - location.x * state.zoom;
+      state.panY = mapView().cy - location.y * state.zoom;
     }
     applyCamera();
     $(`[data-location="${state.selected}"]`)?.focus({ preventScroll: true });
@@ -714,6 +739,7 @@
     // Follow the story: a milestone episode selects the place where it happens.
     const place = follow && data.episodes.find(entry => entry.number === state.viewing)?.events.find(event => event.locationId)?.locationId;
     if (place && getLocation(place)) state.selected = place;
+    if (place && getLocation(place)?.kind === 'sea') { state.mapExtent = 'island'; state.zoom = 1; state.panX = 0; state.panY = 0; }
     ensureSelection();
     render();
     $('#location-panel').scrollTop = 0;
@@ -754,17 +780,20 @@
     // In a tall expanded window, use its full height instead of shrinking the drawing
     // to fit the phone's width. The camera stays centred and the remaining ground can be panned.
     const stage = $('#map-stage');
-    const viewWidth = $('#expanded-map-dialog').open && map.clientHeight > 0
-      ? Math.min(VIEW.width, VIEW.height * map.clientWidth / map.clientHeight) : VIEW.width;
-    map.setAttribute('viewBox', `${VIEW.cx - viewWidth / 2} ${VIEW.y} ${viewWidth} ${VIEW.height}`);
+    const view = mapView();
+    const viewWidth = state.mapExtent === 'walls' && $('#expanded-map-dialog').open && map.clientHeight > 0
+      ? Math.min(view.width, view.height * map.clientWidth / map.clientHeight) : view.width;
+    map.setAttribute('viewBox', `${view.cx - viewWidth / 2} ${view.y} ${viewWidth} ${view.height}`);
     const viewport = map.viewBox.baseVal;
-    // Keep a good part of the walled area (Wall Maria: x 160–1040, y 40–770) on screen:
-    // at least 45% of the view or of the walls, whichever is smaller, along each axis.
+    const bounds = state.mapExtent === 'island'
+      ? { left: Math.min(...coastPoints.map(p => p[0])), right: Math.max(...coastPoints.map(p => p[0])), top: Math.min(...coastPoints.map(p => p[1])), bottom: Math.max(...coastPoints.map(p => p[1])) }
+      : { left: 600 - RINGS.maria[0], right: 600 + RINGS.maria[0], top: 405 - RINGS.maria[1], bottom: 405 + RINGS.maria[1] };
+    // Keep a substantial portion of the chosen map area on screen while panning.
     const zoom = state.zoom;
-    const needX = Math.min(viewport.width, 880 * zoom) * 0.45;
-    const needY = Math.min(viewport.height, 730 * zoom) * 0.45;
-    state.panX = Math.min(viewport.x + viewport.width - needX - 160 * zoom, Math.max(viewport.x + needX - 1040 * zoom, state.panX));
-    state.panY = Math.min(viewport.y + viewport.height - needY - 40 * zoom, Math.max(viewport.y + needY - 770 * zoom, state.panY));
+    const needX = Math.min(viewport.width, (bounds.right - bounds.left) * zoom) * 0.45;
+    const needY = Math.min(viewport.height, (bounds.bottom - bounds.top) * zoom) * 0.45;
+    state.panX = Math.min(viewport.x + viewport.width - needX - bounds.left * zoom, Math.max(viewport.x + needX - bounds.right * zoom, state.panX));
+    state.panY = Math.min(viewport.y + viewport.height - needY - bounds.top * zoom, Math.max(viewport.y + needY - bounds.bottom * zoom, state.panY));
     $('#map-camera').setAttribute('transform', `translate(${Math.round(state.panX * 100) / 100} ${Math.round(state.panY * 100) / 100}) scale(${zoom})`);
     $('#zoom-level').textContent = `${Math.round(zoom * 100)}%`;
     $('#zoom-out').disabled = zoom <= 0.75;
@@ -772,27 +801,47 @@
     // Pins, labels and portraits keep one on-screen size whatever the zoom or window width.
     const ctm = map.getScreenCTM();
     if (ctm && ctm.a > 0) map.style.setProperty('--pin-scale', (1 / (ctm.a * zoom)).toFixed(4));
-    map.style.setProperty('--wall-scale', (1 / Math.sqrt(zoom)).toFixed(4));
-    map.dataset.detail = zoom < 1 ? 'overview' : zoom < 1.5 ? 'places' : 'detail';
+    const detailZoom = zoom * VIEW.height / view.height;
+    map.style.setProperty('--wall-scale', (1 / Math.sqrt(detailZoom)).toFixed(4));
+    map.dataset.detail = detailZoom < 1 ? 'overview' : detailZoom < 1.5 ? 'places' : 'detail';
+    stage.dataset.extent = state.mapExtent;
+    $$('[data-map-extent]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mapExtent === state.mapExtent)));
+    $('#map-title-text').textContent = state.mapExtent === 'island' ? 'Paradis Island' : 'The walled territory';
+    $('#map-geography-badge').textContent = state.mapExtent === 'island' ? 'Approximate coast' : 'Scaled walls';
+    $('#map-scale').hidden = state.mapExtent === 'island';
+    if (ctm?.a > 0) {
+      $('#map-scale span').style.width = `${100 * geometry.unitsPerKm * ctm.a * zoom}px`;
+      for (const id of ['sea-waves', 'dunes']) $(`#${id}`).setAttribute('patternTransform', `scale(${0.65 / (ctm.a * zoom)})`);
+      // Texture and lighting cover the visible viewport, including SVG letterboxing.
+      const box = map.getBoundingClientRect();
+      const inverse = ctm.inverse();
+      const topLeft = new DOMPoint(box.left, box.top).matrixTransform(inverse);
+      const bottomRight = new DOMPoint(box.right, box.bottom).matrixTransform(inverse);
+      const surface = { x: (topLeft.x - state.panX) / zoom - 2, y: (topLeft.y - state.panY) / zoom - 2,
+        width: (bottomRight.x - topLeft.x) / zoom + 4, height: (bottomRight.y - topLeft.y) / zoom + 4 };
+      $$('.map-surface').forEach(rect => { for (const [name, value] of Object.entries(surface)) rect.setAttribute(name, value); });
+    }
     updateOverview(viewWidth);
     scheduleLayout();
   }
   function updateOverview(viewWidth) {
     const overview = $('#map-overview');
-    overview.hidden = state.zoom <= 1.15 && viewWidth >= VIEW.width;
+    const view = mapView();
+    overview.hidden = state.zoom <= 1.15 && viewWidth >= view.width;
+    $('#map-overview svg').setAttribute('viewBox', `${view.x} ${view.y} ${view.width} ${view.height}`);
     if (overview.hidden || !map.getScreenCTM()?.a) return;
     const stage = $('#map-stage').getBoundingClientRect();
     const sheetTop = window.matchMedia('(max-width: 760px)').matches ? $('#location-panel').getBoundingClientRect().top : stage.bottom;
     const topLeft = mapPoint(stage.left, stage.top);
     const bottomRight = mapPoint(stage.right, Math.min(stage.bottom, sheetTop));
-    const left = Math.max(VIEW.x, (topLeft.x - state.panX) / state.zoom);
-    const top = Math.max(VIEW.y, (topLeft.y - state.panY) / state.zoom);
-    const right = Math.min(VIEW.x + VIEW.width, (bottomRight.x - state.panX) / state.zoom);
-    const bottom = Math.min(VIEW.y + VIEW.height, (bottomRight.y - state.panY) / state.zoom);
+    const left = Math.max(view.x, (topLeft.x - state.panX) / state.zoom);
+    const top = Math.max(view.y, (topLeft.y - state.panY) / state.zoom);
+    const right = Math.min(view.x + view.width, (bottomRight.x - state.panX) / state.zoom);
+    const bottom = Math.min(view.y + view.height, (bottomRight.y - state.panY) / state.zoom);
     const rect = $('#overview-viewport');
     for (const [name, value] of Object.entries({ x: left, y: top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) })) rect.setAttribute(name, value.toFixed(2));
   }
-  function zoomMap(factor, point = { x: VIEW.cx, y: VIEW.cy }) {
+  function zoomMap(factor, point = { x: mapView().cx, y: mapView().cy }) {
     const previous = state.zoom;
     state.zoom = Math.max(0.75, Math.min(3, state.zoom * factor));
     const ratio = state.zoom / previous;
@@ -883,6 +932,12 @@
   $('#zoom-in').addEventListener('click', () => zoomMap(1.25));
   $('#zoom-out').addEventListener('click', () => zoomMap(1 / 1.25));
   function resetMap() { state.zoom = 1; state.panX = 0; state.panY = 0; applyCamera(); }
+  $$('[data-map-extent]').forEach(button => button.addEventListener('click', () => {
+    if (button.dataset.mapExtent === 'island' && !visibleLocations().some(location => location.kind === 'sea')) return;
+    state.mapExtent = button.dataset.mapExtent;
+    closeCard();
+    resetMap();
+  }));
   $('#reset-map').addEventListener('click', resetMap);
   $('#map-overview').addEventListener('click', () => { resetMap(); map.focus({ preventScroll: true }); });
   window.addEventListener('resize', () => { centerTimeline(); syncPanel(); applyCamera(); });

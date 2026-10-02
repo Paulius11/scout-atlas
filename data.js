@@ -100,6 +100,18 @@
   window.ATLAS_DATA = {
     maxEpisode: 59,
     episodeTitles,
+    mapGeometry: {
+      center: { x: 600, y: 405 }, unitsPerKm: 5 / 6,
+      // Episode 1's information card: 250 km to Sina, then 130 km to Rose, then 100 km to Maria.
+      wallRadiusKm: { maria: 480, rose: 380, sina: 250 },
+      wallsView: { x: 100, y: -95, width: 1000, height: 1000, cx: 600, cy: 405 },
+      islandView: { x: -750, y: -2350, width: 3250, height: 5650, cx: 875, cy: 475 },
+      // A simplified trace of the island in episode 57's map frame. Wall-to-coast distances are approximate.
+      islandReferenceCenter: [549, 134], islandReferenceScale: 32,
+      islandOutline: [[520,91],[522,85],[530,79],[540,80],[547,84],[555,85],[560,91],[567,95],[574,102],[577,112],[578,125],[581,139],[586,152],[585,158],[591,166],[598,174],[595,179],[596,188],[590,194],[581,193],[575,190],[568,183],[562,181],[556,172],[551,176],[542,178],[535,175],[530,168],[529,155],[530,145],[529,135],[531,121],[527,108],[522,101]],
+      wallSourceUrl: "https://www.hellominju.com/2020/10/1-12CurrentlyPubliclyAvailable.html",
+      islandSourceUrl: "https://i.imgur.com/xVUHLew.jpg"
+    },
     // Season boundaries in overall numbers. A season still in progress has no `last` until it is complete.
     seasons: [
       { season: 1, first: 1, last: 25 },
@@ -111,32 +123,106 @@
         { locationId: "shiganshina", people: ["eren", "mikasa", "armin"], title: "Life at the outer wall", summary: "Shiganshina is Eren, Mikasa, and Armin’s home. Eren wants to see the world beyond the walls.", connection: "This district gives the opening story its geographical starting point." },
         { locationId: "shiganshina", people: ["colossal"], title: "The gate is breached", summary: "The Colossal Titan breaks Shiganshina’s outer gate, allowing Titans into the district.", connection: "The attack turns the town’s protective boundary into an entry point.", sourceUrl: wiki("Shiganshina_District_%28Anime%29") }
       ]),
+      chapter(2, "Evacuation", "The attack forces the survivors to abandon the territory inside Wall Maria.", official(2), [
+        {"locationId": "shiganshina", "people": ["eren", "mikasa", "armin", "hannes"], "title": "Escape from the district", "summary": "Hannes carries Eren and Mikasa away. The surviving civilians escape by boat as Titans overrun Shiganshina."},
+        {"locationId": "shiganshina", "people": ["armored"], "title": "The inner gate falls", "summary": "The Armored Titan breaks the gate leading into Wall Maria. Survivors withdraw behind Wall Rose.", "connection": "This second breach opens the land inside the outer wall, beyond the district itself."}
+      ]),
+      chapter(3, "Learning to stand", "Eren, Mikasa and Armin enter military training.", official(3), [
+        {"locationId": null, "people": ["eren", "mikasa", "armin", "keith"], "title": "Balance training", "summary": "Eren struggles with the balance test, then passes when his faulty equipment is replaced.", "connection": "The training ground is not pinned: its exact position is not established here."}
+      ]),
+      chapter(4, "Graduation", "The recruits finish training and consider which military branch to join.", official(4), [
+        {"locationId": null, "people": ["eren", "mikasa", "armin", "jean"], "title": "Choosing a branch", "summary": "Graduation gives the ten highest-ranked cadets the option of joining the Military Police. Eren still intends to join the Survey Corps."},
+        {"locationId": "trost", "people": ["eren", "colossal"], "title": "The attack returns", "summary": "While the graduates work on Trost’s wall, the Colossal Titan suddenly appears and breaks the outer gate.", "connection": "The new attack is at Wall Rose, five years after Shiganshina fell."}
+      ]),
       chapter(5, "Trost under attack", "Five years later, the fighting is at Trost, a different district on the southern edge of Wall Rose.", official(5), [
         { locationId: "trost", people: ["colossal", "eren"], title: "A different gate", summary: "The Colossal Titan has breached Trost’s outer gate. Eren attacks, but the Titan disappears in steam.", connection: "Trost belongs to Wall Rose; it is not Shiganshina or Wall Maria." },
         { locationId: "trost", title: "The district becomes a battlefield", summary: "Soldiers prepare to face Titans entering Trost. The immediate task is to defend the district and protect its people.", connection: "A breach in the district’s outer gate threatens access toward the territory behind Wall Rose." }
+      ]),
+      chapter(6, "Evacuating Trost", "The fighting continues while civilians try to leave the district.", official(6), [
+        {"locationId": "trost", "people": ["armin", "connie"], "title": "A surviving cadet", "summary": "Connie finds Armin alone after his squad has been overwhelmed. Armin struggles to explain what happened to Eren."},
+        {"locationId": "trost", "people": ["mikasa"], "title": "A blocked evacuation", "summary": "Mikasa confronts a merchant whose wagon blocks the exit and makes him clear the way for the civilians.", "connection": "Her childhood memories are not placed at Trost: this pin marks the present evacuation."}
+      ]),
+      chapter(7, "Running out of gas", "Cadets trapped in Trost need supplies before they can retreat.", official(7), [
+        {"locationId": "trost", "people": ["jean", "connie", "armin", "mikasa"], "title": "The headquarters is surrounded", "summary": "With their gas running low, the cadets cannot climb to safety. Mikasa urges them toward the supply headquarters."},
+        {"locationId": "trost", "people": ["mikasa"], "title": "An unexpected defender", "summary": "A Titan attacks other Titans near Mikasa. The soldiers see a possible opening, without knowing why it behaves differently."}
       ]),
       chapter(8, "Reach the supplies", "The battle remains inside Trost. Reaching the supply headquarters is essential to the trapped soldiers.", official(8), [
         { locationId: "trost", people: ["armin", "mikasa"], title: "A plan to reach headquarters", summary: "Armin proposes drawing the Titan that helped Mikasa toward the supply headquarters so it can attack the Titans there.", connection: "The immediate objective is a building within Trost, not a new town or another wall." },
         { locationId: "trost", people: ["jean", "mikasa", "connie"], title: "The soldiers converge", summary: "Jean’s group reaches the headquarters as Mikasa and Connie also move toward it.", connection: "Separate groups in the district are working toward the same supply point." }
       ]),
+      chapter(9, "Eren returns", "Eren emerges from the Titan that helped the soldiers, but the garrison sees him as a threat.", official(9), [
+        {"locationId": "trost", "people": ["eren", "mikasa", "armin"], "title": "A human inside a Titan", "summary": "Eren is found alive inside the exhausted Titan body, with his missing limbs restored.", "connection": "This establishes his transformation, without explaining its origin."},
+        {"locationId": "trost", "people": ["eren", "mikasa", "armin"], "title": "Weapons turned inward", "summary": "Garrison soldiers surround Eren, Mikasa and Armin and demand to know whether Eren is human or Titan."}
+      ]),
+      chapter(10, "Defending Eren", "The three friends must persuade their own soldiers to listen.", official(10), [
+        {"locationId": "trost", "people": ["eren", "mikasa", "armin"], "title": "A partial transformation", "summary": "Eren creates part of a Titan body to shield Mikasa and Armin from a cannon shot."},
+        {"locationId": "trost", "people": ["armin"], "title": "Armin speaks for them", "summary": "Armin argues that Eren’s ability could help humanity. A senior garrison officer stops the immediate execution.", "connection": "The officer’s proposal follows in the next episode."}
+      ]),
+      chapter(11, "A plan for the gate", "Pixis proposes using Eren\u2019s Titan form to close Trost\u2019s breach.", official(11), [
+        {"locationId": "trost", "people": ["pixis", "eren"], "title": "Carry the boulder", "summary": "Pixis asks Eren to carry a large boulder to the broken gate. Soldiers must divert the Titans while the operation proceeds.", "connection": "The plan targets Trost’s outer gate, not the lost gate at Shiganshina."}
+      ]),
+      chapter(12, "The operation falters", "Eren loses control after transforming for the gate operation.", official(12), [
+        {"locationId": "trost", "people": ["eren", "mikasa"], "title": "The carrier attacks", "summary": "Instead of lifting the boulder, Eren attacks Mikasa and injures his own Titan body."},
+        {"locationId": "trost", "people": ["armin", "eren"], "title": "Reaching Eren", "summary": "Armin approaches the immobilised Titan and tries to bring Eren back to awareness. The defenders continue protecting the operation."}
+      ]),
       chapter(13, "Seal Trost", "Eren’s Titan form becomes central to the operation to close Trost’s breached gate.", official(13), [
         { locationId: "trost", people: ["armin", "eren"], title: "Protect the carrier", summary: "After Armin reaches him, Eren carries the boulder. Soldiers draw nearby Titans away so he can reach the gate.", connection: "This turns the struggle for survival into a coordinated operation at the original breach." },
         { locationId: "trost", people: ["eren"], title: "The breach is sealed", summary: "Eren places the boulder in the opening and blocks the damaged gate.", connection: "This closes the breach at Trost; it does not recover Shiganshina or the lost territory of Wall Maria." }
       ]),
+      chapter(14, "The hearing", "The military debates which branch should take responsibility for Eren.", official(14), [
+        {"locationId": null, "people": ["eren", "erwin", "levi"], "title": "Two competing plans", "summary": "The Military Police and the Survey Corps present different proposals for Eren’s future at a military hearing.", "connection": "The hearing room’s coordinates are not established here."},
+        {"locationId": null, "people": ["eren", "levi", "erwin"], "title": "Placed with the Scouts", "summary": "Levi demonstrates that he can restrain Eren. The decision places Eren under Survey Corps supervision."}
+      ]),
+      chapter(15, "Special operations", "Eren joins Levi\u2019s squad and hears about Hange\u2019s research.", official(15), [
+        {"locationId": null, "people": ["eren", "levi", "hange"], "title": "Before the expedition", "summary": "Eren meets Levi’s experienced squad. Hange describes experiments on two captured Titans.", "connection": "The squad’s headquarters is not the expedition forest."},
+        {"locationId": null, "people": ["hange", "eren"], "title": "The test subjects are killed", "summary": "Both captive Titans are killed before the experiments can continue. The soldiers begin looking for whoever did it."}
+      ]),
       chapter(16, "Leave from Karanes", "The Survey Corps prepares an expedition and departs through Karanes, on the east side of Wall Rose.", sources.e16, [
         { locationId: "karanes", people: ["eren"], title: "The expedition departs", summary: "The Survey Corps leaves Karanes for its 57th expedition. Eren and recruits who chose the Scouts take part.", connection: "Karanes is an eastern exit from Wall Rose; the earlier battle was at southern Trost." }
+      ]),
+      chapter(17, "The formation is attacked", "The expedition encounters an intelligent Titan on open ground beyond Wall Rose.", official(17), [
+        {"locationId": null, "people": ["armin", "female-titan"], "title": "A different kind of pursuit", "summary": "The Female Titan attacks the scouting formation and examines Armin before leaving him alive.", "connection": "The encounter is outside Wall Rose; the exact point is not established."},
+        {"locationId": null, "people": ["armin", "jean", "reiner", "female-titan"], "title": "Searching for Eren", "summary": "Armin, Jean and Reiner try to slow the attacker. Armin suspects that she is looking for Eren.", "connection": "That motive is Armin’s assessment at this point.", "kind": "belief"}
       ]),
       chapter(18, "Into the forest", "During the expedition outside Wall Rose, the formation encounters the Female Titan and enters a forest.", official(18), [
         { locationId: "giant-forest", people: ["eren", "levi"], title: "The center enters the trees", summary: "The central column, including Eren and Levi’s squad, moves into a forest of giant trees while other soldiers remain outside.", connection: "The expedition is in the territory between Wall Rose and Wall Maria, not beyond every wall." },
         { locationId: "giant-forest", people: ["female-titan", "eren"], title: "Terrain changes the encounter", summary: "The tall trunks provide anchor points for mobility gear. The Female Titan pursues Eren’s group into the forest.", connection: "Tree cover creates a very different situation from riding across open ground.", sourceUrl: wiki("Forest_of_Giant_Trees_%28Anime%29") }
       ]),
+      chapter(19, "Trusting the squad", "Eren must choose whether to transform or follow Levi\u2019s orders in the forest.", official(19), [
+        {"locationId": "giant-forest", "people": ["eren", "levi", "female-titan"], "title": "Keep riding", "summary": "Levi’s squad continues through the trees despite the soldiers falling behind them. Eren chooses to trust the squad instead of transforming."},
+        {"locationId": "giant-forest", "people": ["female-titan", "erwin"], "title": "The trap closes", "summary": "Hidden soldiers fire restraint weapons and immobilise the Female Titan.", "connection": "The forest is part of a prepared capture operation."}
+      ]),
+      chapter(20, "A failed capture", "The Scouts try to reach the person inside the restrained Titan.", official(20), [
+        {"locationId": "giant-forest", "people": ["erwin", "levi", "female-titan"], "title": "The nape is protected", "summary": "The Female Titan hardens around her nape, preventing the Scouts from cutting out the person inside."},
+        {"locationId": "giant-forest", "people": ["female-titan"], "title": "Other Titans converge", "summary": "Her scream draws nearby Titans, which consume her Titan body. The Scouts cannot secure its occupant."}
+      ]),
+      chapter(21, "The pursuit resumes", "The attacker returns to confront Eren and Levi\u2019s squad.", official(21), [
+        {"locationId": "giant-forest", "people": ["eren", "female-titan"], "title": "The escort is overwhelmed", "summary": "The attacker transforms again and kills the remaining members of Eren’s escort. Eren chooses to fight in his Titan form."},
+        {"locationId": "giant-forest", "people": ["eren", "mikasa", "female-titan"], "title": "Eren is taken", "summary": "The Female Titan defeats Eren and takes him from his Titan body. Mikasa pursues her.", "connection": "The capture continues within the forest, not at a new district."}
+      ]),
       chapter(22, "Rescue and retreat", "Levi and Mikasa focus on retrieving Eren from the Female Titan during the failed expedition.", official(22), [
         { locationId: "giant-forest", people: ["levi", "mikasa", "female-titan"], title: "Recover Eren", summary: "Levi and Mikasa pursue the Female Titan. Levi makes recovering Eren the priority and succeeds in freeing him.", connection: "The objective changes from confronting the enemy to bringing Eren back alive." },
         { locationId: "karanes", title: "Return through Karanes", summary: "The expedition returns through Karanes after heavy losses.", connection: "This closes the journey that began at the same eastern gate. The precise return route is not mapped.", sourceUrl: wiki("Calaneth_District_%28Anime%29") }
       ]),
+      chapter(23, "An invitation underground", "Armin meets Annie in Stohess as the Scouts prepare another capture attempt.", official(23), [
+        {"locationId": "stohess", "people": ["armin", "annie", "eren", "mikasa"], "title": "Help with an escape", "summary": "Armin asks Annie to help Eren evade custody by following them through an underground passage."},
+        {"locationId": "stohess", "people": ["annie"], "title": "Annie refuses the passage", "summary": "Annie stops at the entrance, recognises the trap and triggers a transformation as soldiers close in.", "connection": "The plan moves the confrontation into a populated district at Wall Sina."}
+      ]),
+      chapter(24, "Fighting in Stohess", "Annie\u2019s Titan form pursues the Scouts through the district.", official(24), [
+        {"locationId": "stohess", "people": ["eren", "armin", "mikasa", "annie", "female-titan"], "title": "The suspected identity is exposed", "summary": "Annie transforms into the Female Titan. Eren, Mikasa and Armin escape into the passage."},
+        {"locationId": "stohess", "people": ["eren", "annie"], "title": "Eren joins the battle", "summary": "Eren initially cannot transform. He eventually does and confronts Annie amid the district’s buildings."}
+      ]),
       chapter(25, "Stohess", "The conflict is now in Stohess, a district on the eastern edge of the innermost wall, Sina.", sources.e25, [
         { locationId: "stohess", people: ["eren", "annie"], title: "The battle in Stohess", summary: "Eren fights Annie in her Female Titan form in Stohess, causing major destruction in the district.", connection: "This moves the confrontation inward from the expedition territory to a populated district at Wall Sina." },
         { locationId: "stohess", people: ["annie"], title: "Annie is enclosed in crystal", summary: "Annie seals herself inside a crystal. The Scouts secure her, but cannot obtain answers from her.", connection: "Capturing a person and understanding their motives are separate outcomes.", sourceUrl: sources.e25detail }
+      ]),
+      chapter(26, "A new alarm", "A discovery at Wall Sina coincides with reports of Titans inside Wall Rose.", sources.s2, [
+        {"locationId": "stohess", "people": ["hange", "nick"], "title": "A Titan inside the wall", "summary": "Damage to the wall reveals a Titan’s face. Nick insists that it must be covered from sunlight, but refuses to explain.", "connection": "The discovery is at Wall Sina, separate from the new alarm at Wall Rose."},
+        {"locationId": null, "people": ["beast", "connie", "sasha"], "title": "Titans within Wall Rose", "summary": "The 104th recruits are sent to warn nearby settlements. A speaking Beast Titan confronts a Scout who stays behind.", "connection": "The encounter has no verified map coordinates."}
+      ]),
+      chapter(27, "Warning the villages", "Soldiers try to protect scattered settlements inside Wall Rose.", sources.s2, [
+        {"locationId": null, "people": ["sasha"], "title": "A child left behind", "summary": "Sasha reaches a village under attack and rescues a child from a Titan.", "connection": "Her home region and this new village are not placed at guessed coordinates."},
+        {"locationId": null, "people": ["eren", "hange", "nick"], "title": "Nick sees the evacuees", "summary": "Nick travels with the Scouts toward Wall Rose and sees the civilians displaced by the alarm. He still withholds the wall’s secret."}
       ]),
       chapter(28, "Search Wall Rose", "Teams search for a possible breach after Titans appear inside Wall Rose. Reports and observations do not yet explain how they arrived.", sources.e28, [
         { locationId: "ragako", people: ["connie"], title: "Questions at Ragako", summary: "Connie’s home village is wrecked. The absence of bodies and the remaining horses make a simple explanation difficult.", connection: "These observations raise questions; they do not establish what happened to the villagers.", sourceUrl: sources.e28detail },
@@ -146,9 +232,33 @@
         { locationId: "utgard", title: "The defenders are overwhelmed", summary: "Experienced soldiers fight the Titans while the recruits shelter in the castle. Their defense collapses as the attackers close in.", connection: "This continues the attack at the same castle introduced in the previous milestone." },
         { locationId: "utgard", people: ["ymir", "connie"], title: "Ymir transforms", summary: "Ymir takes Connie’s knife, jumps from the tower, and transforms into a Titan.", connection: "A new fact about Ymir is revealed here. It does not explain every other mystery surrounding the attack." }
       ]),
+      chapter(30, "A name entrusted", "Ymir\u2019s transformation gives the survivors a chance to escape Utgard.", sources.s2, [
+        {"locationId": null, "people": ["ymir", "historia"], "title": "A promise in the snow", "summary": "A training memory shows Ymir and Krista stranded in a snowstorm with an injured cadet. Ymir asks Krista to live under her real name.", "connection": "The mountain in the memory is not placed at Utgard."},
+        {"locationId": "utgard", "people": ["ymir", "historia", "mikasa"], "title": "Rescue at the castle", "summary": "Ymir fights the attacking Titans but is badly injured. Reinforcements reach the castle, and Krista tells Ymir that her name is Historia."}
+      ]),
       chapter(31, "On Wall Rose", "The survivors regroup on Wall Rose. The absence of a discovered breach leaves the earlier crisis unresolved.", sources.e31, [
         { locationId: "wall-rose-south", people: ["hannes"], title: "No breach found", summary: "Hannes reports that the search has found no hole in Wall Rose. The Scouts prepare to regroup at Trost.", connection: "The planned destination is Trost, but this conversation happens on the wall; those are different locations." },
         { locationId: "wall-rose-south", people: ["reiner", "bertholdt", "mikasa", "eren"], title: "Reiner and Bertholdt reveal themselves", summary: "Reiner identifies himself as the Armored Titan and Bertholdt as the Colossal Titan. After Mikasa attacks, both transform, and Eren transforms to confront them.", connection: "The identities are established at this point. Their full motives and wider circumstances remain unanswered." }
+      ]),
+      chapter(32, "The battle on the wall", "Eren fights the Armored Titan while the Scouts face the Colossal Titan.", sources.s2, [
+        {"locationId": "wall-rose-south", "people": ["eren", "reiner", "armored"], "title": "Grappling with the armor", "summary": "Eren switches from punches to grappling, using joint locks against the Armored Titan."},
+        {"locationId": "wall-rose-south", "people": ["bertholdt", "colossal", "hange", "ymir"], "title": "Steam blocks the approach", "summary": "The Colossal Titan takes Ymir and releases intense steam that keeps the Scouts from reaching him."}
+      ]),
+      chapter(33, "Preparing the pursuit", "The Scouts regroup after Eren is carried away.", sources.s2, [
+        {"locationId": "wall-rose-south", "people": ["eren", "reiner", "bertholdt"], "title": "The fight is lost", "summary": "The Colossal Titan’s falling body interrupts Eren’s attack. Reiner and Bertholdt leave with Eren and Ymir."},
+        {"locationId": "wall-rose-south", "people": ["mikasa", "armin", "hannes", "erwin"], "title": "A rescue force gathers", "summary": "Hours later, Mikasa wakes on the wall. Hannes encourages her and Armin while reinforcements prepare to pursue the captors."}
+      ]),
+      chapter(34, "Waiting in the trees", "Eren and Ymir regain consciousness while their captors wait for night.", sources.s2, [
+        {"locationId": null, "people": ["eren", "ymir", "reiner", "bertholdt"], "title": "Escape is out of reach", "summary": "Eren wakes injured among giant trees. Reiner and Bertholdt intend to take their captives away after the surrounding Titans stop moving.", "connection": "This forest’s exact position is not established; it is not assigned to the earlier expedition pin."},
+        {"locationId": null, "people": ["ymir", "reiner", "beast"], "title": "Questions without answers", "summary": "Ymir questions Reiner about the Beast Titan and their circumstances. Eren cannot recover enough strength to transform."}
+      ]),
+      chapter(35, "The rescuers approach", "The Scouts reach the forest as Ymir makes a choice about Historia.", sources.s2, [
+        {"locationId": null, "people": ["erwin", "ymir", "historia"], "title": "Before sunset", "summary": "The rescue force reaches the trees. Ymir insists on taking Historia with her as the captors prepare to leave.", "connection": "The forest remains unpinned."},
+        {"locationId": null, "people": ["ymir"], "title": "Ymir remembers", "summary": "Ymir recalls being given a revered identity, being punished with others, and spending decades as a Titan before becoming human again.", "connection": "This memory is recorded here without assigning its scenes to guessed places."}
+      ]),
+      chapter(36, "The charge", "The pursuit leaves the forest and becomes a desperate rescue in open terrain.", sources.s2, [
+        {"locationId": null, "people": ["eren", "reiner", "bertholdt", "mikasa", "historia", "ymir"], "title": "A moving target", "summary": "The Armored Titan carries Eren away. Ymir protects Historia and obstructs Mikasa’s attacks on the captors.", "connection": "The precise rescue site is not established here."},
+        {"locationId": null, "people": ["erwin", "armin", "eren"], "title": "An opening to escape", "summary": "Erwin draws Titans into the captors’ path. Despite losing an arm, he leads the attack that frees Eren."}
       ]),
       chapter(37, "The return", "Eren’s rescue reaches its conclusion. The Scouts survive with new observations and important unanswered questions.", sources.e37, [
         { locationId: "rescue-field", people: ["eren", "smiling-titan", "hannes"], title: "An unexplained response", summary: "After Eren strikes the smiling Titan’s hand, nearby Titans attack it. They later turn toward Reiner and Bertholdt, giving the Scouts an opening to escape.", connection: "The response is observed; the mechanism and limits of Eren’s power are not explained.", sourceUrl: sources.e37detail },
@@ -269,45 +379,45 @@
     status: [
       { target: "gate:shiganshina", from: 1, state: "breached", note: "The Colossal Titan breaks the outer gate.", sourceUrl: official(1) },
       { target: "belt:maria-rose", from: 2, state: "lost", note: "Wall Maria’s inner gate falls; the land between Wall Maria and Wall Rose is abandoned to the Titans.", sourceUrl: official(2) },
-      { target: "gate:trost", from: 5, state: "breached", note: "The Colossal Titan breaks Trost’s outer gate.", sourceUrl: official(5) },
+      { target: "gate:trost", from: 4, state: "breached", note: "The Colossal Titan breaks Trost’s outer gate.", sourceUrl: official(4) },
       { target: "gate:trost", from: 13, state: "sealed", note: "Eren’s Titan seals the gate with a boulder.", sourceUrl: official(13) },
       { target: "gate:shiganshina", from: 50, state: "sealed", note: "Eren’s hardened Titan plugs the hole in the outer gate.", sourceUrl: sources.s3summary },
       { target: "belt:maria-rose", from: 59, state: "held", note: "Over a year, every Titan inside Wall Maria is killed and refugees return home.", sourceUrl: sources.s3summary }
     ],
     // kind: district | village | castle | forest | wall | field | chapel | capital | sea
     // A visible place of kind "sea" also draws the coastline and the water around the whole island, and from
-    // its `desertFrom` episode a desert band before the coast.
+    // its `desertFrom` episode an illustrative patch of coastal sand.
     // area: approximate places are drawn as a dashed area of these radii (map units), not a point.
     // label.side: right (default) | left | below. Aliases are searched but never shown on the map.
     locations: [
-      { id: "shiganshina", name: "Shiganshina", subtitle: "Southern district · Wall Maria", x: 600, y: 780, kind: "district", firstEpisode: 1,
-        summary: "The home district of Eren, Mikasa, and Armin, built at the southern edge of the outermost wall.", why: "Use this as the southern reference point when comparing the three walls and their districts.", geography: "Southern Wall Maria is established geography. The district outline and distances are schematic.", tags: ["Wall Maria", "Southern district"], sourceUrl: wiki("Shiganshina_District_%28Anime%29") },
-      { id: "trost", name: "Trost", subtitle: "Southern district · Wall Rose", x: 600, y: 651, kind: "district", firstEpisode: 5,
-        summary: "A district projecting from the southern edge of Wall Rose, the middle wall.", why: "Trost and Shiganshina are different towns on different walls. Confusing them makes the early battles harder to follow.", geography: "Placed south of Wall Rose. District size and spacing are illustrative.", tags: ["Wall Rose", "Southern district"], sourceUrl: wiki("Trost_District") },
-      { id: "karanes", name: "Karanes", subtitle: "Eastern district · Wall Rose", x: 898, y: 405, kind: "district", firstEpisode: 16, aliases: ["Karanese", "Calaneth"],
+      { id: "shiganshina", name: "Shiganshina", subtitle: "Southern district · Wall Maria", x: 600, y: 805, kind: "district", firstEpisode: 1,
+        summary: "The home district of Eren, Mikasa, and Armin, built at the southern edge of the outermost wall.", why: "Use this as the southern reference point when comparing the three walls and their districts.", geography: "Southern Wall Maria is established geography. The wall radii follow the episode-one distances; the district outline is illustrative.", tags: ["Wall Maria", "Southern district"], sourceUrl: wiki("Shiganshina_District_%28Anime%29") },
+      { id: "trost", name: "Trost", subtitle: "Southern district · Wall Rose", x: 600, y: 721.6667, kind: "district", firstEpisode: 4,
+        summary: "A district projecting from the southern edge of Wall Rose, the middle wall.", why: "Trost and Shiganshina are different towns on different walls. Confusing them makes the early battles harder to follow.", geography: "Placed south of Wall Rose. Wall spacing follows the episode-one distances; district size is illustrative.", tags: ["Wall Rose", "Southern district"], sourceUrl: wiki("Trost_District") },
+      { id: "karanes", name: "Karanes", subtitle: "Eastern district · Wall Rose", x: 916.6667, y: 405, kind: "district", firstEpisode: 16, aliases: ["Karanese", "Calaneth"],
         summary: "An eastern district of Wall Rose, also translated as Karanese or Calaneth.", why: "It provides the expedition’s eastern departure point, separate from Trost’s southern gate.", geography: "Eastern Wall Rose is established. No exact road or travel distance is implied.", tags: ["Wall Rose", "Eastern district"], sourceUrl: wiki("Calaneth_District_%28Anime%29") },
-      { id: "giant-forest", name: "Forest of giant trees", subtitle: "57th expedition · Approximate area", x: 920, y: 520, kind: "forest", firstEpisode: 18, area: { rx: 58, ry: 44 },
+      { id: "giant-forest", name: "Forest of giant trees", subtitle: "57th expedition · Approximate area", x: 917.89, y: 542.72, kind: "forest", firstEpisode: 18, area: { rx: 58, ry: 44 },
         summary: "The large-tree forest encountered by the 57th expedition between Walls Rose and Maria.", why: "Tall trees create anchor points for mobility gear and change how soldiers can move and fight.", geography: "Between Walls Maria and Rose. This marker represents the expedition forest only; its exact coordinates are not established.", tags: ["Between the walls", "Approximate area"], sourceUrl: wiki("Forest_of_Giant_Trees_%28Anime%29") },
-      { id: "stohess", name: "Stohess", subtitle: "Eastern district · Wall Sina", x: 762, y: 405, kind: "district", firstEpisode: 23, aliases: ["Wall Sheena"], label: { side: "left" },
-        summary: "A district at the eastern edge of Wall Sina, the innermost of the three walls.", why: "Its location shows how far inward this part of the story is compared with the expedition beyond Wall Rose.", geography: "Eastern Wall Sina, also translated as Wall Sheena. All map proportions are schematic.", tags: ["Wall Sina", "Eastern district"], sourceUrl: wiki("Stohess_District") },
-      { id: "ragako", name: "Ragako", subtitle: "Connie’s village · Inside Wall Rose", x: 650, y: 590, kind: "village", firstEpisode: 28,
+      { id: "stohess", name: "Stohess", subtitle: "Eastern district · Wall Sina", x: 808.3333, y: 405, kind: "district", firstEpisode: 23, aliases: ["Wall Sheena"], label: { side: "left" },
+        summary: "A district at the eastern edge of Wall Sina, the innermost of the three walls.", why: "Its location shows how far inward this part of the story is compared with the expedition beyond Wall Rose.", geography: "Eastern Wall Sina, also translated as Wall Sheena. Wall spacing follows the episode-one distances; district size is illustrative.", tags: ["Wall Sina", "Eastern district"], sourceUrl: wiki("Stohess_District") },
+      { id: "ragako", name: "Ragako", subtitle: "Connie’s village · Inside Wall Rose", x: 657.17, y: 660.01, kind: "village", firstEpisode: 28,
         summary: "Connie’s home village, in the southern territory enclosed by Wall Rose.", why: "Its position inside the wall is central to the question of how Titans appeared among the settlements.", geography: "Southern territory inside Wall Rose. The specific village coordinates are approximate.", tags: ["Inside Wall Rose", "Village"], sourceUrl: wiki("Ragako") },
-      { id: "utgard", name: "Utgard Castle", subtitle: "A ruined castle · Inside Wall Rose", x: 435, y: 560, kind: "castle", firstEpisode: 28, label: { side: "left" },
+      { id: "utgard", name: "Utgard Castle", subtitle: "A ruined castle · Inside Wall Rose", x: 416.08, y: 613.27, kind: "castle", firstEpisode: 28, label: { side: "left" },
         summary: "An abandoned castle near the perimeter inside Wall Rose, used as shelter by searching soldiers.", why: "It is a stop during the search within Wall Rose, not an outpost beyond Wall Maria.", geography: "Inside Wall Rose near its perimeter. The southwest placement and distances are schematic.", tags: ["Inside Wall Rose", "Castle"], sourceUrl: wiki("Utgard_Castle_%28Anime%29") },
-      { id: "wall-rose-south", name: "Wall Rose · southern sector", mapLabel: "Southern Wall Rose", subtitle: "Wall-top meeting · Approximate sector", x: 450, y: 618, kind: "wall", firstEpisode: 31, label: { side: "left" }, area: { rx: 44, ry: 30 },
+      { id: "wall-rose-south", name: "Wall Rose · southern sector", mapLabel: "Southern Wall Rose", subtitle: "Wall-top meeting · Approximate sector", x: 440.52, y: 678, kind: "wall", firstEpisode: 31, label: { side: "left" }, area: { rx: 44, ry: 30 },
         summary: "The section of Wall Rose where soldiers regroup following Utgard. This is an area marker, not a named district.", why: "Conversations and fighting on the wall should not be mistaken for events inside Trost itself.", geography: "Placed on the southwestern arc of Wall Rose for orientation. The precise section is not established by this map.", tags: ["Wall Rose", "Approximate sector"], sourceUrl: sources.e31 },
-      { id: "rescue-field", name: "Rescue operation area", subtitle: "Outside Wall Rose · Approximate area", x: 400, y: 683, kind: "field", firstEpisode: 37, label: { side: "left" }, area: { rx: 56, ry: 34 },
+      { id: "rescue-field", name: "Rescue operation area", subtitle: "Outside Wall Rose · Approximate area", x: 409.97, y: 723.42, kind: "field", firstEpisode: 37, label: { side: "left" }, area: { rx: 56, ry: 34 },
         summary: "The open terrain outside Wall Rose where the rescue and retreat take place. This is a descriptive label, not a canonical place name.", why: "This pin keeps the fighting outside the wall distinct from settlements within it.", geography: "Shown in the belt between Walls Rose and Maria. Position and terrain are deliberately approximate.", tags: ["Beyond Wall Rose", "Approximate area"], sourceUrl: sources.e37detail },
       { id: "capital", name: "Royal capital", subtitle: "Seat of the king · Inside Wall Sina", x: 600, y: 405, kind: "capital", firstEpisode: 42, label: { side: "below" },
         summary: "The seat of the king and the government, at the heart of Wall Sina.", why: "Erwin’s final trial is held in the king’s hall here: the fate of the Scouts is decided at the centre of the walls, far from any Titan.", geography: "Shown at the centre of Wall Sina for orientation. The capital’s size and exact position are not established by this map.", tags: ["Wall Sina", "Capital"], sourceUrl: sources.s3 },
-      { id: "reiss-chapel", name: "Reiss family chapel", subtitle: "A cavern beneath · Approximate area", x: 470, y: 250, kind: "chapel", firstEpisode: 43, label: { side: "left" }, area: { rx: 40, ry: 30 },
+      { id: "reiss-chapel", name: "Reiss family chapel", subtitle: "A cavern beneath · Approximate area", x: 451.16, y: 191.08, kind: "chapel", firstEpisode: 43, label: { side: "left" }, area: { rx: 40, ry: 30 },
         summary: "A chapel of the Reiss family, with a cavern beneath it where Eren is held in chains.", why: "The Reiss family’s secrets are kept here, underground and out of sight.", geography: "Placed between Wall Sina and Wall Rose for orientation. Its real position and distances are not established here.", tags: ["Between Sina and Rose", "Approximate area"], sourceUrl: sources.s3 },
-      { id: "orvud", name: "Orvud District", subtitle: "Northern district · Wall Sina", x: 600, y: 274, kind: "district", firstEpisode: 45, aliases: ["Orvud", "Wall Sheena"],
-        summary: "A district projecting from the northern side of Wall Sina, the innermost wall.", why: "It moves the story to the north of the walls, far from the southern districts where it began.", geography: "Northern Wall Sina is established. The district outline and distances are schematic.", tags: ["Wall Sina", "Northern district"], sourceUrl: sources.orvud },
-      { id: "shiganshina-inner", name: "Beyond Shiganshina’s inner gate", mapLabel: "Beyond the inner gate", subtitle: "Inside Wall Maria · Approximate area", x: 556, y: 714, kind: "field", firstEpisode: 50, area: { rx: 50, ry: 20 },
+      { id: "orvud", name: "Orvud District", subtitle: "Northern district · Wall Sina", x: 600, y: 196.6667, kind: "district", firstEpisode: 45, aliases: ["Orvud", "Wall Sheena"],
+        summary: "A district projecting from the northern side of Wall Sina, the innermost wall.", why: "It moves the story to the north of the walls, far from the southern districts where it began.", geography: "Northern Wall Sina is established. The wall radii follow the episode-one distances; the district outline is illustrative.", tags: ["Wall Sina", "Northern district"], sourceUrl: sources.orvud },
+      { id: "shiganshina-inner", name: "Beyond Shiganshina’s inner gate", mapLabel: "Beyond the inner gate", subtitle: "Inside Wall Maria · Approximate area", x: 557.55, y: 764.4, kind: "field", firstEpisode: 50, area: { rx: 50, ry: 20 },
         summary: "Open ground inside Wall Maria, outside Shiganshina’s inner gate, where the Beast Titan gathers its Titans. This is a descriptive label, not a canonical place name.", why: "It keeps the fighting outside the district apart from the battle in Shiganshina’s streets.", geography: "Just north of Shiganshina, in the land between Walls Maria and Rose. Position and extent are approximate.", tags: ["Between the walls", "Approximate area"], sourceUrl: sources.s3summary },
-      { id: "sea", name: "The sea", subtitle: "Around Paradis Island · Coast", x: 172, y: 776, kind: "sea", firstEpisode: 57, desertFrom: 59, aliases: ["Ocean", "Coast", "Paradis Island"],
-        summary: "The walls stand on Paradis Island, and the sea surrounds it. Grisha’s memories show a wall on its coast.", why: "The world does not end at Wall Maria: Grisha’s memories place Marley across the sea.", geography: "The coastline is schematic and drawn not far beyond Wall Maria to fit the map. The marker stands for the whole coast; the direction and distance of any one stretch are not established.", tags: ["Beyond Wall Maria", "Coast"], sourceUrl: sources.s3summary }
+      { id: "sea", name: "The sea", subtitle: "Around Paradis Island · Coast", x: -190, y: 920, kind: "sea", firstEpisode: 57, desertFrom: 59, aliases: ["Ocean", "Coast", "Paradis Island"],
+        summary: "The walls stand on Paradis Island, and the sea surrounds it. Grisha’s memories show a wall on its coast.", why: "The world does not end at Wall Maria: Grisha’s memories place Marley across the sea.", geography: "The island outline follows the map shown in episode 57. Its size relative to the walls and the coast marker’s position are approximate. The marker represents the coast generally, not a verified landing site.", tags: ["Beyond Wall Maria", "Coast"], sourceUrl: sources.s3summary }
     ],
     // type: person | titan | group. Every versioned list (name, role, faction) uses the entry with the
     // latest `from` at or before the viewing episode. `notes` are dated facts shown once watched.
@@ -315,10 +425,11 @@
     // firstEpisode is this edition's visibility threshold, not a claim about a first appearance.
     characters: [
       { id: "eren", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Eren Yeager" }],
-        faction: [{ from: 1, key: "civilian" }, { from: 4, key: "cadet" }, { from: 16, key: "survey" }],
-        role: [{ from: 1, text: "Shiganshina resident" }, { from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }, { from: 38, text: "Survey Corps, Levi squad" }],
+        faction: [{ from: 1, key: "civilian" }, { from: 3, key: "cadet" }, { from: 16, key: "survey" }],
+        role: [{ from: 1, text: "Shiganshina resident" }, { from: 3, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }, { from: 38, text: "Survey Corps, Levi squad" }],
         notes: [
           { episode: 1, text: "Grew up in Shiganshina and wants to see the world beyond the walls." },
+          { episode: 9, text: "Emerges alive from the Titan body after the battle in Trost." },
           { episode: 13, text: "Can turn into a Titan; in that form he seals Trost’s gate with a boulder." },
           { episode: 38, text: "Hange tests whether his Titan body can harden, to seal Wall Maria." },
           { episode: 43, text: "A buried memory of his father and the Reiss family surfaces." },
@@ -335,13 +446,22 @@
         ],
         positions: [
           { episode: 1, locationId: "shiganshina", note: "Observed in his home district during the attack. This is a recorded observation, not continuous tracking.", sourceUrl: official(1) },
+          { episode: 3, locationId: null, note: "Training at a site not pinned on this map.", sourceUrl: official(3) },
+          { episode: 4, locationId: "trost", note: "On the wall at Trost when the Colossal Titan returns.", sourceUrl: official(4) },
           { episode: 5, locationId: "trost", note: "Fighting in Trost during the breach.", sourceUrl: official(5) },
           { episode: 13, locationId: "trost", note: "Closes Trost’s breached gate with the boulder.", sourceUrl: official(13) },
+          { episode: 14, locationId: null, note: "At the military hearing; its exact site is not pinned.", sourceUrl: official(14) },
+          { episode: 15, locationId: null, note: "At the squad headquarters, whose location is not pinned.", sourceUrl: official(15) },
           { episode: 16, locationId: "karanes", note: "Departs with the 57th expedition.", sourceUrl: sources.e16 },
+          { episode: 17, locationId: null, note: "Riding with the expedition; the formation’s exact position is not pinned.", sourceUrl: official(17) },
           { episode: 18, locationId: "giant-forest", note: "In the expedition’s central column with Levi’s squad.", sourceUrl: official(18) },
           { episode: 22, locationId: "karanes", note: "Returns with the expedition after being rescued. Karanes is the return location, not the rescue site.", sourceUrl: wiki("Calaneth_District_%28Anime%29") },
+          { episode: 23, locationId: "stohess", note: "Helps lure Annie toward the underground passage.", sourceUrl: official(23) },
           { episode: 25, locationId: "stohess", note: "Fights Annie in Stohess. This is the last mapped observation from the episode.", sourceUrl: sources.e25 },
+          { episode: 26, locationId: null, note: "Travelling toward Wall Rose; no exact observation site is pinned.", sourceUrl: sources.s2 },
           { episode: 31, locationId: "wall-rose-south", note: "Confronts Reiner at Wall Rose. The marker identifies an approximate sector.", sourceUrl: sources.e31 },
+          { episode: 33, locationId: null, note: "Carried away after the battle at Wall Rose.", sourceUrl: sources.s2 },
+          { episode: 34, locationId: null, note: "Held in an unnamed forest, not assigned to the earlier expedition pin.", sourceUrl: sources.s2 },
           { episode: 37, locationId: "wall-rose-south", note: "Retreating toward Wall Rose with the Scouts. Area approximate; exact final location unmarked.", sourceUrl: sources.e37detail },
           { episode: 38, locationId: null, note: "With the new Levi squad at a hidden location this map does not place.", sourceUrl: sources.s3 },
           { episode: 39, locationId: null, note: "Carried off with Historia after the wagon is attacked.", sourceUrl: sources.s3 },
@@ -354,8 +474,8 @@
           { episode: 59, locationId: "sea", note: "Reaches the sea with the Scouts. Where along the coast is not established.", sourceUrl: sources.s3summary }
         ], sourceUrl: official(1) },
       { id: "mikasa", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Mikasa Ackerman" }],
-        faction: [{ from: 1, key: "civilian" }, { from: 4, key: "cadet" }, { from: 16, key: "survey" }],
-        role: [{ from: 1, text: "Lives with Eren’s family" }, { from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }],
+        faction: [{ from: 1, key: "civilian" }, { from: 3, key: "cadet" }, { from: 16, key: "survey" }],
+        role: [{ from: 1, text: "Lives with Eren’s family" }, { from: 3, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }],
         notes: [
           { episode: 1, text: "Lives with Eren’s family in Shiganshina and watches out for him." },
           { episode: 22, text: "Pursues the Female Titan with Levi to get Eren back." },
@@ -366,8 +486,8 @@
           { episode: 59, text: "Receives a medal from Historia and reaches the sea with the Scouts." }
         ], sourceUrl: official(1) },
       { id: "armin", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Armin Arlert" }],
-        faction: [{ from: 1, key: "civilian" }, { from: 4, key: "cadet" }, { from: 16, key: "survey" }],
-        role: [{ from: 1, text: "Eren’s childhood friend" }, { from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }, { from: 55, text: "Survey Corps, holds the Colossal Titan’s power" }],
+        faction: [{ from: 1, key: "civilian" }, { from: 3, key: "cadet" }, { from: 16, key: "survey" }],
+        role: [{ from: 1, text: "Eren’s childhood friend" }, { from: 3, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }, { from: 55, text: "Survey Corps, holds the Colossal Titan’s power" }],
         notes: [
           { episode: 1, text: "Eren’s childhood friend in Shiganshina, more thinker than fighter." },
           { episode: 8, text: "Proposes the plan that gets the soldiers to the supply headquarters in Trost." },
@@ -393,8 +513,11 @@
           { episode: 55, text: "Gives the one dose to Armin instead of Erwin." }
         ],
         positions: [
+          { episode: 15, locationId: null, note: "At the squad headquarters, whose location is not pinned.", sourceUrl: official(15) },
+          { episode: 17, locationId: null, note: "Riding with the expedition; no exact position is pinned.", sourceUrl: official(17) },
           { episode: 18, locationId: "giant-forest", note: "Leads his squad in the expedition’s central column.", sourceUrl: official(18) },
           { episode: 22, locationId: "giant-forest", note: "Recovers Eren from the Female Titan.", sourceUrl: official(22) },
+          { episode: 23, locationId: null, note: "After the expedition; the atlas has no new established place record.", sourceUrl: official(23) },
           { episode: 38, locationId: null, note: "Leads the new squad at a hidden location this map does not place.", sourceUrl: sources.s3 },
           { episode: 39, locationId: null, note: "Fights Kenny after the wagon ambush.", sourceUrl: sources.s3 },
           { episode: 45, locationId: "reiss-chapel", note: "Storms the chapel with the Scouts to rescue Eren and Historia.", sourceUrl: sources.s3 },
@@ -451,10 +574,10 @@
           { episode: 56, text: "One of the nine surviving Scouts." }
         ],
         sourceUrl: sources.s2 },
-      { id: "historia", type: "person", firstEpisode: 16, aliases: ["Krista", "Krista Lenz"],
-        name: [{ from: 16, text: "Krista Lenz" }, { from: 30, text: "Historia" }, { from: 40, text: "Historia Reiss" }],
-        faction: [{ from: 16, key: "survey" }, { from: 48, key: "crown" }],
-        role: [{ from: 16, text: "Survey Corps, 104th" }, { from: 38, text: "Survey Corps, Levi squad" }, { from: 47, text: "Declared herself the true ruler" }, { from: 48, text: "Queen" }],
+      { id: "historia", type: "person", firstEpisode: 4, aliases: ["Krista", "Krista Lenz"],
+        name: [{ from: 4, text: "Krista Lenz" }, { from: 30, text: "Historia" }, { from: 40, text: "Historia Reiss" }],
+        faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }, { from: 48, key: "crown" }],
+        role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps, 104th" }, { from: 38, text: "Survey Corps, Levi squad" }, { from: 47, text: "Declared herself the true ruler" }, { from: 48, text: "Queen" }],
         notes: [
           { episode: 16, text: "A 104th recruit known as Krista, kind to everyone and close to Ymir." },
           { episode: 30, text: "Her real name is Historia." },
@@ -466,6 +589,8 @@
           { episode: 59, text: "Decides the people must be told the truth, and gives medals to the nine surviving Scouts." }
         ],
         positions: [
+          { episode: 30, locationId: "utgard", note: "Tells Ymir her real name after the rescue at Utgard.", sourceUrl: sources.s2 },
+          { episode: 31, locationId: "wall-rose-south", note: "Regroups with the other survivors on Wall Rose.", sourceUrl: sources.e31 },
           { episode: 38, locationId: null, note: "Hidden with the new Levi squad.", sourceUrl: sources.s3 },
           { episode: 39, locationId: null, note: "Carried off with Eren after the wagon is attacked.", sourceUrl: sources.s3 },
           { episode: 43, locationId: "reiss-chapel", note: "Stands with Rod beneath the chapel.", sourceUrl: sources.s3 },
@@ -644,12 +769,17 @@
         ],
         positions: [
           { episode: 16, locationId: "karanes", note: "Expedition departure. The Corps divides into groups; a single pin does not represent every member.", sourceUrl: sources.e16 },
+          { episode: 17, locationId: null, note: "Spread through the scouting formation outside Wall Rose.", sourceUrl: official(17) },
           { episode: 18, locationId: "giant-forest", note: "The central column enters the forest while other soldiers remain outside it.", sourceUrl: official(18) },
           { episode: 22, locationId: "karanes", note: "The expedition returns through Karanes.", sourceUrl: wiki("Calaneth_District_%28Anime%29") },
+          { episode: 23, locationId: "stohess", note: "The group conducting the capture operation; other Scouts are elsewhere.", sourceUrl: official(23) },
           { episode: 25, locationId: "stohess", note: "Scouts take part in the Stohess operation. This does not place the entire Corps here.", sourceUrl: sources.e25 },
+          { episode: 26, locationId: null, note: "Split among the teams responding to the Wall Rose alarm.", sourceUrl: sources.s2 },
           { episode: 28, locationId: "utgard", note: "The soldiers sheltering at Utgard; other Scout groups are elsewhere.", sourceUrl: sources.e28detail },
           { episode: 29, locationId: "utgard", note: "The group defending Utgard faces a night attack.", sourceUrl: sources.e29 },
+          { episode: 30, locationId: "utgard", note: "Reinforcements rescue the soldiers at Utgard.", sourceUrl: sources.s2 },
           { episode: 31, locationId: "wall-rose-south", note: "The survivors regroup on Wall Rose.", sourceUrl: sources.e31 },
+          { episode: 35, locationId: null, note: "The rescue force reaches a forest whose exact site is not established.", sourceUrl: sources.s2 },
           { episode: 37, locationId: "wall-rose-south", note: "Survivors retreat toward Wall Rose. The pin is an approximate area, not a live position.", sourceUrl: sources.e37detail },
           { episode: 41, locationId: null, note: "In hiding in a forest this map does not place.", sourceUrl: sources.s3 },
           { episode: 42, locationId: "capital", note: "Erwin stands trial in the king’s hall; the rest of the Corps is in hiding.", sourceUrl: sources.s3 },

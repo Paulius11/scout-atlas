@@ -130,6 +130,68 @@ async function main() {
       for (const item of data.episodeTitles.filter(item => item.number > 3)) assert.ok(!allowed.includes(item.title), `E${item.number} title is beyond the cutoff`);
     });
 
+    await test('every episode has its own recap and does not borrow a later event', async () => {
+      const complete = await createPage();
+      await view(complete, 'recap');
+      for (const entry of data.episodes) {
+        await episode(complete, entry.number);
+        assert.equal(await complete.locator('.recap-intro h2').innerText(), entry.title);
+        const cards = await complete.locator('.recap-grid').innerText();
+        for (const event of entry.events) assert.ok(cards.includes(event.title), `E${entry.number} missing its event`);
+        const next = data.episodes.find(item => item.number === entry.number + 1);
+        if (next) {
+          const futureIds = next.events.map(event => event.id);
+          assert.equal(await complete.locator(futureIds.map(id => `[data-open-event="${id}"]`).join(',')).count(), 0, `E${entry.number} shows a later event`);
+        }
+      }
+    });
+
+    await test('walls are circular, share the published scale and keep the scale bar accurate', async () => {
+      const scaled = await createPage();
+      await scaled.locator('[data-map-extent="walls"]').click();
+      for (const [name, km] of Object.entries(data.mapGeometry.wallRadiusKm)) {
+        const shape = scaled.locator(`#wall-geometry [data-wall="${name}"]`).first();
+        assert.ok(Math.abs(Number(await shape.getAttribute('rx')) - km * data.mapGeometry.unitsPerKm) < .001);
+        assert.equal(await shape.getAttribute('ry'), await shape.getAttribute('rx'));
+        const bounds = await shape.boundingBox();
+        assert.ok(Math.abs(bounds.width - bounds.height) < 1, `${name} is stretched on screen`);
+        assert.equal(await scaled.locator(`#map-overview [data-wall="${name}"]`).getAttribute('rx'), await shape.getAttribute('rx'));
+      }
+      for (let step = 0; step < 2; step++) {
+        const bar = await scaled.locator('#map-scale span').boundingBox();
+        const maria = await scaled.locator('#wall-geometry [data-wall="maria"]').first().boundingBox();
+        assert.ok(Math.abs(bar.width / maria.width - 100 / 960) < .003, '100 km bar disagrees with wall diameter');
+        await scaled.locator('#zoom-in').click();
+      }
+    });
+
+    await test('island view respects the reveal, fits phones and retains controls when expanded', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }, { width: 320, height: 740 }]) {
+        const island = await createPage(viewport);
+        await episode(island, 56);
+        assert.equal(await island.locator('#map-extent-switch').isVisible(), false);
+        assert.equal(await island.locator('#sea-art .coastline').count(), 0);
+        await episode(island, 57);
+        assert.equal(await island.locator('#map-extent-switch').isVisible(), true);
+        await island.locator('[data-map-extent="island"]').click();
+        assert.equal(await island.locator('#map-title-text').innerText(), 'Paradis Island');
+        assert.equal(await island.locator('#map-scale').isVisible(), false, 'island distances are approximate');
+        for (let expanded = 0; expanded < 2; expanded++) {
+          if (expanded) await island.locator('#expand-map').click();
+          const coast = await island.locator('.coastline').boundingBox();
+          const stage = await island.locator('#atlas-map').boundingBox();
+          assert.ok(coast.x > stage.x && coast.y > stage.y && coast.x + coast.width < stage.x + stage.width && coast.y + coast.height < stage.y + stage.height, 'the coast is cropped');
+          assert.ok(coast.height > coast.width * 1.3, 'the reference outline should be elongated');
+          await assertNoHorizontalOverflow(island, 'island view');
+        }
+        await island.locator('[data-map-extent="walls"]').click();
+        assert.equal(await island.locator('#map-title-text').innerText(), 'The walled territory');
+        assert.equal(await island.locator('#map-scale').isVisible(), true);
+        await episode(island, 56);
+        assert.equal(await island.locator('#map-extent-switch').isVisible(), false);
+      }
+    });
+
     await test('compact gallery displays the current cast without losing readable details', async () => {
       const compact = await createPage();
       await view(compact, 'characters');
@@ -340,8 +402,12 @@ async function main() {
       assert.ok(await changed.locator('.change-unpinned').count() > 0);
       assert.equal(await changed.locator('#location-markers .map-marker').count(), data.locations.filter(location => location.firstEpisode <= unpinned.number).length);
       const empty = Array.from({ length: MAX }, (_, index) => index + 1).find(number => !data.episodes.some(item => item.number === number) && !data.locations.some(item => item.firstEpisode === number) && !(data.status || []).some(item => item.from === number));
-      await episode(changed, empty);
-      assert.match(await changed.locator('#episode-changes-panel').innerText(), /No changes are recorded/);
+      if (empty !== undefined) {
+        await episode(changed, empty);
+        assert.match(await changed.locator('#episode-changes-panel').innerText(), /No changes are recorded/);
+      } else {
+        assert.equal(data.episodes.length, MAX, 'every available episode has recorded coverage');
+      }
       await changed.locator('#show-changes').click();
       assert.equal(await changed.locator('#episode-changes-panel').isVisible(), false);
     });
@@ -522,8 +588,8 @@ async function main() {
         await episode(page, n);
         const bad = await page.locator('#location-markers').evaluate(root => {
           const centre = el => { const r = el.getBoundingClientRect(); return [(r.left + r.right) / 2, (r.top + r.bottom) / 2]; };
-          const rings = [...root.querySelectorAll('.map-marker')].map(m => [m.dataset.location, centre(m.querySelector('.marker-ring'))]);
-          return [...root.querySelectorAll('.map-person')].flatMap(chip => {
+          const rings = [...root.querySelectorAll('.map-marker')].filter(m => m.getBoundingClientRect().width > 0).map(m => [m.dataset.location, centre(m.querySelector('.marker-ring'))]);
+          return [...root.querySelectorAll('.map-person')].filter(chip => chip.getBoundingClientRect().width > 0).flatMap(chip => {
             const own = chip.closest('.map-marker').dataset.location;
             const [x, y] = centre(chip);
             const nearest = rings.map(([id, [rx, ry]]) => [id, Math.hypot(rx - x, ry - y)]).sort((a, b) => a[1] - b[1])[0][0];
@@ -641,7 +707,7 @@ async function main() {
         assert.match(await page.locator('#location-panel .now-block').innerText(), /This episode/);
         assert.match(await page.locator('#page-description').innerText(), /Episode 13/);
         await episode(page, 14);
-        assert.equal(await page.locator('.map-marker.selected').getAttribute('data-location'), 'trost', 'an episode without a milestone keeps the selection');
+        assert.equal(await page.locator('.map-marker.selected').getAttribute('data-location'), 'trost', 'an unpinned episode keeps the selection');
       } finally { await episode(page, MAX); }
     });
 

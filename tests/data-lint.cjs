@@ -28,8 +28,8 @@ const positions = d.characters.flatMap(c => (c.positions || []).map(p => ({ ...p
 const VERSIONED = ['name', 'role', 'faction'];
 const KINDS = ['district', 'village', 'castle', 'forest', 'wall', 'field', 'chapel', 'capital', 'sea'];
 const FACTIONS = ['civilian', 'cadet', 'survey', 'garrison', 'mp', 'central', 'crown', 'shifter', 'titan'];
-// Wall ellipses from index.html (#wall-geometry). ring() is 1 on the wall and < 1 inside it.
-const walls = { maria: [440, 365], rose: [298, 246], sina: [162, 131] };
+// The same geometry supplies the main map, labels, overview and these containment checks.
+const walls = Object.fromEntries(Object.entries(d.mapGeometry.wallRadiusKm).map(([name, km]) => [name, [km * d.mapGeometry.unitsPerKm, km * d.mapGeometry.unitsPerKm]]));
 const ring = (l, wall) => ((l.x - 600) / walls[wall][0]) ** 2 + ((l.y - 405) / walls[wall][1]) ** 2;
 
 check('unique ids', bad => {
@@ -38,6 +38,17 @@ check('unique ids', bad => {
 });
 check('episodes ascending and unique', bad => {
   d.episodes.forEach((e, i) => { if (i && e.number <= d.episodes[i - 1].number) bad(e.id); });
+});
+check('every allowed episode has a sourced recap', bad => {
+  for (let number = 1; number <= d.maxEpisode; number++) {
+    const episode = d.episodes.find(entry => entry.number === number);
+    if (!episode?.events.length) bad(`E${number} has no recorded events`);
+  }
+});
+check('wall proportions match the episode-one distances', bad => {
+  const radii = d.mapGeometry.wallRadiusKm;
+  if (radii.sina !== 250 || radii.rose - radii.sina !== 130 || radii.maria - radii.rose !== 100) bad('wall radii do not match the stated distances');
+  if (!(d.mapGeometry.unitsPerKm > 0)) bad('wall scale must be positive');
 });
 check('episode titles cover exactly the allowed episodes', bad => {
   const titles = d.episodeTitles || [];
@@ -113,8 +124,11 @@ check('known kinds, types and factions', bad => {
   d.characters.forEach(c => (c.faction || []).filter(f => !FACTIONS.includes(f.key)).forEach(f => bad(`${c.id}: ${f.key}`)));
   d.locations.filter(l => l.label && !['left', 'right', 'below'].includes(l.label.side)).forEach(l => bad(`${l.id} label side`));
 });
-check('coordinates on the 1200x920 canvas', bad => {
-  d.locations.filter(l => l.x < 0 || l.x > 1200 || l.y < 0 || l.y > 920).forEach(l => bad(l.id));
+check('places fit their walls or island view', bad => {
+  d.locations.forEach(l => {
+    const bounds = l.kind === 'sea' ? d.mapGeometry.islandView : { x: 0, y: 0, width: 1200, height: 920 };
+    if (l.x < bounds.x || l.x > bounds.x + bounds.width || l.y < bounds.y || l.y > bounds.y + bounds.height) bad(l.id);
+  });
 });
 check('a district sits on its wall', bad => {
   d.locations.filter(l => l.kind === 'district').forEach(l => {

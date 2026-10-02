@@ -4,7 +4,7 @@ An interactive, local Attack on Titan map companion built with HTML, CSS, JavaSc
 
 **This edition stops at overall episode 59, the end of Season 3.** It is configured for a viewer who has finished episode 59. Nothing from episode 60 or later is bundled: no later titles, places, people, identities, explanations, or images.
 
-The content is a **selective recap of 34 milestones**, not a complete episode guide: overall episodes 1, 5, 8, 13, 16, 18, 22, 25, 28, 29, 31, 37 and every episode from 38 to 59. The viewing episode decides what the interface reveals; your completed-episode cutoff limits how far you can advance.
+The content covers **all 59 episodes in Seasons 1–3**, with 136 selected events. Each episode has its own recap; some events have no established map position. The viewing episode decides what the interface reveals; your completed-episode cutoff limits how far you can advance.
 
 ## Run it
 
@@ -20,13 +20,13 @@ Then visit <http://127.0.0.1:8765>. Check first whether a server is already runn
 ## What it does
 
 - **Reading layout.** A compact heading aligns the title, episode picker and spoiler badge on one desktop row, with responsive controls on smaller screens. Place events use fine dividers; Story features the latest recorded moment above its supporting entries. On phones, **Map / Story / People** navigation stays at the bottom, with room beneath content and above system gestures.
-- **Episode titles.** Full English titles for every episode from 1 to 59 appear in the episode picker, milestone timeline and recap heading. Titles are catalogued separately from the 34 mapped milestones, so episodes without a recap still have their real names.
+- **Episode titles.** Full English titles for every episode from 1 to 59 appear in the episode picker, milestone timeline and recap heading. Every episode has a sourced recap and an entry in the timeline.
 - **Expanded map.** The expand icon beside the zoom and reset controls opens the map across the window, with episode controls, search and selected-place details. **Layers & style** holds the existing switches and palette choices. Pan, zoom, portraits and milestone shortcuts continue to work. Use **Back to atlas** or Escape to return; the selected place, episode and zoom are kept. Escape dismisses an open menu, search result or portrait card first. On a tall phone screen, the drawing fills the available height and can be panned across.
 - **Place details.** Desktop panels collapse with **Hide details**, giving the map more room. On a phone, the selected place appears in a compact bottom panel with its latest recorded event. Tap **More** or swipe up for the full story; tap **Less** or swipe down to continue exploring. The full panel scrolls independently and leaves part of the map visible.
 - **Map overview and detail.** Zooming out simplifies secondary names and portraits; keyboard focus still exposes a place's name. Zooming in reveals full episode captions. A small overview inset shows the visible area inside the walls when zoomed in or cropped by a tall expanded window. Click it to reset the view.
 - **Changes this episode.** Highlight the current episode's recorded events, newly known places and gate or territory changes. A compact list explains each item and opens established places. Events without a known location stay unpinned; episodes with no recorded changes say so explicitly.
 - **Map styles.** Choose **Parchment** for warm paper and ink details, or **Night** for a dark field map. The place panel, decorative drawings, timeline, Story and People views follow the same palette. The switch is in the map toolbar on desktop and phone. The initial style follows your system preference, and your choice is saved in this browser. Switching preserves the selected place, zoom and episode. Open **Key** when you need the legend.
-- **Map.** Fourteen places across the three walls and the coast, filling the stage. From episode 57, when the walls turn out to stand on an island, the sea and a coastline surround everything, and from episode 59 a band of desert lies before the coast. The one **The sea** marker stands for the whole coast: the show never says which way the Scouts rode, so the desert is drawn all round and every distance is schematic. It follows the story: choosing an episode selects the place where it happens, rings it in brass and steps everything else back. Approximate places are dashed areas rather than precise pins. The land between Wall Maria and Wall Rose is hatched as lost from episode 2 until it is cleared in episode 59, and district gates show as breached or sealed at the right episodes. Wall names run along their walls. Pins, labels and portraits keep one on-screen size; labels move, drop their caption or hide rather than overlap, and never leave the map. Zoomed in, each place lists the episodes it appears in. Hovering a milestone in the timeline lights up its places, and new places fade in when you step episodes.
+- **Map.** Fourteen places across the three walls and the coast. The walls are circular and use the episode-one radii: Sina 250 km, Rose 380 km and Maria 480 km, so the gaps are 130 km and 100 km. A distance bar follows the camera. District sizes and local place positions remain illustrative. From episode 57, **Walls / Island** switches between the detailed walled territory and the wider island outline, traced from the map in that episode. The island view fits the whole coast in normal and expanded windows, including phones. Its distance from the walls is approximate; the sea marker represents the coast generally. Episode 59 adds one illustrative patch of coastal sand, whose extent is unknown. The territory between Maria and Rose is hatched as lost from episode 2 until episode 59. Gates reflect the recorded breaches and repairs. Pins keep one screen size, and crowded labels can use short leader lines. Portraits stay closer to their own place than neighbouring pins.
 - **Portrait cards.** Point at a portrait on the map for a larger picture, where and when that person was recorded, and what happens there involving them. Click the portrait to pin the card (Escape or a click elsewhere closes it); on a phone, tap it. The card links to the full character card.
 - **Characters.** Compact portrait cards for everyone the atlas knows about as of the viewing episode, grouped by regiment. Five columns fit a typical desktop gallery; phones use two. Open **About** for the full role, dated story observations and recorded place links, and **Earlier** for longer histories. **Expand gallery** opens the Characters tab across the window with the same search and group filters. Use **Back to gallery** or Escape to return; filters and keyboard focus are preserved. Names and identities change at the episode that reveals them (for example, a Titan card shows who it turned out to be only from that episode on).
 - **Portraits.** A picture next to every name: on the map, in event cards and in the character list. Main characters show official art that changes with the season; everyone else a drawn silhouette. See [Portraits](#portraits).
@@ -35,7 +35,7 @@ Then visit <http://127.0.0.1:8765>. Check first whether a server is already runn
 
 Keyboard: `/` search, `[` and `]` previous and next milestone. With the map focused: arrow keys move, `+` and `-` zoom, `0` resets. On a trackpad or mouse, hold Ctrl (⌘ on a Mac) and scroll to zoom; plain scrolling scrolls the page. On a phone, one finger scrolls the page and two fingers move or zoom the map.
 
-The map separates **confirmed events**, **characters' beliefs**, and **approximate geography**. A portrait on the map means *last recorded here*, not live tracking; when a person's whereabouts are not established, they have no pin. All map proportions, terrain, and district outlines are schematic; cardinal positions of named districts are kept. This edition does not draw movement routes.
+The map separates **confirmed events**, **characters' beliefs**, and **approximate geography**. A portrait on the map means *last recorded here*, not live tracking; when a person's whereabouts are not established, they have no pin. Wall radii share one stated scale; island distances, terrain, local coordinates and district outlines remain approximate. Cardinal positions of named districts are kept. This edition does not draw movement routes.
 
 ## Local storage
 
@@ -115,10 +115,10 @@ Every episode number is an **overall anime episode number**.
       sourceUrl: "https://…"
     }]
   }],
-  status: [{ target: "gate:trost", from: 5, state: "breached", note: "…", sourceUrl: "https://…" }],  // or target "belt:maria-rose", state "lost"
+  status: [{ target: "gate:trost", from: 4, state: "breached", note: "…", sourceUrl: "https://…" }],  // or target "belt:maria-rose", state "lost"
   locations: [{
     id: "orvud", name: "Orvud District", subtitle: "Northern district · Wall Sina",
-    x: 600, y: 274, firstEpisode: 45,
+    x: 600, y: 196.6667, firstEpisode: 45,
     kind: "district",   // district | village | castle | forest | wall | field | chapel | capital | sea
     label: { side: "left" },   // optional: right (default) | left | below
     area: { rx: 40, ry: 30 },  // optional: approximate places are drawn as a dashed area (map units)
@@ -140,7 +140,7 @@ Every episode number is an **overall anime episode number**.
 }
 ```
 
-Versioned lists (`name`, `role`, `faction`) use the entry with the latest `from` at or before the viewing episode. Coordinates use a `1200 × 920` canvas (the map shows the part around the walls, x 120–1080, y 0–832); wall ellipses are centred at `(600, 405)` with horizontal/vertical radii `440/365`, `298/246` and `162/131`.
+Versioned lists (`name`, `role`, `faction`) use the entry with the latest `from` at or before the viewing episode. Local places use a `1200 × 920` coordinate area. `mapGeometry` is the shared source for circular wall radii, the main and overview SVGs, name paths, the distance scale, and the island outline. The walls are centred at `(600, 405)` and use `5/6` SVG units per kilometre. The coast has a separate wider extent, so its marker can sit outside the local coordinate area. Geography references are recorded in `mapGeometry`; the app never fetches them.
 
 ## Extending it
 

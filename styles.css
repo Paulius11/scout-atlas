@@ -294,7 +294,21 @@ main { flex: 1; min-width: 0; padding: 0 32px 20px; max-width: 2000px; }
 .sea-waves { fill: url(#sea-waves); }
 .desert { fill: var(--carto-sand); }
 .desert-dunes { fill: url(#dunes); }
-.coastline { fill: none; stroke: var(--carto-coast); stroke-width: 2.2; stroke-opacity: .8; stroke-linejoin: round; }
+.coastline { fill: none; stroke: var(--carto-coast); stroke-width: 2.2; stroke-opacity: .8; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.map-extent-switch { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 3px; padding: 3px; border: 1px solid var(--carto-control-line); border-radius: 9px; background: var(--carto-control-bg); z-index: 3; }
+.map-extent-switch button { min-height: 34px; padding: 5px 14px; border-radius: 6px; color: var(--carto-ink); font-size: 13px; }
+.map-extent-switch button[aria-pressed="true"] { background: var(--carto-hover); box-shadow: inset 0 0 0 1px var(--carto-control-line); }
+.map-scale { position: absolute; bottom: 15px; left: 14px; display: grid; gap: 3px; color: var(--carto-muted); pointer-events: none; }
+.map-scale span { display: block; height: 5px; border: 1px solid currentColor; border-top: 0; }
+.map-scale small { font-size: 10px; }
+.map-stage:has(.map-overview:not([hidden])) .map-scale { bottom: 113px; }
+#island-wall-label { display: none; }
+#island-wall-label text { font: 600 14px var(--serif); fill: var(--carto-ink); paint-order: stroke; stroke: var(--carto-label-halo); stroke-width: 4px; }
+.map-stage[data-extent="island"] #island-wall-label { display: initial; }
+.map-stage[data-extent="island"] #wall-labels,
+.map-stage[data-extent="island"] .pin-people,
+.map-stage[data-extent="island"] .map-marker:not([data-location="sea"]):not(.selected) { display: none; }
+#overview-coast { fill: none; stroke: var(--carto-coast); stroke-width: 20; }
 /* Held and lost ground, gates, approximate areas */
 .lost-ground { fill: url(#lost-ground); }
 .district-gate.gate-breached { stroke: var(--carto-breached); stroke-dasharray: 7 4; }
@@ -333,6 +347,7 @@ main { flex: 1; min-width: 0; padding: 0 32px 20px; max-width: 2000px; }
 .marker-ring { fill: var(--carto-pin-fill); stroke: var(--carto-pin); stroke-width: 1.8; }
 .marker-center { fill: var(--carto-pin); }
 .marker-label { font: 600 14.5px var(--serif); fill: var(--carto-ink); paint-order: stroke; stroke: var(--carto-label-halo); stroke-width: 4.5px; stroke-linejoin: round; }
+.label-leader { fill: none; stroke: var(--carto-muted); stroke-opacity: .45; stroke-width: 1; pointer-events: none; }
 .marker-caption { font: italic 12px var(--serif); fill: var(--carto-muted); paint-order: stroke; stroke: var(--carto-label-halo); stroke-width: 4px; stroke-linejoin: round; }
 .map-marker:hover .marker-ring, .map-marker:focus-visible .marker-ring { stroke: var(--carto-accent); stroke-width: 2.6; }
 .map-marker:focus-visible .marker-label { text-decoration: underline; }
