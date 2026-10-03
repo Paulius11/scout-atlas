@@ -133,12 +133,20 @@
     62: { area: "liberio", locationId: "liberio" },
     63: { area: "liberio", locationId: "liberio-festival" },
     64: { area: "liberio", locationId: "liberio-festival" },
-    65: { area: "liberio", locationId: "liberio-festival" }
+    65: { area: "liberio", locationId: "liberio-festival" },
+    66: { area: "liberio", locationId: "liberio", note: "Liberio port is a recorded setting; its exact position is not established." },
+    67: { area: "world", locationId: "liberio", note: "Return airship: its route is unpinned. Liberio marks the departure city." },
+    68: { area: "island", locationId: "paradis", note: "Present-day focus: Paradis. The coastal arrival is an earlier flashback, with no verified landing point." },
+    69: { area: "island", locationId: "paradis", note: "Present-day focus: Paradis. The diplomatic meeting is an earlier flashback; the farm is unpinned." },
+    70: { area: "island", locationId: "paradis", note: "Focus: Paradis. The Braus stables and Kaya’s village have no verified map positions." },
+    71: { area: "island", locationId: "paradis", note: "Focus: Paradis. Headquarters and meeting sites are not assigned exact coordinates." },
+    72: { area: "island", locationId: "paradis", note: "Focus: Paradis. The restaurant is unpinned; Ragako is discussed as an earlier event." },
+    73: { area: "island", locationId: "paradis", note: "Focus: Paradis. The restaurant, forest detention site and transport route are unpinned." }
   };
   function chapter(number, shortTitle, description, sourceUrl, events) {
     return {
       id: `episode-${number}`, number, title: episodeTitles[number - 1].title, shortTitle, description, sourceUrl,
-      ...(number >= 60 ? { officialSourceUrl: "https://shingeki.tv/final/story/" } : {}),
+      ...(number >= 60 ? { officialSourceUrl: number <= 73 ? `https://shingeki.tv/final/story/#/episode/${number}` : "https://shingeki.tv/final/story/" } : {}),
       ...(episodeMapFocus[number] ? { mapFocus: episodeMapFocus[number] } : {}),
       events: events.map((event, index) => {
         const setting = mappedSettings[event.placeName];
@@ -699,11 +707,15 @@
           { episode: 50, locationId: "shiganshina", note: "Back in his home district to seal the outer gate.", sourceUrl: sources.s3summary },
           { episode: 56, locationId: "shiganshina", note: "Goes down into his family’s basement.", sourceUrl: sources.s3summary },
           { episode: 57, locationId: null, note: "Held in the stockade, which this map does not place.", sourceUrl: sources.s3summary },
-          { episode: 59, locationId: "sea", note: "Reaches the sea with the Scouts. Where along the coast is not established.", sourceUrl: sources.s3summary }
-        ,
+          { episode: 59, locationId: "sea", note: "Reaches the sea with the Scouts. Where along the coast is not established.", sourceUrl: sources.s3summary },
           {"episode": 60, "locationId": null, "note": "After the time jump, his current whereabouts are unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"},
           {"episode": 63, "locationId": "liberio", "note": "Undercover in Liberio on the mainland. The city marker is an approximate location, not continuous tracking.", "sourceUrl": "https://attackontitan.fandom.com/wiki/From_One_Hand_to_Another_(Episode)"},
+          { episode: 67, locationId: null, note: "Aboard the airship leaving Liberio. Its flight route is not pinned.", sourceUrl: wiki("Assassin%27s_Bullet") },
+          { episode: 68, locationId: null, note: "Held in a cell on Paradis in the present-day scenes. The prison has no established map position.", sourceUrl: wiki("Brave_Volunteers_(Episode)") },
           {"episode": 69, "locationId": null, "note": "Held in prison on Paradis; the prison is not assigned coordinates.", "sourceUrl": "https://attackontitan.fandom.com/wiki/A_Sound_Argument_(Episode)"},
+          { episode: 71, locationId: null, note: "Leaves prison and meets his supporters on Paradis. The meeting site is not pinned.", sourceUrl: wiki("Guides_(Episode)") },
+          { episode: 72, locationId: null, note: "Arrives at Niccolo’s restaurant on Paradis. Its exact position is not established.", sourceUrl: wiki("Children_of_the_Forest_(Episode)") },
+          { episode: 73, locationId: "shiganshina", note: "Travels to Shiganshina with the detained group after the restaurant confrontation. The district marks this later observation, not the restaurant.", sourceUrl: wiki("Savagery_(Episode)") },
           {"episode": 75, "locationId": "shiganshina", "note": "At Shiganshina when Pieck draws him into the Marleyan attack.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Above_and_Below_(Episode)"},
           {"episode": 78, "locationId": null, "note": "In Paths after contact with Zeke; this space is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"},
           {"episode": 80, "locationId": null, "note": "Begins the Rumbling; the moving Titan formation has no fixed pin.", "sourceUrl": "https://attackontitan.fandom.com/wiki/From_You%2C_2%2C000_Years_Ago_(Episode)"},
@@ -781,11 +793,12 @@
           { episode: 51, locationId: "shiganshina-inner", note: "With Erwin’s group protecting the horses outside the district.", sourceUrl: sources.s3summary },
           { episode: 54, locationId: "shiganshina-inner", note: "Cuts down the Beast Titan during the charge.", sourceUrl: sources.s3summary },
           { episode: 55, locationId: "shiganshina", note: "Decides who receives the drug.", sourceUrl: sources.s3summary },
-          { episode: 56, locationId: "shiganshina", note: "Goes down into the Yeager basement.", sourceUrl: sources.s3summary }
-        ,
+          { episode: 56, locationId: "shiganshina", note: "Goes down into the Yeager basement.", sourceUrl: sources.s3summary },
           {"episode": 60, "locationId": null, "note": "After the time jump, his current whereabouts are unknown.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"},
           {"episode": 65, "locationId": "liberio", "note": "With the Scouts in Liberio. The city marker is an approximate location, not continuous tracking.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_War_Hammer_Titan_(Episode)"},
+          { episode: 67, locationId: null, note: "Aboard the returning airship. Its flight route is not pinned.", sourceUrl: wiki("Assassin%27s_Bullet") },
           {"episode": 68, "locationId": null, "note": "Guarding Zeke in a forest of giant trees. Its identity with the earlier expedition forest is not established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Brave_Volunteers_(Episode)"},
+          { episode: 73, locationId: null, note: "Takes Zeke away after recapturing him. The forest detention site and transport route are unpinned; this is not assigned to the earlier expedition forest.", sourceUrl: wiki("Savagery_(Episode)") },
           {"episode": 74, "locationId": null, "note": "Caught in the roadside explosion; the exact site is not established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sole_Salvation_(Episode)"},
           {"episode": 83, "locationId": null, "note": "With Hange outside the ruined walls; the meeting place is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
           {"episode": 86, "locationId": null, "note": "Aboard the departing ship; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
@@ -1157,10 +1170,12 @@
           { episode: 50, locationId: "shiganshina", note: "Arrives to retake Wall Maria.", sourceUrl: sources.s3summary },
           { episode: 53, locationId: "shiganshina", note: "Split between the district and the ground outside it; the pin marks the district.", sourceUrl: sources.s3 },
           { episode: 56, locationId: "shiganshina", note: "The nine survivors gather on Shiganshina’s wall.", sourceUrl: sources.s3summary },
-          { episode: 59, locationId: "sea", note: "The Corps reaches the sea. Where along the coast is not established.", sourceUrl: sources.s3summary }
-        ,
+          { episode: 59, locationId: "sea", note: "The Corps reaches the sea. Where along the coast is not established.", sourceUrl: sources.s3summary },
           {"episode": 60, "locationId": null, "note": "After the time jump, no current group location is established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"},
           {"episode": 65, "locationId": "liberio", "note": "The force observed in Liberio is represented by the city marker; other Scouts remain on Paradis. This does not place the entire Corps here.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_War_Hammer_Titan_(Episode)"},
+          { episode: 67, locationId: null, note: "The returning raid force is aboard the airship. Its route is unpinned, and this observation does not place every Scout together.", sourceUrl: wiki("Assassin%27s_Bullet") },
+          { episode: 68, locationId: null, note: "The returning force is back on Paradis and split among different duties. No single precise group location is established.", sourceUrl: wiki("Brave_Volunteers_(Episode)") },
+          { episode: 72, locationId: null, note: "Hange’s investigating party is at Niccolo’s restaurant. Its exact position is unpinned; other Scouts are elsewhere.", sourceUrl: wiki("Children_of_the_Forest_(Episode)") },
           {"episode": 73, "locationId": "shiganshina", "note": "The detained group is taken to Shiganshina; this does not place every Scout here.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Savagery_(Episode)"},
           {"episode": 76, "locationId": "shiganshina", "note": "Released members help defend Shiganshina against the Marleyan assault.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Judgment_(Episode)"},
           {"episode": 83, "locationId": "shiganshina", "note": "The departing group gathers after the Ragako rescue.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},

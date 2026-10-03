@@ -364,6 +364,95 @@ async function main() {
       await focus.locator('#close-expanded-map').click();
     });
 
+    await test('E66–73 map focus follows departure and current island action across episode controls', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
+        const focused = await createPage(viewport, `if (!localStorage.getItem(${JSON.stringify(storageKey)})) localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify({ cutoff: 73, viewing: 66, edition: MAX }))})`);
+        assert.equal(await mapArea(focused), 'liberio');
+        await focused.locator('#next-milestone').click();
+        assert.equal(await focused.locator('#episode-select').inputValue(), '67');
+        assert.equal(await mapArea(focused), 'world', 'departure opens the regional context');
+        assert.equal(await focused.locator('.map-marker.selected').getAttribute('data-location'), 'liberio', 'the known departure city supplies context without a guessed flight coordinate');
+        assert.match(await focused.locator('#map-area-note').innerText(), /airship.*route.*unpinned.*departure/i, 'the world context explains the unpinned journey');
+        assert.equal(await focused.locator('[data-location*="airship"]').count(), 0);
+        await view(focused, 'recap');
+        for (const event of data.episodes.find(entry => entry.number === 67).events) {
+          assert.equal(await focused.locator(`#recap-${event.id} .unpinned`).count(), 1, 'the flight setting stays unpinned in the recap');
+        }
+        await view(focused, 'map');
+        await focused.locator('[data-map-extent="island"]').click();
+        await focused.locator('#zoom-in').click();
+        await focused.locator('#return-to-episode').click();
+        assert.equal(await mapArea(focused), 'world', 'return restores departure context');
+        assert.equal(await focused.locator('.map-marker.selected').getAttribute('data-location'), 'liberio');
+        assert.equal(await focused.locator('#map-camera').getAttribute('transform'), 'translate(0 0) scale(1)');
+        for (let number = 68; number <= 73; number++) {
+          await focused.locator('[data-map-extent="world"]').click();
+          await episode(focused, number);
+          assert.equal(await mapArea(focused), 'island', `E${number} follows current island action`);
+          assert.equal(await focused.locator('.map-marker.selected').getAttribute('data-location'), 'paradis', `E${number} uses island context without guessing a local setting`);
+        }
+        await episode(focused, 69);
+        await focused.locator('#atlas-map').focus();
+        await focused.keyboard.press(']');
+        assert.equal(await focused.locator('#episode-select').inputValue(), '70');
+        assert.equal(await mapArea(focused), 'island', 'a secondary mainland event does not override the current setting');
+        await focused.locator('#next-milestone').click();
+        await focused.locator('#atlas-map').focus();
+        await focused.keyboard.press(']');
+        assert.equal(await focused.locator('#episode-select').inputValue(), '72');
+        assert.equal(await mapArea(focused), 'island', 'an account of an earlier event does not center Ragako');
+        assert.equal(await focused.locator('.map-marker.selected').getAttribute('data-location'), 'paradis');
+        assert.match(await focused.locator('#map-area-note').innerText(), /restaurant.*unpinned.*Ragako.*earlier/i, 'the episode distinguishes a discussed location from current action');
+        for (const number of [70, 72]) {
+          await episode(focused, 73);
+          await focused.locator('[data-map-extent="world"]').click();
+          await focused.locator(`#timeline-track [data-episode="${number}"]`).click();
+          assert.equal(await mapArea(focused), 'island', `E${number} timeline navigation follows the current setting`);
+          assert.equal(await focused.locator('.map-marker.selected').getAttribute('data-location'), 'paradis');
+        }
+        await episode(focused, 73);
+        await focused.locator('[data-map-extent="world"]').click();
+        await focused.locator('#return-to-episode').click();
+        assert.equal(await mapArea(focused), 'island');
+        assert.equal(await focused.locator('.map-marker.selected').getAttribute('data-location'), 'paradis');
+        assert.match(await focused.locator('#map-area-note').innerText(), /restaurant.*forest detention site.*route.*unpinned/i, 'the island context retains the limits of its local settings');
+        assert.deepEqual(await focused.evaluate(key => {
+          const saved = JSON.parse(localStorage.getItem(key));
+          return { cutoff: saved.cutoff, viewing: saved.viewing };
+        }, storageKey), { cutoff: 73, viewing: 73 }, 'return keeps the chosen episode and spoiler limit');
+        await focused.reload({ waitUntil: 'load' });
+        assert.equal(await focused.locator('#episode-select').inputValue(), '73', 'the content update preserves the saved episode');
+        await assertNoHorizontalOverflow(focused, `${viewport.width}px E73 focus`);
+      }
+    });
+
+    await test('E66–73 character locations clear raid portraits and keep uncertain settings unpinned', async () => {
+      const cast = await createPage(undefined, `if (!localStorage.getItem(${JSON.stringify(storageKey)})) localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify({ cutoff: 73, viewing: 66, edition: MAX }))})`);
+      for (const number of [66, 67, 68, 73]) {
+        await episode(cast, number);
+        await cast.locator('[data-map-extent="liberio"]').click();
+        for (const id of ['eren', 'levi', 'scouts']) {
+          assert.equal(await cast.locator(`#location-markers [data-person="${id}"]`).count(), number === 66 ? 1 : 0, `E${number} ${id} cannot retain a raid portrait after departure`);
+        }
+        await view(cast, 'characters');
+        for (const id of ['eren', 'levi']) {
+          const body = await characterDetails(cast, id);
+          const place = body.locator('[data-open-place]');
+          if (number === 66) {
+            assert.equal(await place.getAttribute('data-open-place'), 'liberio', 'earlier observations remain available');
+          } else if (number === 73 && id === 'eren') {
+            assert.equal(await place.getAttribute('data-open-place'), 'shiganshina', 'the E73 observation replaces the former unknown setting');
+          } else {
+            assert.equal(await place.count(), 0, `E${number} ${id} retains no fabricated map point`);
+          }
+          await closeCharacterDetails(cast);
+        }
+        await view(cast, 'map');
+      }
+      await cast.locator('[data-map-extent="island"]').click();
+      assert.equal(await cast.locator('[data-location="giant-forest"] [data-person="levi"]').count(), 0, 'the detention forest is not merged with the expedition forest');
+    });
+
     await test('Liberio pins use episode-known places and explicitly approximate geography', async () => {
       const city = await createPage();
       for (const number of [61, 62, 63, 65, 66]) {

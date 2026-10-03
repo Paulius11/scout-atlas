@@ -395,9 +395,13 @@
       : state.mapExtent === 'liberio' ? 'Established places; their local layout is schematic, not a verified street plan.'
         : 'Wall radii follow the episode-one distances. Local positions, district sizes and coastline distances are approximate.';
     $('#map-accuracy-note').textContent = accuracy;
-    const unknown = data.episodes.find(episode => episode.number === state.viewing)?.events.find(event => !event.locationId && event.placeName);
-    $('#map-area-note').textContent = regional ? `${unknown ? `${unknown.placeName}: exact position not established. ` : ''}${accuracy}` : '';
-    $('#map-area-note').hidden = !regional;
+    const episode = data.episodes.find(episode => episode.number === state.viewing);
+    const focusNote = episode?.mapFocus?.area === state.mapExtent ? episode.mapFocus.note : '';
+    const unknown = episode?.events.find(event => !event.locationId && event.placeName);
+    $('#map-area-note').textContent = regional
+      ? `${focusNote || (unknown ? `${unknown.placeName}: exact position not established.` : '')} ${accuracy}`.trim()
+      : focusNote || '';
+    $('#map-area-note').hidden = !regional && !focusNote;
     $('.legend-lost-item').hidden = regional || !(state.layers.territory && statusOf('belt:maria-rose')?.state === 'lost');
     $('#wall-status-note').hidden = regional || !statusOf('walls:all');
   }

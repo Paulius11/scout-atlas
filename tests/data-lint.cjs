@@ -175,11 +175,37 @@ check('map areas have valid geometry and episode boundaries', bad => {
   d.episodes.filter(episode => episode.mapFocus).forEach(episode => {
     const focus = episode.mapFocus;
     if (!MAP_AREAS.includes(focus.area)) bad(`E${episode.number}: unknown focus area`);
+    if (focus.note !== undefined && (typeof focus.note !== 'string' || !focus.note.trim())) bad(`E${episode.number}: invalid focus geography explanation`);
     if (['world', 'liberio'].includes(focus.area) && episode.number < d.mapGeometry[`${focus.area}From`]) bad(`E${episode.number}: focus area is not revealed`);
     if (focus.locationId && (!place[focus.locationId] || place[focus.locationId].firstEpisode > episode.number)) bad(`E${episode.number}: focus place is not known`);
     else if (focus.locationId && locationArea(place[focus.locationId]) !== focus.area
-      && !(focus.area === 'world' && place[focus.locationId].worldPosition)) bad(`E${episode.number}: focus place belongs to another map area`);
+      && !(focus.area === 'world' && place[focus.locationId].worldPosition)
+      && !(focus.area === 'island' && focus.locationId === 'paradis')) bad(`E${episode.number}: focus place belongs to another map area`);
   });
+});
+check('E66–73 focus follows the current setting without inventing local coordinates', bad => {
+  for (let number = 66; number <= 73; number++) {
+    const episode = d.episodes.find(entry => entry.number === number);
+    const expectedArea = number === 66 ? 'liberio' : number === 67 ? 'world' : 'island';
+    const expectedPlace = number <= 67 ? 'liberio' : 'paradis';
+    if (episode?.mapFocus?.area !== expectedArea || episode.mapFocus.locationId !== expectedPlace) bad(`E${number}: wrong current-setting focus`);
+    if (episode?.officialSourceUrl !== `https://shingeki.tv/final/story/#/episode/${number}`) bad(`E${number}: missing its official episode reference`);
+  }
+  const flight = d.episodes.find(entry => entry.number === 67);
+  if (flight?.events.some(event => event.locationId !== null)) bad('the return flight has no established point on the map');
+});
+check('the return from Liberio clears raid positions and preserves later location uncertainty', bad => {
+  const latest = (id, number) => (person[id]?.positions || []).filter(position => position.episode <= number).at(-1);
+  for (const id of ['eren', 'levi', 'scouts']) {
+    if (latest(id, 66)?.locationId !== 'liberio') bad(`${id}: the recorded raid location changed before departure`);
+    const departure = latest(id, 67);
+    if (departure?.episode !== 67 || departure.locationId !== null) bad(`${id}: the return airship must clear the old Liberio pin`);
+    for (let number = 67; number <= 73; number++) {
+      if (latest(id, number)?.locationId === 'liberio') bad(`${id}: stale Liberio position at E${number}`);
+    }
+  }
+  if (latest('eren', 73)?.locationId !== 'shiganshina') bad('Eren: the E73 observation is not reflected');
+  if (latest('levi', 73)?.episode !== 73 || latest('levi', 73)?.locationId !== null) bad('Levi: the detention forest must remain unpinned');
 });
 check('world pins and approximate geography describe their limits', bad => {
   d.locations.forEach(location => {
