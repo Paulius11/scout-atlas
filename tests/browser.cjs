@@ -27,6 +27,13 @@ const at = (list, episode) => list.filter(v => v.from <= episode).sort((a, b) =>
 const pinnedPersonAt = number => data.characters.find(character => character.type !== 'group' && character.firstEpisode <= number &&
   (character.positions || []).filter(position => position.episode <= number).sort((a, b) => b.episode - a.episode)[0]?.locationId);
 const lastPinnedEpisode = [...milestones].reverse().find(number => pinnedPersonAt(number));
+const locationArea = location => location.mapArea || (location.kind === 'sea' ? 'island' : 'walls');
+const mappedLocations = (number, area) => data.locations.filter(location => location.firstEpisode <= number && (
+  area === 'world' ? locationArea(location) === 'world' || location.worldPosition
+    : area === 'island' ? ['walls', 'island'].includes(locationArea(location)) || location.id === 'paradis'
+      : locationArea(location) === area));
+async function mapArea(page) { return page.locator('#map-stage').getAttribute('data-extent'); }
+async function expectedMapLocations(page, number) { return mappedLocations(number, await mapArea(page)); }
 // Everything the atlas introduces after episode 1: none of it may show while viewing episode 1.
 const laterNames = [
   ...data.locations.filter(l => l.firstEpisode > 1).map(l => l.name),
@@ -116,7 +123,7 @@ async function main() {
       const options = await page.locator('#episode-select option').evaluateAll(items => items.map(item => Number(item.value)));
       assert.deepEqual(options, Array.from({ length: MAX }, (_, index) => index + 1));
       assert.equal(await page.locator('#episode-select optgroup').count(), data.seasons.length);
-      assert.equal(await page.locator('#location-markers [data-location]').count(), data.locations.length);
+      assert.equal(await page.locator('#location-markers [data-location]').count(), (await expectedMapLocations(page, MAX)).length);
       assert.equal(await page.locator('#timeline-track [data-episode]').count(), milestones.length);
       assert.equal(await page.locator('#cutoff-input').getAttribute('max'), String(MAX));
       assert.equal(await page.locator('meta[http-equiv="Content-Security-Policy"]').count(), 1);
@@ -249,6 +256,167 @@ async function main() {
         assert.equal(await island.locator('#map-scale').isVisible(), true);
         await episode(island, 56);
         assert.equal(await island.locator('#map-extent-switch').isVisible(), false);
+      }
+    });
+
+    await test('mainland views respect their reveal and manual navigation survives reload', async () => {
+      const geography = await createPage();
+      await episode(geography, 56);
+      assert.equal(await mapArea(geography), 'walls');
+      for (const area of ['world', 'liberio']) assert.equal(await geography.locator(`[data-map-extent="${area}"]`).isVisible(), false, `${area} appears before its reveal`);
+      const earlyText = await readUi(geography);
+      for (const location of data.locations.filter(location => ['world', 'liberio'].includes(locationArea(location)))) {
+        assert.equal(await geography.locator(`[data-location="${location.id}"]`).count(), 0, `${location.id} has an early map pin`);
+        assert.ok(!earlyText.includes(location.name), `${location.id} has an early geographic label`);
+      }
+      await episode(geography, 57);
+      for (const area of ['world', 'liberio']) assert.equal(await geography.locator(`[data-map-extent="${area}"]`).isVisible(), true);
+      await geography.locator('[data-map-extent="world"]').click();
+      assert.equal(await mapArea(geography), 'world');
+      assert.equal(await geography.locator('#map-title-text').innerText(), 'Across the sea');
+      assert.equal(await geography.locator('#map-scale').isVisible(), false, 'schematic world distances cannot share the wall scale');
+      assert.deepEqual(await geography.locator('#location-markers [data-location]').evaluateAll(markers => markers.map(marker => marker.dataset.location)), mappedLocations(57, 'world').map(location => location.id));
+      assert.ok(await geography.locator('[data-location="paradis"]').count());
+      assert.ok(await geography.locator('[data-location="marley"]').count());
+      await geography.locator('[data-location="liberio"]').click();
+      assert.equal(await mapArea(geography), 'liberio', 'the city pin opens its local map');
+      await geography.locator('[data-map-extent="world"]').click();
+      await geography.locator('[data-location="paradis"]').click();
+      assert.equal(await mapArea(geography), 'island', 'the island pin opens its coastline map');
+      await chooseLocation(geography, 'Liberio', 'liberio');
+      assert.equal(await mapArea(geography), 'liberio', 'search navigates into the city rather than placing its local coordinates on the world');
+      assert.equal(await geography.locator('#map-title-text').innerText(), 'Liberio');
+      await geography.locator('[data-map-extent="world"]').click();
+      await geography.reload({ waitUntil: 'load' });
+      assert.equal(await mapArea(geography), 'world', 'a manual map choice survives reload');
+      await episode(geography, 1);
+      assert.equal(await mapArea(geography), 'walls');
+      assert.deepEqual(await geography.locator('#location-markers [data-location]').evaluateAll(markers => markers.map(marker => marker.dataset.location)), ['shiganshina']);
+      for (const area of ['world', 'liberio']) assert.equal(await geography.locator(`[data-map-extent="${area}"]`).isVisible(), false);
+      assert.ok(!(await geography.locator('#map-area-note').textContent()).includes('Liberio'), 'returning to E1 clears mainland episode context');
+    });
+
+    await test('an unknown mainland battlefield is contextualized without inventing a coordinate', async () => {
+      const mainland = await createPage();
+      await episode(mainland, 60);
+      assert.equal(await mapArea(mainland), 'world');
+      const entry = data.episodes.find(episode => episode.number === 60);
+      const unpinned = entry.events.filter(event => !event.locationId);
+      assert.ok(unpinned.length > 0, 'the battlefield remains unpinned');
+      assert.equal(data.locations.some(location => /Fort Slava/i.test(location.name)), false, 'unknown battlefield coordinates are not fabricated');
+      assert.match(await mainland.locator('#map-area-note').innerText(), /Fort Slava/);
+      const pinned = entry.events.filter(event => event.locationId);
+      for (const event of unpinned) assert.equal(await mainland.locator(`[data-location="${event.locationId}"]`).count(), 0);
+      assert.ok(pinned.every(event => data.locations.some(location => location.id === event.locationId)), 'only established places are linked');
+      await view(mainland, 'recap');
+      for (const event of unpinned) assert.equal(await mainland.locator(`#recap-${event.id} .unpinned`).count(), 1);
+      await view(mainland, 'map');
+      await mainland.locator('#location-search').fill(unpinned[0].title);
+      assert.equal(await mainland.locator(`[data-open-event="${unpinned[0].id}"]`).count(), 1, 'the unpinned setting remains searchable');
+    });
+
+    await test('episode focus follows the mainland story while keeping every known map area available', async () => {
+      const focus = await createPage();
+      await episode(focus, 59);
+      await focus.locator('#next-milestone').click();
+      assert.equal(await focus.locator('#episode-select').inputValue(), '60');
+      assert.equal(await mapArea(focus), 'world', 'the next-episode arrow follows the story across the sea');
+      await focus.locator('#next-milestone').click();
+      assert.equal(await focus.locator('#episode-select').inputValue(), '61');
+      assert.equal(await mapArea(focus), 'liberio', 'the next arrow opens the city view');
+      await focus.locator('#atlas-map').focus();
+      await focus.keyboard.press(']');
+      assert.equal(await focus.locator('#episode-select').inputValue(), '62');
+      assert.equal(await mapArea(focus), 'liberio', 'keyboard navigation respects the present-setting override');
+      assert.equal(await focus.locator('.map-marker.selected').getAttribute('data-location'), 'liberio', 'a flashback does not move the current story back to the island');
+      await focus.keyboard.press('[');
+      assert.equal(await focus.locator('#episode-select').inputValue(), '61');
+      assert.equal(await mapArea(focus), 'liberio');
+      for (const number of [60, 61, 62]) {
+        await episode(focus, 65);
+        await focus.locator('[data-map-extent="world"]').click();
+        await focus.locator(`#timeline-track [data-episode="${number}"]`).click();
+        assert.equal(await focus.locator('#episode-select').inputValue(), String(number));
+        assert.equal(await mapArea(focus), number === 60 ? 'world' : 'liberio', `E${number} timeline selection follows its current setting`);
+      }
+      for (const number of [61, 63, 65, 66]) {
+        await episode(focus, number);
+        assert.equal(await mapArea(focus), 'liberio', `E${number} follows its known city setting`);
+        assert.equal(await focus.locator('#map-title-text').innerText(), 'Liberio');
+        assert.deepEqual(await focus.locator('#location-markers [data-location]').evaluateAll(markers => markers.map(marker => marker.dataset.location)), mappedLocations(number, 'liberio').map(location => location.id));
+        await focus.locator('[data-map-extent="world"]').click();
+        assert.equal(await mapArea(focus), 'world', `E${number} allows a manual overview`);
+        assert.equal(await focus.locator('#map-title-text').innerText(), 'Across the sea');
+        await focus.locator('[data-map-extent="island"]').click();
+        assert.equal(await mapArea(focus), 'island', `E${number} allows a return to Paradis`);
+      }
+      await episode(focus, 66);
+      assert.equal(await mapArea(focus), 'liberio', 'selecting the episode returns focus to its setting');
+      await focus.locator('#expand-map').click();
+      assert.equal(await focus.locator('#expanded-map-title').innerText(), 'Liberio');
+      await focus.locator('[data-map-extent="world"]').click();
+      assert.equal(await focus.locator('#expanded-map-title').innerText(), 'Across the sea');
+      assert.equal(await focus.locator('#expanded-map-dialog').evaluate(dialog => dialog.open), true, 'switching areas keeps the expanded map open');
+      await focus.locator('#close-expanded-map').click();
+    });
+
+    await test('Liberio pins use episode-known places and explicitly approximate geography', async () => {
+      const city = await createPage();
+      for (const number of [61, 62, 63, 65, 66]) {
+        await episode(city, number);
+        await city.locator('[data-map-extent="liberio"]').click();
+        const locations = mappedLocations(number, 'liberio');
+        const markers = await city.locator('#location-markers [data-location]').evaluateAll(markers => markers.map(marker => ({
+          id: marker.dataset.location, matrix: { x: marker.transform.baseVal.consolidate().matrix.e, y: marker.transform.baseVal.consolidate().matrix.f },
+          people: [...marker.querySelectorAll('[data-person]')].map(person => person.dataset.person)
+        })));
+        assert.deepEqual(markers.map(marker => marker.id), locations.map(location => location.id), `E${number} local geography`);
+        const expectedPeople = data.characters.filter(character => character.firstEpisode <= number && locations.some(location => location.id ===
+          (character.positions || []).filter(position => position.episode <= number).sort((a, b) => b.episode - a.episode)[0]?.locationId)).map(character => character.id);
+        assert.deepEqual(markers.flatMap(marker => marker.people).sort(), expectedPeople.sort(), `E${number} displays every recorded person in this area`);
+        for (const marker of markers) {
+          const location = locations.find(location => location.id === marker.id);
+          assert.deepEqual(marker.matrix, { x: location.x, y: location.y }, `${marker.id} uses local coordinates`);
+          for (const id of marker.people) {
+            const character = data.characters.find(character => character.id === id);
+            const position = (character.positions || []).filter(position => position.episode <= number).sort((a, b) => b.episode - a.episode)[0];
+            assert.equal(position?.locationId, marker.id, `E${number} ${id} uses the last recorded location`);
+          }
+        }
+        for (const later of data.locations.filter(location => locationArea(location) === 'liberio' && location.firstEpisode > number)) assert.equal(await city.locator(`[data-location="${later.id}"]`).count(), 0);
+      }
+      await chooseLocation(city, 'Liberio', 'liberio');
+      assert.match(await city.locator('#map-geography-badge').innerText(), /Schematic/i);
+      await city.locator('#map-legend summary').click();
+      assert.match(await city.locator('#map-accuracy-note').innerText(), /approximate|schematic|scale/i);
+      assert.match(await city.locator('#place-geography-note').innerText(), /approximate|schematic|scale/i);
+      assert.equal(await city.locator('#map-scale').isVisible(), false);
+      await assertNoHorizontalOverflow(city, 'Liberio geography');
+    });
+
+    await test('phone Liberio labels stay inside the map and clear of every portrait chip', async () => {
+      for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }]) {
+        const city = await createPage(viewport);
+        await episode(city, 65);
+        await city.locator('[data-map-extent="liberio"]').click();
+        for (const style of ['parchment', 'night']) {
+          await city.locator(`button[data-map-style="${style}"]`).click();
+          for (const expanded of [false, true]) {
+            if (expanded) await city.locator('#expand-map').click();
+            const boxes = await labelBoxes(city);
+            const labels = boxes.filter(box => /marker-label/.test(box.kind));
+            const portraits = boxes.filter(box => /map-person/.test(box.kind));
+            assert.ok(labels.length && portraits.length, `${viewport.width}px ${style}: known labels and portraits are rendered`);
+            const clashes = labels.flatMap(label => portraits.filter(portrait => overlap(label, portrait)).map(portrait => `${label.owner}/${portrait.owner}`));
+            assert.deepEqual(clashes, [], `${viewport.width}px ${style}, expanded=${expanded}: labels overlap portrait chips`);
+            const stage = await city.locator('#map-stage').boundingBox();
+            const outside = labels.filter(label => label.left < stage.x - 1 || label.right > stage.x + stage.width + 1
+              || label.top < stage.y - 1 || label.bottom > stage.y + stage.height + 1);
+            assert.deepEqual(outside.map(label => label.owner), [], `${viewport.width}px ${style}, expanded=${expanded}: labels are clipped`);
+            await assertNoHorizontalOverflow(city, `${viewport.width}px ${style} Liberio, expanded=${expanded}`);
+            if (expanded) await city.locator('#close-expanded-map').click();
+          }
+        }
       }
     });
 
@@ -409,6 +577,7 @@ async function main() {
     await test('expanded map grows on desktop and phone, preserves exploration and restores focus', async () => {
       for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
         const expanded = await createPage(viewport);
+        await expanded.locator('[data-map-extent="walls"]').click();
         await expanded.locator('#zoom-in').click();
         const selected = await expanded.locator('.map-marker.selected').getAttribute('data-location');
         const camera = await expanded.locator('#map-camera').getAttribute('transform');
@@ -417,9 +586,10 @@ async function main() {
         await expanded.locator('#expand-map').click();
         await expanded.waitForFunction(() => document.querySelector('#expanded-map-dialog').open);
         const large = await expanded.locator('#map-stage').boundingBox();
-        assert.ok(large.width * large.height > normal.width * normal.height * 1.5, 'expanded map did not gain usable area');
+        assert.ok(large.width * large.height > normal.width * normal.height * 1.5,
+          `${viewport.width}px: expanded map area grew by ${(large.width * large.height / (normal.width * normal.height)).toFixed(3)}; it should exceed 1.5`);
         const largeScale = await expanded.locator('#atlas-map').evaluate(element => element.getScreenCTM().a);
-        assert.ok(largeScale > normalScale * 1.25, 'the drawing stayed small inside a larger empty canvas');
+        assert.ok(largeScale > normalScale * 1.25, `${viewport.width}px: expanded drawing scale grew by ${(largeScale / normalScale).toFixed(3)}; it should exceed 1.25`);
         assert.equal(await expanded.locator('#map-camera').getAttribute('transform'), camera);
         assert.equal(await expanded.locator('.map-marker.selected').getAttribute('data-location'), selected);
         assert.equal(await expanded.locator('#expanded-map-episode').innerText(), `Episode ${MAX} · ${data.episodeTitles[MAX - 1].title}`);
@@ -501,13 +671,14 @@ async function main() {
       assert.equal(await expanded.locator('#episode-select option').count(), 1);
       assert.equal(await expanded.locator('#expanded-map-dialog').evaluate(dialog => dialog.open), true);
       assert.equal(await expanded.locator('#location-markers .map-marker').count(), data.locations.filter(location => location.firstEpisode <= 1).length);
-      const copy = await expanded.locator('#expanded-map-dialog').textContent();
+      const copy = await expanded.locator('#expanded-map-dialog').innerText();
       for (const name of laterNames) assert.ok(!copy.includes(name), `later name ${name} leaked into the expanded map`);
       await expanded.locator('#close-expanded-map').click();
     });
 
     await test('zoom reveals detail and the overview tracks the visible area and resets', async () => {
       const zoomed = await createPage();
+      await zoomed.locator('[data-map-extent="walls"]').click();
       await zoomed.locator('#zoom-out').click();
       const minor = zoomed.locator('.map-marker.minor:not(.selected):not(.now):not(.changed)').first();
       assert.equal(await minor.locator('.marker-label').isVisible(), false);
@@ -550,7 +721,7 @@ async function main() {
       const unpinned = data.episodes.find(item => item.events.some(event => !event.locationId));
       await episode(changed, unpinned.number);
       assert.ok(await changed.locator('.change-unpinned').count() > 0);
-      assert.equal(await changed.locator('#location-markers .map-marker').count(), data.locations.filter(location => location.firstEpisode <= unpinned.number).length);
+      assert.equal(await changed.locator('#location-markers .map-marker').count(), (await expectedMapLocations(changed, unpinned.number)).length);
       const empty = Array.from({ length: MAX }, (_, index) => index + 1).find(number => !data.episodes.some(item => item.number === number) && !data.locations.some(item => item.firstEpisode === number) && !(data.status || []).some(item => item.from === number));
       if (empty !== undefined) {
         await episode(changed, empty);
@@ -596,8 +767,12 @@ async function main() {
     await test('opening a character from the expanded map restores the atlas and shows their card', async () => {
       const expanded = await createPage();
       await episode(expanded, lastPinnedEpisode);
+      const character = pinnedPersonAt(lastPinnedEpisode);
+      const position = (character.positions || []).filter(position => position.episode <= lastPinnedEpisode).sort((a, b) => b.episode - a.episode)[0];
+      const location = data.locations.find(location => location.id === position.locationId);
+      await chooseLocation(expanded, location.name, location.id);
       await expanded.locator('#expand-map').click();
-      const id = pinnedPersonAt(lastPinnedEpisode).id;
+      const id = character.id;
       const portrait = expanded.locator(`.map-person[data-person="${id}"]`);
       await portrait.click();
       await expanded.locator('#person-card [data-open-character]').click();
@@ -750,7 +925,7 @@ async function main() {
         await setCutoff(bounded, 59);
         assert.equal(await bounded.locator('#episode-select option').count(), 59);
         assert.equal(await bounded.locator('#episode-select optgroup').count(), 3);
-        assert.deepEqual(await bounded.locator('#location-markers [data-location]').evaluateAll(items => items.map(item => item.dataset.location)), data.locations.filter(location => location.firstEpisode <= 59).map(location => location.id));
+        assert.deepEqual(await bounded.locator('#location-markers [data-location]').evaluateAll(items => items.map(item => item.dataset.location)), (await expectedMapLocations(bounded, 59)).map(location => location.id));
         await view(bounded, 'characters');
         assert.deepEqual((await bounded.locator('.character-card').evaluateAll(items => items.map(item => item.dataset.character))).sort(), data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= 59).map(character => character.id).sort());
         const later = data.characters.filter(character => character.firstEpisode > 59);
@@ -1044,6 +1219,7 @@ async function main() {
 
     await test('timeline and map light each other up; zoom shows episode tags; new places fade in', async () => {
       try {
+        await page.locator('[data-map-extent="walls"]').click();
         await page.locator('#timeline-track [data-episode="43"]').hover();
         assert.equal(await page.locator('#location-markers').evaluate(el => el.classList.contains('highlighting')), true);
         assert.deepEqual(await page.locator('#location-markers .map-marker.highlight').evaluateAll(els => els.map(el => el.dataset.location)), ['reiss-chapel']);
@@ -1081,8 +1257,9 @@ async function main() {
     });
 
     await test('approximate places are drawn as areas and wall names stay clear of places', async () => {
+      await page.locator('[data-map-extent="walls"]').click();
       const areas = await page.locator('#area-art .place-area').evaluateAll(els => els.map(el => el.dataset.area));
-      const expected = data.locations.filter(l => l.area && l.firstEpisode <= MAX).map(l => l.id);
+      const expected = mappedLocations(MAX, 'walls').filter(l => l.area).map(l => l.id);
       assert.deepEqual(areas.sort(), expected.sort());
       for (const n of milestones) {
         await episode(page, n);
@@ -1175,6 +1352,7 @@ async function main() {
         assert.equal(await page.locator('#sea-art path').count(), 0, 'no sea before it is revealed');
         assert.equal(await page.locator(`[data-location="${sea.id}"]`).count(), 0);
         await episode(page, sea.firstEpisode);
+        await page.locator('[data-map-extent="island"]').click();
         assert.equal(await page.locator('#sea-art .coastline').count(), 1);
         assert.equal(await page.locator(`[data-location="${sea.id}"]`).count(), 1);
         // The marker must sit in the water, outside the coastline.
@@ -1186,8 +1364,10 @@ async function main() {
         assert.ok(inWater, 'the sea marker sits outside the coastline');
         if (sea.desertFrom) {
           await episode(page, sea.desertFrom - 1);
+          await page.locator('[data-map-extent="island"]').click();
           assert.equal(await page.locator('#sea-art .desert').count(), 0, 'no desert before its episode');
           await episode(page, sea.desertFrom);
+          await page.locator('[data-map-extent="island"]').click();
           assert.equal(await page.locator('#sea-art .desert').count(), 1, 'the desert appears at its episode');
         }
       } finally {
@@ -1465,6 +1645,7 @@ async function main() {
 
     await test('phone layout fits, keeps every tab reachable, and fills the map', async () => {
       const mobile = await createPage({ width: 390, height: 844 });
+      await mobile.locator('[data-map-extent="walls"]').click();
       await assertNoHorizontalOverflow(mobile, 'mobile map');
       const tabs = await mobile.locator('.primary-nav .nav-item').evaluateAll(items => items.map(item => item.getBoundingClientRect().right));
       assert.ok(tabs.every(right => right <= 390), `a tab is off screen: ${tabs}`);

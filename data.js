@@ -116,14 +116,39 @@
     number: index + 1, title,
     sourceUrl: `https://en.wikipedia.org/wiki/Attack_on_Titan_season_${index < 25 ? 1 : index < 37 ? 2 : index < 59 ? 3 : 4}`
   }));
+  // Resolve only named settings already established by the selected episode. A regional
+  // anchor represents the whole island/country; it does not claim a street-level position.
+  const mappedSettings = {
+    "Paradis Island": { locationId: "paradis", from: 57 },
+    "Marley military headquarters": { locationId: "marley", from: 61 },
+    "Liberio": { locationId: "liberio", from: 57 },
+    "Liberio hospital": { locationId: "liberio-hospital", from: 62 },
+    "Liberio festival": { locationId: "liberio-festival", from: 63 },
+    "Liberio basement": { locationId: "liberio-basement", from: 63 }
+  };
+  // A flashback may be an episode's first event without being its main present-day setting.
+  const episodeMapFocus = {
+    60: { area: "world" },
+    61: { area: "liberio", locationId: "liberio" },
+    62: { area: "liberio", locationId: "liberio" },
+    63: { area: "liberio", locationId: "liberio-festival" },
+    64: { area: "liberio", locationId: "liberio-festival" },
+    65: { area: "liberio", locationId: "liberio-festival" }
+  };
   function chapter(number, shortTitle, description, sourceUrl, events) {
     return {
       id: `episode-${number}`, number, title: episodeTitles[number - 1].title, shortTitle, description, sourceUrl,
       ...(number >= 60 ? { officialSourceUrl: "https://shingeki.tv/final/story/" } : {}),
-      events: events.map((event, index) => ({
-        id: `episode-${number}-event-${index + 1}`,
-        kind: "confirmed", people: [], sourceUrl, ...event
-      }))
+      ...(episodeMapFocus[number] ? { mapFocus: episodeMapFocus[number] } : {}),
+      events: events.map((event, index) => {
+        const setting = mappedSettings[event.placeName];
+        return {
+          id: `episode-${number}-event-${index + 1}`,
+          kind: "confirmed", people: [], sourceUrl, ...event,
+          ...(event.locationId === null && setting && number >= setting.from
+            ? { locationId: setting.locationId } : {})
+        };
+      })
     };
   }
   window.ATLAS_DATA = {
@@ -135,11 +160,16 @@
       wallRadiusKm: { maria: 480, rose: 380, sina: 250 },
       wallsView: { x: 100, y: -95, width: 1000, height: 1000, cx: 600, cy: 405 },
       islandView: { x: -750, y: -2350, width: 3250, height: 5650, cx: 875, cy: 475 },
+      worldView: { x: 0, y: 100, width: 1200, height: 675, cx: 600, cy: 437.5 },
+      liberioView: { x: 0, y: 0, width: 1200, height: 920, cx: 600, cy: 460 },
+      worldFrom: 57, liberioFrom: 57,
+      worldReferenceScale: 1.5, worldReferenceOffset: [0, 100],
       // A simplified trace of the island in episode 57's map frame. Wall-to-coast distances are approximate.
       islandReferenceCenter: [549, 134], islandReferenceScale: 32,
       islandOutline: [[520,91],[522,85],[530,79],[540,80],[547,84],[555,85],[560,91],[567,95],[574,102],[577,112],[578,125],[581,139],[586,152],[585,158],[591,166],[598,174],[595,179],[596,188],[590,194],[581,193],[575,190],[568,183],[562,181],[556,172],[551,176],[542,178],[535,175],[530,168],[529,155],[530,145],[529,135],[531,121],[527,108],[522,101]],
       wallSourceUrl: "https://www.hellominju.com/2020/10/1-12CurrentlyPubliclyAvailable.html",
-      islandSourceUrl: "https://i.imgur.com/xVUHLew.jpg"
+      islandSourceUrl: "https://i.imgur.com/xVUHLew.jpg",
+      worldReferenceUrl: "https://i.imgur.com/xVUHLew.jpg"
     },
     // Season boundaries in overall numbers. A season still in progress has no `last` until it is complete.
     seasons: [
@@ -386,7 +416,7 @@
       ]),
       chapter(57, "Grisha’s memories", "Held in the stockade, Eren relives his father’s life as the books from the basement record it.", sources.s3summary, [
         { locationId: null, people: ["eren", "mikasa"], title: "In the stockade", summary: "Eren and Mikasa are held in the stockade for defying Levi in Shiganshina. In a dream, Eren lives through his father’s memories.", connection: "The stockade is not placed on this map.", sourceUrl: sources.s3 },
-        { locationId: null, people: ["grisha", "kruger"], title: "Liberio", summary: "As a boy, Grisha is caught with his sister Faye outside the Liberio internment zone by two officers, Kruger and Gross. Gross has Faye killed in secret. Grisha’s father teaches him their people’s history and how the nation of Marley despises them.", connection: "Liberio is in Marley, across the sea from the walls. It is not on this map." },
+        { locationId: "liberio", people: ["grisha", "kruger"], title: "Liberio", summary: "As a boy, Grisha is caught with his sister Faye outside the Liberio internment zone by two officers, Kruger and Gross. Gross has Faye killed in secret. Grisha’s father teaches him their people’s history and how the nation of Marley despises them.", connection: "Liberio is in Marley, across the sea from the walls. The map distinguishes the mainland city from Paradis Island; its placement is approximate." },
         { locationId: null, people: ["grisha", "dina", "zeke"], title: "The Restorationists", summary: "As a man, Grisha joins the Eldian Restoration movement, helped by an informant in the Marleyan military known as the Owl. He marries Dina Fritz, the last Eldian of royal blood on the mainland, and they have a son, Zeke. Raised to infiltrate the Marleyan army, Zeke turns his parents in." },
         { locationId: "sea", people: ["grisha", "dina", "smiling-titan"], title: "The wall on Paradis", summary: "Grisha, Dina and the other Restorationists are taken to the wall of Paradis Island, the island where the walls stand, to be turned into mindless Titans. Marley calls Eldians monsters because they can become Titans. Dina becomes the smiling Titan that later kills Carla.", connection: "This happens on the island’s coast. Where along it is not established; the sea marker stands for the whole coast." },
         { locationId: null, people: ["kruger", "grisha"], title: "The Owl", summary: "Kruger suddenly kills Gross, reveals that he is the Owl and a Titan shifter, transforms and wipes out the Marleyan security soldiers." }
@@ -587,8 +617,20 @@
         summary: "A district projecting from the northern side of Wall Sina, the innermost wall.", why: "It moves the story to the north of the walls, far from the southern districts where it began.", geography: "Northern Wall Sina is established. The wall radii follow the episode-one distances; the district outline is illustrative.", tags: ["Wall Sina", "Northern district"], sourceUrl: sources.orvud },
       { id: "shiganshina-inner", name: "Beyond Shiganshina’s inner gate", mapLabel: "Beyond the inner gate", subtitle: "Inside Wall Maria · Approximate area", x: 557.55, y: 764.4, kind: "field", firstEpisode: 50, area: { rx: 50, ry: 20 },
         summary: "Open ground inside Wall Maria, outside Shiganshina’s inner gate, where the Beast Titan gathers its Titans. This is a descriptive label, not a canonical place name.", why: "It keeps the fighting outside the district apart from the battle in Shiganshina’s streets.", geography: "Just north of Shiganshina, in the land between Walls Maria and Rose. Position and extent are approximate.", tags: ["Between the walls", "Approximate area"], sourceUrl: sources.s3summary },
-      { id: "sea", name: "The sea", subtitle: "Around Paradis Island · Coast", x: -190, y: 920, kind: "sea", firstEpisode: 57, desertFrom: 59, aliases: ["Ocean", "Coast", "Paradis Island"],
-        summary: "The walls stand on Paradis Island, and the sea surrounds it. Grisha’s memories show a wall on its coast.", why: "The world does not end at Wall Maria: Grisha’s memories place Marley across the sea.", geography: "The island outline follows the map shown in episode 57. Its size relative to the walls and the coast marker’s position are approximate. The marker represents the coast generally, not a verified landing site.", tags: ["Beyond Wall Maria", "Coast"], sourceUrl: sources.s3summary }
+      { id: "sea", name: "The sea", subtitle: "Around Paradis Island · Coast", x: -190, y: 920, kind: "sea", mapArea: "island", regionId: "paradis", firstEpisode: 57, desertFrom: 59, aliases: ["Ocean", "Coast"],
+        summary: "The walls stand on Paradis Island, and the sea surrounds it. Grisha’s memories show a wall on its coast.", why: "The world does not end at Wall Maria: Grisha’s memories place Marley across the sea.", geography: "The island outline follows the map shown in episode 57. Its size relative to the walls and the coast marker’s position are approximate. The marker represents the coast generally, not a verified landing site.", tags: ["Beyond Wall Maria", "Coast"], sourceUrl: sources.s3summary },
+      { id: "paradis", name: "Paradis Island", subtitle: "The island of the walls", x: 825, y: 300, kind: "island", mapArea: "world", opensMap: "island", firstEpisode: 57, mapAccuracy: "approximate", label: { side: "right" },
+        summary: "The three walls and their districts stand on Paradis Island, separated from Marley by the sea.", why: "The world overview connects the familiar walls to the island and the mainland across the water.", geography: "The island identity and separation from Marley are established. This marker represents the whole island; world distances and scale are approximate.", geographyNote: "Whole-island marker. Its distance from the mainland is approximate.", tags: ["Paradis", "Island", "Approximate scale"], sourceUrl: sources.s3 },
+      { id: "marley", name: "Marley", subtitle: "Mainland nation · Regional marker", x: 390, y: 600, kind: "country", mapArea: "world", firstEpisode: 57, mapAccuracy: "approximate", label: { side: "below" },
+        summary: "Marley is the mainland nation across the sea from Paradis. Liberio is a city within Marley.", why: "A regional marker keeps mainland settings separate from the island’s wall districts.", geography: "The mainland relationship is established. This is a broad country marker, not a capital, military headquarters or border survey; coastline and distances are approximate.", geographyNote: "Country-level marker. Events at military headquarters do not establish the headquarters’ coordinates.", tags: ["Mainland", "Regional marker", "Approximate scale"], sourceUrl: sources.s3 },
+      { id: "liberio", name: "Liberio", subtitle: "Mainland city · Marley", x: 600, y: 460, kind: "city", mapArea: "liberio", regionId: "marley", worldPosition: { x: 575, y: 500 }, firstEpisode: 57, mapAccuracy: "approximate", label: { side: "left" },
+        summary: "A city in Marley with an internment zone for Eldians. Grisha’s memories establish it on the mainland.", why: "The city view separates Liberio’s local settings from the faraway districts on Paradis.", geography: "Liberio is in Marley, across the sea from Paradis. Its overview position and the city layout are approximate; the map does not establish streets or travel distances.", geographyNote: "City identity is established. Overview position and local layout are approximate.", tags: ["Marley", "Mainland city", "Approximate layout"], sourceUrl: sources.s3 },
+      { id: "liberio-hospital", name: "Liberio hospital", subtitle: "Hospital · Approximate local position", x: 250, y: 270, kind: "site", mapArea: "liberio", regionId: "marley", firstEpisode: 62, mapAccuracy: "approximate", label: { side: "left" },
+        summary: "The hospital setting in Liberio where Falco talks to an injured soldier.", why: "A separate marker makes the hospital distinct from the city as a whole.", geography: "This setting is established in Liberio. Its position relative to the internment zone and other local sites is not verified; placement is for orientation only.", geographyNote: "Established Liberio setting. Its local coordinates and distances are approximate.", tags: ["Liberio", "Hospital", "Approximate layout"], sourceUrl: wiki("The_Door_of_Hope_(Episode)") },
+      { id: "liberio-festival", name: "Liberio festival", mapLabel: "Festival square", subtitle: "Public stage · Approximate local position", x: 880, y: 300, kind: "site", mapArea: "liberio", regionId: "marley", firstEpisode: 63, mapAccuracy: "approximate", label: { side: "right" },
+        summary: "The public stage and surrounding square prepared for Willy’s address in Liberio.", why: "The square has its own marker so events there remain distinct from the hospital and private conversations.", geography: "The festival is established in Liberio. Its position within the city is approximate; the square outline is illustrative and not a street plan.", geographyNote: "Established Liberio setting. Square outline, local position and distances are approximate.", tags: ["Liberio", "Public stage", "Approximate layout"], sourceUrl: wiki("From_One_Hand_to_Another_(Episode)") },
+      { id: "liberio-basement", name: "Liberio basement", mapLabel: "Basement", subtitle: "Underground meeting · Approximate local position", x: 840, y: 720, kind: "site", mapArea: "liberio", regionId: "marley", firstEpisode: 63, mapAccuracy: "approximate", label: { side: "right" },
+        summary: "The basement in Liberio where Falco brings Reiner to meet Eren.", why: "This marker distinguishes the private meeting underground from the public festival.", geography: "The meeting’s basement setting in Liberio is established. Its marker is separated from the square for readability, not to imply a measured route or verified building position.", geographyNote: "Established basement setting. Marker separation is illustrative; this is not a measured building position.", tags: ["Liberio", "Underground", "Approximate layout"], sourceUrl: wiki("From_One_Hand_to_Another_(Episode)") }
     ],
     // type: person | titan | group. Every versioned list (name, role, faction) uses the entry with the
     // latest `from` at or before the viewing episode. `notes` are dated facts shown once watched.
@@ -660,7 +702,7 @@
           { episode: 59, locationId: "sea", note: "Reaches the sea with the Scouts. Where along the coast is not established.", sourceUrl: sources.s3summary }
         ,
           {"episode": 60, "locationId": null, "note": "After the time jump, his current whereabouts are unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"},
-          {"episode": 63, "locationId": null, "note": "Undercover in Liberio on the mainland, beyond the scope of this island map.", "sourceUrl": "https://attackontitan.fandom.com/wiki/From_One_Hand_to_Another_(Episode)"},
+          {"episode": 63, "locationId": "liberio", "note": "Undercover in Liberio on the mainland. The city marker is an approximate location, not continuous tracking.", "sourceUrl": "https://attackontitan.fandom.com/wiki/From_One_Hand_to_Another_(Episode)"},
           {"episode": 69, "locationId": null, "note": "Held in prison on Paradis; the prison is not assigned coordinates.", "sourceUrl": "https://attackontitan.fandom.com/wiki/A_Sound_Argument_(Episode)"},
           {"episode": 75, "locationId": "shiganshina", "note": "At Shiganshina when Pieck draws him into the Marleyan attack.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Above_and_Below_(Episode)"},
           {"episode": 78, "locationId": null, "note": "In Paths after contact with Zeke; this space is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"},
@@ -742,7 +784,7 @@
           { episode: 56, locationId: "shiganshina", note: "Goes down into the Yeager basement.", sourceUrl: sources.s3summary }
         ,
           {"episode": 60, "locationId": null, "note": "After the time jump, his current whereabouts are unknown.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"},
-          {"episode": 65, "locationId": null, "note": "With the Scouts in Liberio, which lies beyond this island map.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_War_Hammer_Titan_(Episode)"},
+          {"episode": 65, "locationId": "liberio", "note": "With the Scouts in Liberio. The city marker is an approximate location, not continuous tracking.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_War_Hammer_Titan_(Episode)"},
           {"episode": 68, "locationId": null, "note": "Guarding Zeke in a forest of giant trees. Its identity with the earlier expedition forest is not established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Brave_Volunteers_(Episode)"},
           {"episode": 74, "locationId": null, "note": "Caught in the roadside explosion; the exact site is not established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sole_Salvation_(Episode)"},
           {"episode": 83, "locationId": null, "note": "With Hange outside the ruined walls; the meeting place is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
@@ -1118,7 +1160,7 @@
           { episode: 59, locationId: "sea", note: "The Corps reaches the sea. Where along the coast is not established.", sourceUrl: sources.s3summary }
         ,
           {"episode": 60, "locationId": null, "note": "After the time jump, no current group location is established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"},
-          {"episode": 65, "locationId": null, "note": "The force in Liberio is beyond this map; other Scouts remain on Paradis.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_War_Hammer_Titan_(Episode)"},
+          {"episode": 65, "locationId": "liberio", "note": "The force observed in Liberio is represented by the city marker; other Scouts remain on Paradis. This does not place the entire Corps here.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_War_Hammer_Titan_(Episode)"},
           {"episode": 73, "locationId": "shiganshina", "note": "The detained group is taken to Shiganshina; this does not place every Scout here.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Savagery_(Episode)"},
           {"episode": 76, "locationId": "shiganshina", "note": "Released members help defend Shiganshina against the Marleyan assault.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Judgment_(Episode)"},
           {"episode": 83, "locationId": "shiganshina", "note": "The departing group gathers after the Ragako rescue.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},

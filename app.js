@@ -69,7 +69,7 @@
     try {
       let current = {};
       try { current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch { current = {}; }
-      const saved = { cutoff: state.cutoff, edition: MAX_EPISODE, viewing: state.viewing, selected: state.selected, mapStyle: state.mapStyle, layers: state.layers };
+      const saved = { cutoff: state.cutoff, edition: MAX_EPISODE, viewing: state.viewing, selected: state.selected, mapExtent: state.mapExtent, mapStyle: state.mapStyle, layers: state.layers };
       // Preserve legacy notes without exposing a removed feature or erasing existing user data.
       if (Object.prototype.hasOwnProperty.call(current, 'notes')) saved.notes = current.notes;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
@@ -108,7 +108,7 @@
   // Held/lost ground and gate states, as of the viewing episode.
   const statusHistory = target => (data.status || []).filter(item => item.target === target && item.from <= state.viewing).sort((a, b) => a.from - b.from);
   const statusOf = target => statusHistory(target).pop() || null;
-  const KIND_LABEL = { district: 'District', village: 'Village', castle: 'Castle', capital: 'Seat of the king', forest: 'Approximate area', field: 'Approximate area', chapel: 'Approximate area', wall: 'Approximate sector', sea: 'Around the island' };
+  const KIND_LABEL = { district: 'District', village: 'Village', castle: 'Castle', capital: 'Seat of the king', forest: 'Approximate area', field: 'Approximate area', chapel: 'Approximate area', wall: 'Approximate sector', sea: 'Around the island', island: 'Island', country: 'Regional marker', city: 'City', site: 'Schematic position' };
   const knowledgeLabel = kind => ({ confirmed: 'Confirmed', belief: 'Character belief', approximate: 'Approximate geography' }[kind] || 'Approximate');
   const knowledgeBadge = kind => `<span class="knowledge-badge"><i class="knowledge-dot ${escapeHTML(kind)}"></i>${knowledgeLabel(kind)}</span>`;
   function ensureSelection() {
@@ -259,8 +259,45 @@
   };
   const geometry = data.mapGeometry;
   const VIEW = geometry.wallsView;
-  const mapView = () => state.mapExtent === 'island' ? geometry.islandView : VIEW;
-  if (getLocation(state.selected)?.kind === 'sea') state.mapExtent = 'island';
+  const mapAreaOf = location => location.mapArea || (location.kind === 'sea' ? 'island' : 'walls');
+  const mapView = () => ({ walls: VIEW, island: geometry.islandView, world: geometry.worldView, liberio: geometry.liberioView })[state.mapExtent] || VIEW;
+  const availableMapAreas = () => ['walls', ...(getLocation('sea') ? ['island'] : []),
+    ...(state.viewing >= geometry.worldFrom ? ['world'] : []), ...(state.viewing >= geometry.liberioFrom ? ['liberio'] : [])];
+  const locationsOnMap = () => visibleLocations().filter(location => state.mapExtent === 'world'
+    ? mapAreaOf(location) === 'world' || location.worldPosition
+    : state.mapExtent === 'island' ? ['walls', 'island'].includes(mapAreaOf(location)) || location.id === 'paradis'
+      : mapAreaOf(location) === state.mapExtent);
+  const pointOnMap = location => state.mapExtent === 'world' && location.worldPosition ? location.worldPosition
+    : state.mapExtent === 'island' && location.id === 'paradis' ? { x: geometry.islandView.cx, y: geometry.islandView.cy } : location;
+  function episodeMapFocus(number) {
+    const episode = data.episodes.find(entry => entry.number === number);
+    if (episode?.mapFocus) return episode.mapFocus;
+    const place = episode?.events.find(event => event.locationId && getLocation(event.locationId));
+    if (place) {
+      const location = getLocation(place.locationId);
+      return { area: location.opensMap || mapAreaOf(location), locationId: location.id };
+    }
+    const named = episode?.events.find(event => event.placeName)?.placeName;
+    if (named?.startsWith('Liberio') && getLocation('liberio')) return { area: 'liberio', locationId: 'liberio' };
+    if (named === 'Fort Slava' && getLocation('marley')) return { area: 'world', locationId: 'marley' };
+    return null;
+  }
+  function syncMapArea() {
+    if (!availableMapAreas().includes(state.mapExtent)) { state.mapExtent = 'walls'; state.zoom = 1; state.panX = 0; state.panY = 0; }
+    const locations = locationsOnMap();
+    if (!locations.some(location => location.id === state.selected)) {
+      const home = state.mapExtent === 'world' && getLocation(state.selected)?.regionId === 'marley' ? 'liberio'
+        : { world: 'paradis', island: 'sea', liberio: 'liberio' }[state.mapExtent];
+      state.selected = locations.find(location => location.id === home)?.id || locations[0]?.id || state.selected;
+    }
+  }
+  const savedArea = stored.mapExtent;
+  if (availableMapAreas().includes(savedArea)) state.mapExtent = savedArea;
+  else {
+    const focus = state.viewing >= 60 && episodeMapFocus(state.viewing);
+    if (focus) { state.mapExtent = focus.area; state.selected = focus.locationId || 'marley'; }
+    else if (getLocation(state.selected)) state.mapExtent = getLocation(state.selected).opensMap || mapAreaOf(getLocation(state.selected));
+  }
   const RINGS = Object.fromEntries(Object.entries(geometry.wallRadiusKm).map(([name, km]) => [name, [km * geometry.unitsPerKm, km * geometry.unitsPerKm]]));
   // Main walls, name paths, and the overview share the same episode-one scale.
   for (const [name, [rx, ry]] of Object.entries(RINGS)) {
@@ -300,7 +337,8 @@
   }).join('')}Z`;
   function renderSea() {
     const sea = visibleLocations().find(location => location.kind === 'sea');
-    $('#map-extent-switch').hidden = !sea;
+    $('#map-extent-switch').hidden = availableMapAreas().length < 2;
+    $$('[data-map-extent]').forEach(button => { button.hidden = !availableMapAreas().includes(button.dataset.mapExtent); });
     if (!sea && state.mapExtent === 'island') { state.mapExtent = 'walls'; state.zoom = 1; state.panX = 0; state.panY = 0; }
     const water = `M-10000 -10000H10000V10000H-10000Z ${COAST}`;
     // One illustrative coast approach, rather than claiming a desert surrounds the whole island.
@@ -312,9 +350,39 @@
       : '';
     $('#overview-coast').setAttribute('d', sea ? COAST : '');
   }
+  // The wider coast uses the visible part of the same episode-57 reference as the island.
+  const MAINLAND = 'M0 100H616C613 151 629 203 659 247S730 295 724 357 681 436 689 494 736 535 738 589 774 607 745 646 802 669 839 651 852 700 900 710 915 757 998 775H0Z';
+  const WORLD_ISLAND = geometry.islandOutline.map(([x, y]) => `${x * geometry.worldReferenceScale + geometry.worldReferenceOffset[0]},${y * geometry.worldReferenceScale + geometry.worldReferenceOffset[1]}`).join(' ');
+  const CITY_BLOCKS = Array.from({ length: 5 }, (_, column) => Array.from({ length: 4 }, (_, row) =>
+    `<rect x="${225 + column * 153}" y="${210 + row * 137}" width="120" height="103" rx="8"/>`).join('')).join('');
+  function renderGeography() {
+    const regional = ['world', 'liberio'].includes(state.mapExtent);
+    $('#paradis-map-art').style.display = regional ? 'none' : '';
+    $('#overview-walls').style.display = regional ? 'none' : '';
+    $('#overview-coast').style.display = regional ? 'none' : '';
+    let art = '', overview = '';
+    if (state.mapExtent === 'world') {
+      art = `<rect x="0" y="100" width="1200" height="675" class="sea-water"/><rect x="0" y="100" width="1200" height="675" class="sea-waves"/><path class="regional-land" d="${MAINLAND}"/><polygon class="regional-land" points="${WORLD_ISLAND}"/><g class="world-contours" fill="none"><path d="M100 210Q300 80 520 280M110 330Q350 250 580 420M170 500Q390 440 680 640"/></g>`;
+      overview = `<path class="overview-land" d="${MAINLAND}"/><polygon class="overview-land" points="${WORLD_ISLAND}"/>`;
+    } else if (state.mapExtent === 'liberio') {
+      art = `<rect width="1200" height="920" fill="var(--carto-ground)"/><g class="city-blocks"><title>Illustrative blocks, not a verified street plan</title>${CITY_BLOCKS}</g><rect class="city-boundary" x="195" y="180" width="840" height="595" rx="38"/><g class="city-streets" fill="none"><path d="M175 461H1050M600 155V800"/></g>`;
+      overview = '<rect class="overview-land" x="195" y="180" width="840" height="595" rx="38"/>';
+    }
+    $('#regional-map-art').innerHTML = art;
+    $('#overview-region').innerHTML = overview;
+    const accuracy = state.mapExtent === 'world' ? 'Established island and mainland; city markers and distances are approximate.'
+      : state.mapExtent === 'liberio' ? 'Established places; their local layout is schematic, not a verified street plan.'
+        : 'Wall radii follow the episode-one distances. Local positions, district sizes and coastline distances are approximate.';
+    $('#map-accuracy-note').textContent = accuracy;
+    const unknown = data.episodes.find(episode => episode.number === state.viewing)?.events.find(event => !event.locationId && event.placeName);
+    $('#map-area-note').textContent = regional ? `${unknown ? `${unknown.placeName}: exact position not established. ` : ''}${accuracy}` : '';
+    $('#map-area-note').hidden = !regional;
+    $('.legend-lost-item').hidden = regional || !(state.layers.territory && statusOf('belt:maria-rose')?.state === 'lost');
+    $('#wall-status-note').hidden = regional || !statusOf('walls:all');
+  }
   function renderAreas() {
-    $('#area-art').innerHTML = visibleLocations().filter(location => location.area).map(location =>
-      `<ellipse class="place-area${location.id === state.selected ? ' selected' : ''}" data-area="${escapeHTML(location.id)}" cx="${location.x}" cy="${location.y}" rx="${Number(location.area.rx)}" ry="${Number(location.area.ry)}"/>`).join('');
+    $('#area-art').innerHTML = locationsOnMap().filter(location => location.area && state.mapExtent !== 'world').map(location =>
+      `<ellipse class="place-area${location.id === state.selected ? ' selected' : ''}" data-area="${escapeHTML(location.id)}" cx="${pointOnMap(location).x}" cy="${pointOnMap(location).y}" rx="${Number(location.area.rx)}" ry="${Number(location.area.ry)}"/>`).join('');
   }
   function renderDistrictArt() {
     $('#district-art').innerHTML = visibleLocations().map(location => {
@@ -331,7 +399,7 @@
   }
   function renderMarkers() {
     const changes = mapChanges();
-    $('#location-markers').innerHTML = visibleLocations().map(location => {
+    $('#location-markers').innerHTML = locationsOnMap().map(location => {
       const selected = location.id === state.selected;
       const side = SIDES[location.label?.side] ? location.label.side : 'right';
       const [labelX, labelY, anchor] = SIDES[side];
@@ -340,7 +408,7 @@
       // Areas say "approximate" with their dashed outline, so they need no caption of their own.
       const caption = selected ? 'Exploring' : now ? 'This episode' : fresh ? 'New in this episode' : location.area ? '' : KIND_LABEL[location.kind] || 'Place';
       const episodes = [...new Set(visibleEvents().filter(event => event.locationId === location.id).map(event => event.episode))];
-      const here = peopleAt(location.id);
+      const here = state.mapExtent === 'world' ? [] : peopleAt(location.id);
       const shown = here.slice(0, 3);
       // Portraits hug their own pin on a small arc, first on the side away from the label;
       // layoutChips() turns the arc if that side is taken by a neighbour.
@@ -349,10 +417,12 @@
       const more = here.length > 3 ? `<text class="people-more" transform="translate(${chipOffset(base, 3).join(' ')})" y="4" text-anchor="middle">+${here.length - 3}</text>` : '';
       const peopleText = here.map(({ character, position }) => `${nameOf(character)}, last recorded in episode ${position.episode}`).join('; ');
       const label = location.mapLabel || location.name;
-      const rank = selected ? 0 : now ? 1 : here.length ? 2 : ['district', 'capital'].includes(location.kind) ? 3 : 4;
+      const primary = ['district', 'capital', 'island', 'country', 'city', 'site'].includes(location.kind);
+      const rank = selected ? 0 : now ? 1 : here.length ? 2 : primary ? 3 : 4;
       const change = changes.find(item => item.locationId === location.id);
-      const classes = ['map-marker', `kind-${location.kind}`, !['district', 'capital'].includes(location.kind) && 'minor', selected && 'selected', fresh && 'fresh', now && 'now', change && 'changed', location.area && 'is-area', shownBefore && !shownBefore.has(location.id) && 'enter'].filter(Boolean).join(' ');
-      return `<g class="${escapeHTML(classes)}" data-location="${escapeHTML(location.id)}" data-side="${side}" data-rank="${rank}" data-caption="${escapeHTML(caption)}" data-change="${escapeHTML(change?.title || '')}" data-episodes="${episodes.join(', ')}" transform="translate(${Number(location.x)} ${Number(location.y)})" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escapeHTML(`Explore ${location.name}${peopleText ? `. Last recorded here: ${peopleText}` : ''}`)}">
+      const classes = ['map-marker', `kind-${location.kind}`, !primary && 'minor', selected && 'selected', fresh && 'fresh', now && 'now', change && 'changed', location.area && 'is-area', location.mapAccuracy === 'approximate' && 'approximate-position', shownBefore && !shownBefore.has(location.id) && 'enter'].filter(Boolean).join(' ');
+      const point = pointOnMap(location);
+      return `<g class="${escapeHTML(classes)}" data-location="${escapeHTML(location.id)}" data-side="${side}" data-rank="${rank}" data-caption="${escapeHTML(caption)}" data-change="${escapeHTML(change?.title || '')}" data-episodes="${episodes.join(', ')}" transform="translate(${Number(point.x)} ${Number(point.y)})" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escapeHTML(`Explore ${location.name}${location.mapAccuracy === 'approximate' ? '. Approximate map position' : ''}${peopleText ? `. Last recorded here: ${peopleText}` : ''}`)}">
         <g class="pin"><g class="pin-mark"><title>${escapeHTML(`${location.name} — ${location.subtitle}`)}</title><circle class="marker-hit" r="20"/><circle class="marker-pulse" r="16"/><circle class="marker-ring" r="7.5"/><circle class="marker-center" r="2.5"/></g>
           ${here.length ? `<g class="pin-people">${chips}${more}</g>` : ''}
           <path class="label-leader"/>
@@ -363,7 +433,7 @@
     }).join('');
     $('#location-markers').classList.toggle('has-now', Boolean($('#location-markers .map-marker.now')));
     shownBefore = new Set([...visibleLocations().map(location => location.id), ...visibleLocations().flatMap(location => peopleAt(location.id).map(({ character }) => `${character.id}@${location.id}`))]);
-    $('#overview-places').innerHTML = visibleLocations().map(location => `<circle cx="${location.x}" cy="${location.y}" r="${location.id === state.selected ? 22 : 12}" class="${location.id === state.selected ? 'selected' : ''}"/>`).join('');
+    $('#overview-places').innerHTML = locationsOnMap().map(location => `<circle cx="${pointOnMap(location).x}" cy="${pointOnMap(location).y}" r="${location.id === state.selected ? 22 : 12}" class="${location.id === state.selected ? 'selected' : ''}"/>`).join('');
   }
   function syncLayers() {
     $('#location-markers').classList.toggle('hide-places', !state.layers.locations);
@@ -570,7 +640,7 @@
   };
   function illustration(location) {
     // Original decorative drawings, never episode screenshots.
-    const scene = SCENERY[location.kind] || SCENERY.district;
+    const scene = SCENERY[location.kind] || (['city', 'site'].includes(location.kind) ? SCENERY.capital : ['country', 'island'].includes(location.kind) ? SCENERY.field : SCENERY.district);
     return `<div class="panel-illustration" aria-hidden="true"><svg viewBox="0 0 300 120" preserveAspectRatio="xMidYMid slice"><rect width="300" height="120" fill="var(--scene-sky)"/><circle cx="218" cy="30" r="21" fill="var(--scene-light)" opacity=".12"/><path d="M0 57 24 38 59 48 103 26 147 46 186 35 232 58 279 37 300 47V120H0Z" fill="var(--scene-ground)" opacity=".5"/>${scene}<path d="M0 115Q150 93 300 113V120H0Z" fill="var(--scene-dark)"/></svg><span class="panel-image-tag">${escapeHTML(KIND_LABEL[location.kind] || 'Place')}</span></div>`;
   }
   function eventCard(event) {
@@ -595,7 +665,7 @@
       <section class="panel-block"><h3>${thisEpisode.length ? 'Earlier here' : 'What happened here'}</h3>${earlierEvents.length ? earlierEvents.map(eventCard).join('') : `<p>${thisEpisode.length ? 'Nothing earlier is recorded here.' : 'No event is recorded here by the selected episode.'}</p>`}</section>
       ${here.length ? `<section class="panel-block"><h3>Last recorded here</h3>${here.map(({ character, position }) => `<button class="person-row" data-open-character="${escapeHTML(character.id)}">${avatar(character, 'sm')}<span><strong>${escapeHTML(nameOf(character))}</strong><small>Episode ${position.episode}. ${escapeHTML(position.note)}</small></span></button>`).join('')}</section>` : ''}
       <section class="panel-block"><h3>About this place</h3><p>${escapeHTML(location.summary)}</p><p class="why-text">${escapeHTML(location.why)}</p></section>
-      <p class="panel-footnote"><strong>Map accuracy.</strong> ${escapeHTML(location.geography)}</p>
+      <p class="panel-footnote" id="place-geography-note"><strong>Map accuracy.</strong> ${escapeHTML(location.geographyNote || location.geography)}</p>
     </div></div>`;
     syncPanel();
   }
@@ -706,6 +776,7 @@
     if (state.view !== 'characters') closeExpandedGallery();
     closeCard();
     ensureSelection();
+    syncMapArea();
     updateHeader();
     renderSea();
     renderTerritory();
@@ -714,6 +785,7 @@
     renderMarkers();
     renderChanges();
     syncLayers();
+    renderGeography();
     renderPanel();
     renderTimeline();
     renderRecap();
@@ -735,19 +807,20 @@
     if (window.matchMedia('(max-width: 760px)').matches) $('main').scrollIntoView({ block: 'start' });
   }
   function selectLocation(id, { focus = false } = {}) {
-    if (!getLocation(id)) return;
+    const location = getLocation(id);
+    if (!location) return;
     state.selected = id;
-    if (getLocation(id).kind === 'sea') { state.mapExtent = 'island'; state.zoom = 1; state.panX = 0; state.panY = 0; }
-    else if (focus) state.mapExtent = 'walls';
+    const area = location.opensMap || mapAreaOf(location);
+    if (state.mapExtent !== area) { state.mapExtent = area; state.zoom = 1; state.panX = 0; state.panY = 0; }
     state.view = 'map';
     state.panelExpanded = !window.matchMedia('(max-width: 760px)').matches;
     render();
     $('#location-panel').scrollTop = 0;
-    if (focus) {
-      const location = getLocation(id);
+    if (focus && !location.opensMap) {
+      const point = pointOnMap(location);
       state.zoom = 1.45;
-      state.panX = mapView().cx - location.x * state.zoom;
-      state.panY = mapView().cy - location.y * state.zoom;
+      state.panX = mapView().cx - point.x * state.zoom;
+      state.panY = mapView().cy - point.y * state.zoom;
     }
     applyCamera();
     $(`[data-location="${state.selected}"]`)?.focus({ preventScroll: true });
@@ -772,9 +845,12 @@
     state.activeEvent = null;
     state.panelExpanded = !window.matchMedia('(max-width: 760px)').matches;
     // Follow the story: a milestone episode selects the place where it happens.
-    const place = follow && data.episodes.find(entry => entry.number === state.viewing)?.events.find(event => event.locationId)?.locationId;
-    if (place && getLocation(place)) state.selected = place;
-    if (place && getLocation(place)?.kind === 'sea') { state.mapExtent = 'island'; state.zoom = 1; state.panX = 0; state.panY = 0; }
+    const destination = follow && episodeMapFocus(state.viewing);
+    if (destination) {
+      state.mapExtent = destination.area;
+      state.selected = destination.locationId || 'marley';
+      state.zoom = 1; state.panX = 0; state.panY = 0;
+    }
     ensureSelection();
     render();
     $('#location-panel').scrollTop = 0;
@@ -783,10 +859,7 @@
     const numbers = milestones();
     const target = direction > 0 ? numbers.find(number => number > state.viewing) : numbers.filter(number => number < state.viewing).pop();
     if (!target) return;
-    const episode = data.episodes.find(entry => entry.number === target);
-    const place = episode.events.find(event => event.locationId)?.locationId;
-    if (place) state.selected = place;
-    setEpisode(target);
+    setEpisode(target, { follow: true });
   }
 
   /* ---------- Search: places, people and events known by the viewing episode ---------- */
@@ -822,7 +895,8 @@
     const viewport = map.viewBox.baseVal;
     const bounds = state.mapExtent === 'island'
       ? { left: Math.min(...coastPoints.map(p => p[0])), right: Math.max(...coastPoints.map(p => p[0])), top: Math.min(...coastPoints.map(p => p[1])), bottom: Math.max(...coastPoints.map(p => p[1])) }
-      : { left: 600 - RINGS.maria[0], right: 600 + RINGS.maria[0], top: 405 - RINGS.maria[1], bottom: 405 + RINGS.maria[1] };
+      : state.mapExtent === 'walls' ? { left: 600 - RINGS.maria[0], right: 600 + RINGS.maria[0], top: 405 - RINGS.maria[1], bottom: 405 + RINGS.maria[1] }
+        : { left: view.x, right: view.x + view.width, top: view.y, bottom: view.y + view.height };
     // Keep a substantial portion of the chosen map area on screen while panning.
     const zoom = state.zoom;
     const needX = Math.min(viewport.width, (bounds.right - bounds.left) * zoom) * 0.45;
@@ -842,11 +916,12 @@
     stage.dataset.extent = state.mapExtent;
     $$('[data-map-extent]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mapExtent === state.mapExtent)));
     const fallen = statusOf('walls:all')?.state === 'fallen';
-    const mapTitle = state.mapExtent === 'island' ? 'Paradis Island' : fallen ? 'Former walled territory' : 'The walled territory';
+    const mapTitle = state.mapExtent === 'world' ? 'Across the sea' : state.mapExtent === 'liberio' ? 'Liberio' : state.mapExtent === 'island' ? 'Paradis Island' : fallen ? 'Former walled territory' : 'The walled territory';
     $('#map-title-text').textContent = mapTitle;
     $('#expanded-map-title').textContent = mapTitle;
-    $('#map-geography-badge').textContent = state.mapExtent === 'island' ? 'Approximate coast' : fallen ? 'Former boundaries' : 'Scaled walls';
-    $('#map-scale').hidden = state.mapExtent === 'island';
+    $('#map-geography-badge').textContent = state.mapExtent === 'world' ? 'Approximate geography' : state.mapExtent === 'liberio' ? 'Schematic city' : state.mapExtent === 'island' ? 'Approximate coast' : fallen ? 'Former boundaries' : 'Scaled walls';
+    $('#map-scale').hidden = state.mapExtent !== 'walls';
+    map.setAttribute('aria-label', `${mapTitle}. ${state.mapExtent === 'liberio' ? 'Schematic local positions.' : state.mapExtent === 'world' ? 'Approximate geographic overview.' : 'Schematic map.'} Select a place to explore its story. Arrow keys move the map, plus and minus zoom.`);
     if (ctm?.a > 0) {
       $('#map-scale span').style.width = `${100 * geometry.unitsPerKm * ctm.a * zoom}px`;
       for (const id of ['sea-waves', 'dunes']) $(`#${id}`).setAttribute('patternTransform', `scale(${0.65 / (ctm.a * zoom)})`);
@@ -971,10 +1046,11 @@
   $('#zoom-out').addEventListener('click', () => zoomMap(1 / 1.25));
   function resetMap() { state.zoom = 1; state.panX = 0; state.panY = 0; applyCamera(); }
   $$('[data-map-extent]').forEach(button => button.addEventListener('click', () => {
-    if (button.dataset.mapExtent === 'island' && !visibleLocations().some(location => location.kind === 'sea')) return;
+    if (!availableMapAreas().includes(button.dataset.mapExtent)) return;
     state.mapExtent = button.dataset.mapExtent;
     closeCard();
-    resetMap();
+    state.zoom = 1; state.panX = 0; state.panY = 0;
+    render();
   }));
   $('#reset-map').addEventListener('click', resetMap);
   $('#map-overview').addEventListener('click', () => { resetMap(); map.focus({ preventScroll: true }); });
@@ -1322,9 +1398,7 @@
     if (timelineEpisode) {
       const episode = data.episodes.find(item => item.number === Number(timelineEpisode.dataset.episode));
       if (episode && episode.number <= state.viewing) {
-        const first = episode.events.find(item => item.locationId)?.locationId;
-        if (first) state.selected = first;
-        setEpisode(episode.number);
+        setEpisode(episode.number, { follow: true });
         $('.timeline-event.active')?.focus({ preventScroll: true });
       }
       return;

@@ -26,7 +26,12 @@ const place = Object.fromEntries(d.locations.map(l => [l.id, l]));
 const person = Object.fromEntries(d.characters.map(c => [c.id, c]));
 const positions = d.characters.flatMap(c => (c.positions || []).map(p => ({ ...p, owner: c })));
 const VERSIONED = ['name', 'role', 'faction'];
-const KINDS = ['district', 'village', 'castle', 'forest', 'wall', 'field', 'chapel', 'capital', 'sea'];
+const KINDS = ['district', 'village', 'castle', 'forest', 'wall', 'field', 'chapel', 'capital', 'sea', 'island', 'country', 'city', 'site'];
+const MAP_AREAS = ['walls', 'island', 'world', 'liberio'];
+const locationArea = location => location.mapArea || (location.kind === 'sea' ? 'island' : 'walls');
+const mapBounds = area => area === 'walls' ? { x: 0, y: 0, width: 1200, height: 920 } : d.mapGeometry[`${area}View`];
+const inBounds = (point, bounds) => Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= bounds.x
+  && point.x <= bounds.x + bounds.width && point.y >= bounds.y && point.y <= bounds.y + bounds.height;
 const FACTIONS = ['civilian', 'cadet', 'survey', 'garrison', 'mp', 'central', 'crown', 'shifter', 'titan', 'marley', 'volunteer', 'yeagerist'];
 // The same geometry supplies the main map, labels, overview and these containment checks.
 const walls = Object.fromEntries(Object.entries(d.mapGeometry.wallRadiusKm).map(([name, km]) => [name, [km * d.mapGeometry.unitsPerKm, km * d.mapGeometry.unitsPerKm]]));
@@ -142,14 +147,46 @@ check('known kinds, types and factions', bad => {
   d.locations.filter(l => l.label && !['left', 'right', 'below'].includes(l.label.side)).forEach(l => bad(`${l.id} label side`));
 });
 check('event settings and explanations are nonempty text', bad => {
-  events.forEach(event => ['placeName', 'connection'].forEach(field => {
+  events.forEach(event => ['placeName', 'connection', 'geographyNote'].forEach(field => {
     if (event[field] !== undefined && (typeof event[field] !== 'string' || !event[field].trim())) bad(`${event.id}.${field}`);
   }));
 });
-check('places fit their walls or island view', bad => {
+check('places fit their declared map area', bad => {
   d.locations.forEach(l => {
-    const bounds = l.kind === 'sea' ? d.mapGeometry.islandView : { x: 0, y: 0, width: 1200, height: 920 };
-    if (l.x < bounds.x || l.x > bounds.x + bounds.width || l.y < bounds.y || l.y > bounds.y + bounds.height) bad(l.id);
+    const bounds = mapBounds(locationArea(l));
+    if (!bounds || !inBounds(l, bounds)) bad(l.id);
+  });
+});
+check('map areas have valid geometry and episode boundaries', bad => {
+  for (const area of ['world', 'liberio']) {
+    const bounds = mapBounds(area);
+    if (!bounds || ![bounds.x, bounds.y, bounds.width, bounds.height, bounds.cx, bounds.cy].every(Number.isFinite)
+      || bounds.width <= 0 || bounds.height <= 0 || !inBounds({ x: bounds.cx, y: bounds.cy }, bounds)) bad(`${area}: invalid bounds`);
+    const from = d.mapGeometry[`${area}From`];
+    if (!Number.isInteger(from) || from < 1 || from > d.maxEpisode) bad(`${area}: invalid reveal`);
+  }
+  d.locations.forEach(location => {
+    const area = locationArea(location);
+    if (!MAP_AREAS.includes(area)) bad(`${location.id}: unknown map area`);
+    if (['world', 'liberio'].includes(area) && location.firstEpisode < d.mapGeometry[`${area}From`]) bad(`${location.id}: before its map reveal`);
+    if (location.opensMap && !MAP_AREAS.includes(location.opensMap)) bad(`${location.id}: unknown destination map`);
+    if (location.regionId && (!place[location.regionId] || place[location.regionId].firstEpisode > location.firstEpisode)) bad(`${location.id}: parent region is not known`);
+  });
+  d.episodes.filter(episode => episode.mapFocus).forEach(episode => {
+    const focus = episode.mapFocus;
+    if (!MAP_AREAS.includes(focus.area)) bad(`E${episode.number}: unknown focus area`);
+    if (['world', 'liberio'].includes(focus.area) && episode.number < d.mapGeometry[`${focus.area}From`]) bad(`E${episode.number}: focus area is not revealed`);
+    if (focus.locationId && (!place[focus.locationId] || place[focus.locationId].firstEpisode > episode.number)) bad(`E${episode.number}: focus place is not known`);
+    else if (focus.locationId && locationArea(place[focus.locationId]) !== focus.area
+      && !(focus.area === 'world' && place[focus.locationId].worldPosition)) bad(`E${episode.number}: focus place belongs to another map area`);
+  });
+});
+check('world pins and approximate geography describe their limits', bad => {
+  d.locations.forEach(location => {
+    if (location.worldPosition && (!inBounds(location.worldPosition, mapBounds('world')) || locationArea(location) === 'world')) bad(`${location.id}: invalid world pin`);
+    if (location.mapAccuracy !== undefined && !['approximate', 'established'].includes(location.mapAccuracy)) bad(`${location.id}: unknown accuracy`);
+    if (location.mapAccuracy === 'approximate' && (typeof location.geographyNote !== 'string' || !location.geographyNote.trim())) bad(`${location.id}: approximate placement needs an explanation`);
+    if (['world', 'liberio'].includes(locationArea(location)) && location.mapAccuracy !== 'approximate') bad(`${location.id}: invented scale or placement precision`);
   });
 });
 check('a district sits on its wall', bad => {
@@ -193,9 +230,9 @@ check('no text names something before it is introduced', bad => {
   const texts = [];
   d.episodes.forEach(e => {
     texts.push([e.number, `${e.id} title`, `${e.title} ${e.shortTitle} ${e.description}`]);
-    e.events.forEach(ev => texts.push([e.number, ev.id, `${ev.title} ${ev.summary} ${ev.connection || ''} ${ev.placeName || ''}`]));
+    e.events.forEach(ev => texts.push([e.number, ev.id, `${ev.title} ${ev.summary} ${ev.connection || ''} ${ev.placeName || ''} ${ev.geographyNote || ''}`]));
   });
-  d.locations.forEach(l => texts.push([l.firstEpisode, l.id, `${l.subtitle} ${l.summary} ${l.why} ${l.geography} ${l.mapLabel || ''} ${(l.aliases || []).join(' ')}`]));
+  d.locations.forEach(l => texts.push([l.firstEpisode, l.id, `${l.subtitle} ${l.summary} ${l.why} ${l.geography} ${l.geographyNote || ''} ${l.mapLabel || ''} ${(l.aliases || []).join(' ')}`]));
   d.characters.forEach(c => {
     (c.role || []).forEach(v => texts.push([v.from, `${c.id} role`, v.text]));
     (c.notes || []).forEach(n => texts.push([n.episode, `${c.id} note E${n.episode}`, n.text]));
@@ -232,7 +269,10 @@ check('the sea: at most one, and its desert within the ceiling', bad => {
 });
 check('areas stay on the canvas', bad => {
   d.locations.filter(l => l.area).forEach(l => {
-    if (l.x - l.area.rx < 0 || l.x + l.area.rx > 1200 || l.y - l.area.ry < 0 || l.y + l.area.ry > 920) bad(l.id);
+    const bounds = mapBounds(locationArea(l));
+    if (!bounds || !Number.isFinite(l.area.rx) || !Number.isFinite(l.area.ry) || l.area.rx <= 0 || l.area.ry <= 0
+      || !inBounds({ x: l.x - l.area.rx, y: l.y - l.area.ry }, bounds)
+      || !inBounds({ x: l.x + l.area.rx, y: l.y + l.area.ry }, bounds)) bad(l.id);
   });
 });
 check('portraits: known ids, safe file names, ordered versions', bad => {
