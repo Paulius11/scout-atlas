@@ -26,6 +26,8 @@ Then visit <http://127.0.0.1:8765>. Check first whether a server is already runn
 - **Place details.** Desktop panels collapse with **Hide details**, giving the map more room. On a phone, the selected place appears in a compact bottom panel with its latest recorded event. Tap **More** or swipe up for the full story; tap **Less** or swipe down to continue exploring. The full panel scrolls independently and leaves part of the map visible.
 - **Map areas.** **Walls / Island / World / Liberio** lets you explore the walled territory, the coast, the relationship across the sea and local mainland places at readable scales. World and Liberio unlock at episode 57. World shows Paradis, sea and mainland together under **Across the sea**, with **Approximate geography**. Liberio uses a separate **Schematic city** diagram, including its hospital from episode 62 and festival square and basement from 63. The area buttons have their own toolbar row on small screens and also work in the expanded map.
 - **Episode focus.** Changing the episode opens its relevant area automatically, whether you use the picker, previous/next controls, keyboard shortcuts or timeline. You can switch areas manually, and that choice is saved. Place links and pinned search results open their target area; a setting without a supported local anchor uses a world context note rather than a guessed pin. Selecting E66 opens Liberio using places already established by E65.
+- **Back to this episode.** The labelled button on the map returns to the current episode's area and place and resets its camera, without changing the viewing episode or spoiler limit. It appears after exploring away in normal and expanded views and stays hidden when already focused or no supported setting exists. On phones it yields while Key is open and returns when Key closes; the legend scrolls within the available space and clears background labels while open; the overview sits above the zoom controls so both remain usable.
+- **Place symbols.** Liberio's hospital uses a medical cross, the festival square a pennant and the basement descending stairs. These symbols retain their screen size while zooming, their full accessible place names and the dashed rings for approximate positions. The hospital's short map label avoids repeating the city name.
 - **Map overview and detail.** Zooming out simplifies secondary names and portraits; keyboard focus still exposes a place's name. Zooming in reveals full episode captions. A small overview inset follows the current area when zoomed in or cropped by a tall expanded window. Click it to reset that area's view.
 - **Changes this episode.** Highlight the current episode's recorded events, newly known places and gate or territory changes. A compact list explains each item and opens established places. Events without a known location stay unpinned; episodes with no recorded changes say so explicitly.
 - **Map styles.** Choose **Parchment** for warm paper and ink details, or **Night** for a dark field map. The place panel, decorative drawings, timeline, Story and People views follow the same palette. The switch is in the map toolbar on desktop and phone. The initial style follows your system preference, and your choice is saved in this browser. Switching preserves the selected place, zoom and episode. Open **Key** when you need the legend.
@@ -94,8 +96,8 @@ Place cards contain only what is known at the episode they first appear. `firstE
 ## Checks
 
 ```bash
-node scripts/etc/js/scout-atlas/tests/data-lint.cjs    # 30 checks, no browser
-node scripts/etc/js/scout-atlas/tests/browser.cjs      # 66 checks, headless Chrome
+node scripts/etc/js/scout-atlas/tests/data-lint.cjs    # 31 checks, no browser
+node scripts/etc/js/scout-atlas/tests/browser.cjs      # 70 checks, headless Chrome
 ATLAS_URL=http://127.0.0.1:8765 node scripts/etc/js/scout-atlas/tests/browser.cjs
 ```
 

@@ -5,6 +5,7 @@
 //   node tests/browser.cjs                                  (the page over file://)
 //   ATLAS_URL=http://127.0.0.1:8765 node tests/browser.cjs  (a running local server)
 //   CHROME=/path/to/chrome node tests/browser.cjs           (another Chrome build)
+//   ATLAS_TEST_FILTER='recognizable|Back to this episode' node tests/browser.cjs
 
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -13,6 +14,7 @@ const { chromium } = require('playwright');
 
 const url = process.env.ATLAS_URL || pathToFileURL(path.resolve(__dirname, '../index.html')).href;
 const onFile = url.startsWith('file:');
+const testFilter = process.env.ATLAS_TEST_FILTER ? new RegExp(process.env.ATLAS_TEST_FILTER, 'i') : null;
 const storageKey = 'scout-atlas:v1';
 global.window = {};
 require(path.resolve(__dirname, '../data.js'));
@@ -32,6 +34,7 @@ const mappedLocations = (number, area) => data.locations.filter(location => loca
   area === 'world' ? locationArea(location) === 'world' || location.worldPosition
     : area === 'island' ? ['walls', 'island'].includes(locationArea(location)) || location.id === 'paradis'
       : locationArea(location) === area));
+const placeSymbols = { 'liberio-hospital': 'hospital', 'liberio-festival': 'festival', 'liberio-basement': 'stairs' };
 async function mapArea(page) { return page.locator('#map-stage').getAttribute('data-extent'); }
 async function expectedMapLocations(page, number) { return mappedLocations(number, await mapArea(page)); }
 // Everything the atlas introduces after episode 1: none of it may show while viewing episode 1.
@@ -43,6 +46,7 @@ let passed = 0;
 const failures = [];
 
 async function test(name, run) {
+  if (testFilter && !testFilter.test(name)) return;
   try {
     await run();
     passed += 1;
@@ -394,6 +398,141 @@ async function main() {
       await assertNoHorizontalOverflow(city, 'Liberio geography');
     });
 
+    await test('recognizable place symbols appear only when their local settings are known', async () => {
+      const symbols = await createPage();
+      await setCutoff(symbols, 65);
+      for (const number of [56, 57, 61, 62, 63, 65]) {
+        await episode(symbols, number);
+        if (number >= 57) await symbols.locator('[data-map-extent="liberio"]').click();
+        const expected = Object.entries(placeSymbols).filter(([id]) => data.locations.find(location => location.id === id).firstEpisode <= number);
+        assert.equal(await symbols.locator('#location-markers [data-map-symbol]').count(), expected.length, `E${number}: only known local symbols appear`);
+        for (const [id, symbol] of expected) {
+          const marker = symbols.locator(`[data-location="${id}"]`);
+          assert.equal(await marker.locator('[data-map-symbol]').getAttribute('data-map-symbol'), symbol, `${id}: the right symbol identifies the place`);
+          assert.equal(await marker.locator('[data-map-symbol]').getAttribute('aria-hidden'), 'true', 'decorative symbols do not repeat the accessible place name');
+          assert.match(await marker.getAttribute('aria-label'), /Explore .+\. Approximate map position/, 'the accessible name retains geography accuracy');
+          assert.notEqual(await marker.locator('.marker-ring').evaluate(element => getComputedStyle(element).strokeDasharray), 'none', 'the symbol retains the approximate-position ring');
+        }
+      }
+      await symbols.locator('[data-map-extent="world"]').click();
+      assert.equal(await symbols.locator('#location-markers [data-map-symbol]').count(), 0, 'local symbols do not crowd the world overview');
+      await setCutoff(symbols, 61);
+      await symbols.locator('[data-map-extent="liberio"]').click();
+      assert.equal(await symbols.locator('#location-markers [data-map-symbol]').count(), 0, 'lowering the limit removes all later local symbols');
+    });
+
+    await test('recognizable place symbols stay readable inside their rings at every zoom and map size', async () => {
+      const sizes = [];
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }, { width: 320, height: 740 }]) {
+        const symbols = await createPage(viewport);
+        await setCutoff(symbols, 65);
+        await episode(symbols, 65);
+        for (const style of ['parchment', 'night']) {
+          await symbols.locator(`button[data-map-style="${style}"]`).click();
+          for (const expanded of [false, true]) {
+            if (expanded) await symbols.locator('#expand-map').click();
+            for (const zoomed of [false, true]) {
+              if (zoomed) await symbols.locator('#zoom-in').click();
+              await symbols.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+              const measured = await symbols.locator('#location-markers [data-map-symbol]').evaluateAll(glyphs => glyphs.map(glyph => {
+                const marker = glyph.closest('[data-location]');
+                const ring = marker.querySelector('.marker-ring').getBoundingClientRect();
+                const icon = glyph.getBoundingClientRect();
+                return { id: marker.dataset.location, symbol: glyph.dataset.mapSymbol, shape: glyph.innerHTML, ring: { left: ring.left, top: ring.top, right: ring.right, bottom: ring.bottom, width: ring.width, height: ring.height }, icon: { left: icon.left, top: icon.top, right: icon.right, bottom: icon.bottom, width: icon.width, height: icon.height } };
+              }));
+              assert.equal(measured.length, 3, 'all three recognizable place symbols are rendered');
+              assert.equal(new Set(measured.map(item => item.shape)).size, 3, 'the three settings have distinct drawings');
+              for (const item of measured) {
+                assert.ok(item.icon.width >= 6.8 && item.icon.height >= 6.8, `${viewport.width}px ${item.id}: the symbol is readable`);
+                assert.ok(item.icon.left >= item.ring.left - 1 && item.icon.right <= item.ring.right + 1 && item.icon.top >= item.ring.top - 1 && item.icon.bottom <= item.ring.bottom + 1, `${viewport.width}px ${item.id}: the symbol stays inside its ring`);
+                sizes.push({ id: item.id, width: item.icon.width, height: item.icon.height, ringWidth: item.ring.width });
+              }
+            }
+            await symbols.locator('#reset-map').click();
+            await assertNoHorizontalOverflow(symbols, `${viewport.width}px ${style} recognizable symbols, expanded=${expanded}`);
+            if (expanded) await symbols.locator('#close-expanded-map').click();
+          }
+        }
+      }
+      for (const id of Object.keys(placeSymbols)) {
+        const all = sizes.filter(item => item.id === id);
+        for (const property of ['width', 'height', 'ringWidth']) {
+          assert.ok(Math.max(...all.map(item => item[property])) - Math.min(...all.map(item => item[property])) < 1, `${id}: ${property} changes across zoom, viewport or expansion`);
+        }
+      }
+    });
+
+    await test('Back to this episode restores its map focus after exploration without changing progress', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }, { width: 320, height: 740 }]) {
+        const returning = await createPage(viewport);
+        await setCutoff(returning, 65);
+        await episode(returning, 65);
+        const action = returning.locator('#return-to-episode');
+        assert.equal(await action.isVisible(), false, 'the return action leaves the map clear while already focused');
+        assert.equal(await action.isDisabled(), true, 'the episode is already focused');
+        const expected = data.episodes.find(entry => entry.number === 65).mapFocus;
+        for (const expanded of [false, true]) {
+          if (expanded) await returning.locator('#expand-map').click();
+          assert.equal(await action.evaluate(element => Boolean(element.closest('#expanded-map-dialog'))), expanded, 'the same action follows the expanded map');
+          await returning.locator('[data-map-extent="world"]').click();
+          assert.equal(await action.isEnabled(), true, 'switching areas makes the return action available');
+          await chooseLocation(returning, 'Trost', 'trost');
+          await returning.locator('#zoom-in').click().catch(error => { throw new Error(`${viewport.width}px expanded=${expanded}: zoom after search: ${error.message}`); });
+          await returning.locator('#atlas-map').focus();
+          await returning.keyboard.press('ArrowRight');
+          const before = await returning.evaluate(key => {
+            const saved = JSON.parse(localStorage.getItem(key));
+            return { cutoff: saved.cutoff, viewing: saved.viewing };
+          }, storageKey);
+          assert.notEqual(await returning.locator('#map-camera').getAttribute('transform'), 'translate(0 0) scale(1)', 'exploration changes the camera');
+          await action.focus();
+          await returning.keyboard.press('Enter');
+          assert.equal(await mapArea(returning), expected.area, 'return restores the episode area');
+          assert.equal(await returning.locator('.map-marker.selected').getAttribute('data-location'), expected.locationId, 'return selects the episode place');
+          assert.equal(await returning.locator('.map-marker.selected').evaluate(element => element === document.activeElement), true, 'keyboard return moves focus to the restored place');
+          assert.equal(await returning.locator('#map-camera').getAttribute('transform'), 'translate(0 0) scale(1)', 'return restores the episode camera');
+          assert.equal(await returning.locator('#episode-select').inputValue(), '65', 'return does not change the chosen episode');
+          assert.deepEqual(await returning.evaluate(key => {
+            const saved = JSON.parse(localStorage.getItem(key));
+            return { cutoff: saved.cutoff, viewing: saved.viewing };
+          }, storageKey), before, 'return preserves the saved episode and spoiler limit');
+          assert.equal(await action.isDisabled(), true, 'return is complete');
+          assert.equal(await returning.locator('#expanded-map-dialog').evaluate(dialog => dialog.open), expanded, 'return preserves normal or expanded view');
+          await returning.locator('#zoom-in').click();
+          assert.equal(await action.isEnabled(), true, 'zooming alone enables return');
+          await action.click();
+          await assertNoHorizontalOverflow(returning, `${viewport.width}px return to episode, expanded=${expanded}`);
+          if (expanded) await returning.locator('#close-expanded-map').click();
+        }
+      }
+    });
+
+    await test('Back to this episode respects unknown settings and lowered episode limits', async () => {
+      const returning = await createPage();
+      await setCutoff(returning, 65);
+      await episode(returning, 60);
+      await returning.locator('[data-map-extent="island"]').click();
+      await returning.locator('#return-to-episode').click();
+      assert.equal(await mapArea(returning), 'world', 'an unpinned battlefield returns to broad mainland context');
+      assert.equal(await returning.locator('[data-location="fort-slava"]').count(), 0, 'return does not invent a battlefield pin');
+      assert.match(await returning.locator('#map-area-note').innerText(), /exact position.*not established/i);
+      await episode(returning, 3);
+      await returning.locator('#zoom-in').click();
+      assert.equal(await returning.locator('#return-to-episode').isDisabled(), true, 'an episode without a supported focus has no return destination');
+      await episode(returning, 65);
+      await returning.locator('[data-map-extent="world"]').click();
+      await setCutoff(returning, 1);
+      await returning.locator('#zoom-in').click();
+      await returning.locator('#return-to-episode').click();
+      assert.equal(await mapArea(returning), 'walls');
+      assert.equal(await returning.locator('#episode-select').inputValue(), '1');
+      assert.equal(await returning.locator('.map-marker.selected').getAttribute('data-location'), 'shiganshina');
+      assert.deepEqual(await returning.locator('#location-markers [data-location]').evaluateAll(markers => markers.map(marker => marker.dataset.location)), ['shiganshina'], 'a former mainland focus cannot survive a lowered limit');
+      assert.equal(await returning.locator('#location-markers [data-map-symbol]').count(), 0);
+      const copy = await returning.locator('#return-to-episode').evaluate(element => [element.textContent, element.getAttribute('aria-label'), element.getAttribute('title')].join(' '));
+      for (const location of data.locations.filter(location => location.firstEpisode > 1)) assert.ok(!copy.includes(location.name), 'the return action does not describe a later place');
+    });
+
     await test('phone Liberio labels stay inside the map and clear of every portrait chip', async () => {
       for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }]) {
         const city = await createPage(viewport);
@@ -407,6 +546,7 @@ async function main() {
             const labels = boxes.filter(box => /marker-label/.test(box.kind));
             const portraits = boxes.filter(box => /map-person/.test(box.kind));
             assert.ok(labels.length && portraits.length, `${viewport.width}px ${style}: known labels and portraits are rendered`);
+            assert.equal(labels.length, mappedLocations(65, 'liberio').length, `${viewport.width}px ${style}, expanded=${expanded}: every local place has a visible name`);
             const clashes = labels.flatMap(label => portraits.filter(portrait => overlap(label, portrait)).map(portrait => `${label.owner}/${portrait.owner}`));
             assert.deepEqual(clashes, [], `${viewport.width}px ${style}, expanded=${expanded}: labels overlap portrait chips`);
             const stage = await city.locator('#map-stage').boundingBox();

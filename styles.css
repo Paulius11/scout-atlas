@@ -334,6 +334,10 @@ main { flex: 1; min-width: 0; padding: 0 32px 20px; max-width: 2000px; }
 .district-town { fill: url(#town-pattern); stroke: none; opacity: .85; }
 .compass-rose { position: absolute; top: 14px; right: 16px; width: 40px; text-align: center; font: 13px var(--serif); color: var(--carto-ink); opacity: .7; pointer-events: none; }
 .compass-rose svg { width: 40px; margin-top: 3px; }
+.map-episode-return { position: absolute; top: 12px; right: 74px; z-index: 3; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; max-width: calc(100% - 158px); padding: 7px 10px; border: 1px solid var(--carto-control-line); border-radius: 7px; background: var(--carto-control-bg); color: var(--carto-ink); font-size: 12px; line-height: 1.35; }
+.map-episode-return .icon { width: 15px; height: 15px; flex-shrink: 0; }
+.map-episode-return:hover:not(:disabled) { background: var(--carto-pin-fill); border-color: var(--carto-pin); }
+.map-episode-return:disabled { opacity: .65; }
 .map-legend { position: absolute; left: 12px; top: 12px; z-index: 3; max-width: 230px; padding: 6px 10px; border: 1px solid var(--carto-control-line); border-radius: 8px; background: var(--carto-control-bg); font-size: 12.5px; color: var(--carto-ink); }
 .map-legend summary { cursor: pointer; font: 14px var(--serif); color: var(--carto-ink); }
 .legend-items { display: grid; gap: 4px; margin: 6px 0 2px; }
@@ -360,6 +364,8 @@ main { flex: 1; min-width: 0; padding: 0 32px 20px; max-width: 2000px; }
 .marker-pulse { fill: var(--carto-accent); opacity: 0; }
 .marker-ring { fill: var(--carto-pin-fill); stroke: var(--carto-pin); stroke-width: 1.8; }
 .marker-center { fill: var(--carto-pin); }
+.marker-symbol { fill: none; stroke: var(--carto-pin); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.map-marker:is(.selected, .now, .highlight, :hover, :focus-visible) .marker-symbol { stroke: var(--carto-accent); }
 .marker-label { font: 600 14.5px var(--serif); fill: var(--carto-ink); paint-order: stroke; stroke: var(--carto-label-halo); stroke-width: 4.5px; stroke-linejoin: round; }
 .label-leader { fill: none; stroke: var(--carto-muted); stroke-opacity: .45; stroke-width: 1; pointer-events: none; }
 .marker-caption { font: italic 12px var(--serif); fill: var(--carto-muted); paint-order: stroke; stroke: var(--carto-label-halo); stroke-width: 4px; stroke-linejoin: round; }
@@ -751,6 +757,9 @@ dialog label { display: block; margin-top: 18px; font-size: 14px; color: var(--t
   .search-wrap { flex: 1 1 100%; min-width: 0; }
   .map-stage { aspect-ratio: 960 / 880; }
   .compass-rose { display: none; }
+  .map-episode-return { right: 12px; max-width: calc(100% - 88px); }
+  .map-legend[open] ~ .map-episode-return { visibility: hidden; }
+  .map-stage:has(.map-legend[open]) :is(.marker-label, .marker-caption, .map-overview) { visibility: hidden; }
   .zoom-controls { right: 10px; bottom: 8px; }
   .timeline { padding: 12px 14px; }
   .timeline-event { flex-basis: 142px; }
@@ -800,7 +809,8 @@ dialog label { display: block; margin-top: 18px; font-size: 14px; color: var(--t
   .atlas-body .map-stage { aspect-ratio: 960 / 1080; }
   .map-stage.has-sheet { padding-bottom: var(--sheet-peek-height, 90px); }
   .map-stage.has-sheet .zoom-controls { bottom: calc(var(--sheet-height, 90px) + 10px); }
-  .map-stage.has-sheet .map-overview { bottom: calc(var(--sheet-height, 90px) + 10px); width: 86px; }
+  .map-stage.has-sheet .map-legend[open] { max-height: calc(100% - var(--sheet-height, 90px) - 76px); overflow-y: auto; }
+  .map-stage.has-sheet .map-overview { bottom: calc(var(--sheet-height, 90px) + 58px); width: 86px; }
   .map-stage.has-sheet .map-overview svg { height: 54px; }
   .map-stage.has-sheet .person-card.docked { bottom: calc(var(--sheet-height, 90px) + 8px); max-height: calc(100% - var(--sheet-height, 90px) - 16px); }
   .atlas-body .location-panel, #expanded-map-slot .location-panel { position: absolute; z-index: 6; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; width: 100%; height: auto; max-height: 65%; border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; overflow: hidden; box-shadow: 0 -4px 18px rgba(0, 0, 0, .1); }

@@ -189,6 +189,16 @@ check('world pins and approximate geography describe their limits', bad => {
     if (['world', 'liberio'].includes(locationArea(location)) && location.mapAccuracy !== 'approximate') bad(`${location.id}: invented scale or placement precision`);
   });
 });
+check('place symbols identify supported local settings', bad => {
+  const symbols = new Set(['hospital', 'festival', 'stairs']);
+  d.locations.filter(location => location.mapSymbol !== undefined).forEach(location => {
+    if (!symbols.has(location.mapSymbol)) bad(`${location.id}: unsupported place symbol`);
+    if (location.kind !== 'site' || locationArea(location) !== 'liberio') bad(`${location.id}: a local place symbol needs a local site`);
+  });
+  for (const [id, symbol] of Object.entries({ 'liberio-hospital': 'hospital', 'liberio-festival': 'festival', 'liberio-basement': 'stairs' })) {
+    if (place[id]?.mapSymbol !== symbol) bad(`${id}: missing its recognizable place symbol`);
+  }
+});
 check('a district sits on its wall', bad => {
   d.locations.filter(l => l.kind === 'district').forEach(l => {
     const wall = /Sina/.test(l.subtitle) ? 'sina' : /Rose/.test(l.subtitle) ? 'rose' : 'maria';
