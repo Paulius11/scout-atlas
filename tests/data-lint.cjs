@@ -151,6 +151,22 @@ check('event settings and explanations are nonempty text', bad => {
     if (event[field] !== undefined && (typeof event[field] !== 'string' || !event[field].trim())) bad(`${event.id}.${field}`);
   }));
 });
+check('episode character explanations only describe visible recorded participants', bad => {
+  d.episodes.filter(episode => episode.characterInvolvement !== undefined).forEach(episode => {
+    const explanations = episode.characterInvolvement;
+    if (!explanations || typeof explanations !== 'object' || Array.isArray(explanations)) {
+      bad(`E${episode.number}: explanations must be keyed by character id`);
+      return;
+    }
+    const participants = new Set(episode.events.flatMap(event => event.people || []));
+    Object.entries(explanations).forEach(([id, text]) => {
+      if (!person[id] || person[id].type === 'group' || person[id].firstEpisode > episode.number || !participants.has(id)) {
+        bad(`E${episode.number}: ${id} is not a visible individual in its recorded events`);
+      }
+      if (typeof text !== 'string' || !text.trim()) bad(`E${episode.number}: ${id} needs nonempty explanation text`);
+    });
+  });
+});
 check('places fit their declared map area', bad => {
   d.locations.forEach(l => {
     const bounds = mapBounds(locationArea(l));
@@ -183,8 +199,8 @@ check('map areas have valid geometry and episode boundaries', bad => {
       && !(focus.area === 'island' && focus.locationId === 'paradis')) bad(`E${episode.number}: focus place belongs to another map area`);
   });
 });
-check('E66–73 focus follows the current setting without inventing local coordinates', bad => {
-  for (let number = 66; number <= 73; number++) {
+check('E66–74 focus follows the current setting without inventing local coordinates', bad => {
+  for (let number = 66; number <= 74; number++) {
     const episode = d.episodes.find(entry => entry.number === number);
     const expectedArea = number === 66 ? 'liberio' : number === 67 ? 'world' : 'island';
     const expectedPlace = number <= 67 ? 'liberio' : 'paradis';
@@ -206,6 +222,9 @@ check('the return from Liberio clears raid positions and preserves later locatio
   }
   if (latest('eren', 73)?.locationId !== 'shiganshina') bad('Eren: the E73 observation is not reflected');
   if (latest('levi', 73)?.episode !== 73 || latest('levi', 73)?.locationId !== null) bad('Levi: the detention forest must remain unpinned');
+  if (latest('eren', 74)?.locationId !== 'shiganshina') bad('Eren: an E74 flashback must not replace his current observed setting');
+  if (latest('levi', 74)?.episode !== 74 || latest('levi', 74)?.locationId !== null) bad('Levi: the E74 observation must remain unpinned');
+  if (latest('zeke', 74)?.episode !== 74 || latest('zeke', 74)?.locationId !== null) bad('Zeke: the E74 observation must remain unpinned');
 });
 check('world pins and approximate geography describe their limits', bad => {
   d.locations.forEach(location => {

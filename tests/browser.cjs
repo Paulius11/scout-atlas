@@ -35,6 +35,8 @@ const mappedLocations = (number, area) => data.locations.filter(location => loca
     : area === 'island' ? ['walls', 'island'].includes(locationArea(location)) || location.id === 'paradis'
       : locationArea(location) === area));
 const placeSymbols = { 'liberio-hospital': 'hospital', 'liberio-festival': 'festival', 'liberio-basement': 'stairs' };
+const episodeParticipants = number => [...new Set(data.episodes.find(episode => episode.number === number).events.flatMap(event => event.people || []))]
+  .filter(id => data.characters.some(character => character.id === id && character.type !== 'group' && character.firstEpisode <= number));
 async function mapArea(page) { return page.locator('#map-stage').getAttribute('data-extent'); }
 async function expectedMapLocations(page, number) { return mappedLocations(number, await mapArea(page)); }
 // Everything the atlas introduces after episode 1: none of it may show while viewing episode 1.
@@ -453,6 +455,30 @@ async function main() {
       assert.equal(await cast.locator('[data-location="giant-forest"] [data-person="levi"]').count(), 0, 'the detention forest is not merged with the expedition forest');
     });
 
+    await test('E74 follows current island action while flashbacks and the detention route remain unpinned', async () => {
+      const focused = await createPage(undefined, `if (!localStorage.getItem(${JSON.stringify(storageKey)})) localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify({ cutoff: 74, viewing: 73, edition: MAX }))})`);
+      await focused.locator('[data-map-extent="world"]').click();
+      await focused.locator('#next-milestone').click();
+      assert.equal(await focused.locator('#episode-select').inputValue(), '74');
+      assert.equal(await mapArea(focused), 'island');
+      assert.equal(await focused.locator('.map-marker.selected').getAttribute('data-location'), 'paradis');
+      assert.match(await focused.locator('#map-area-note').innerText(), /flashback/i, 'the focus explains the difference between recalled and current settings');
+      await focused.locator('[data-map-extent="world"]').click();
+      await focused.locator('#return-to-episode').click();
+      assert.equal(await mapArea(focused), 'island');
+      assert.equal(await focused.locator('.map-marker.selected').getAttribute('data-location'), 'paradis');
+      await view(focused, 'characters');
+      const eren = await characterDetails(focused, 'eren');
+      assert.equal(await eren.locator('[data-open-place]').getAttribute('data-open-place'), 'shiganshina', 'a recalled meeting does not replace the E73 observation');
+      await closeCharacterDetails(focused);
+      const levi = await characterDetails(focused, 'levi');
+      assert.equal(await levi.locator('[data-open-place]').count(), 0, 'the transfer route gets no invented map coordinates');
+      assert.match(await levi.locator('footer').innerText(), /episode 74/i, 'the new observation is recorded at E74');
+      await closeCharacterDetails(focused);
+      await focused.reload({ waitUntil: 'load' });
+      assert.equal(await focused.locator('#episode-select').inputValue(), '74', 'the saved episode survives the update');
+    });
+
     await test('Liberio pins use episode-known places and explicitly approximate geography', async () => {
       const city = await createPage();
       for (const number of [61, 62, 63, 65, 66]) {
@@ -678,6 +704,165 @@ async function main() {
       assert.equal(await body.locator('footer').isVisible(), true, 'metadata is available in the details panel');
       await closeCharacterDetails(compact);
       await assertNoHorizontalOverflow(compact, 'compact gallery');
+    });
+
+    await test('This episode shows each recorded participant once with an accessible explanation and episode-visible name', async () => {
+      const cast = await createPage();
+      await view(cast, 'characters');
+      assert.equal(await cast.locator('[data-faction-filter="all"]').getAttribute('aria-pressed'), 'true', 'Everyone remains the default');
+      await cast.locator('[data-faction-filter="episode"]').click();
+      for (const number of [1, 68, 73, 74]) {
+        await episode(cast, number);
+        assert.equal(await cast.locator('[data-faction-filter="episode"]').getAttribute('aria-pressed'), 'true', 'episode changes retain the chosen mode');
+        const cards = await cast.locator('.character-card').evaluateAll(items => items.map(card => {
+          const button = card.querySelector('.character-card-button');
+          const explanation = card.querySelector('.character-involvement');
+          return {
+            id: card.dataset.character,
+            name: card.querySelector('.character-name').textContent,
+            explanation: explanation?.textContent.trim(),
+            explanationCount: card.querySelectorAll('.character-involvement').length,
+            descriptionResolves: Boolean(explanation?.id && (button.getAttribute('aria-describedby') || '').split(/\s+/).includes(explanation.id)
+              && document.getElementById(explanation.id) === explanation)
+          };
+        }));
+        assert.deepEqual(cards.map(card => card.id).sort(), episodeParticipants(number).sort(), `E${number} contains exactly the recorded individuals`);
+        assert.equal(await cast.locator('.character-grid').count(), 1, 'episode cast uses a continuous grid');
+        assert.equal(await cast.locator('.character-section h2').count(), 0, 'episode cast has no faction breaks');
+        assert.match(await cast.locator('#characters-view').innerText(), /recorded events/i, 'coverage distinguishes recorded participants from the entire episode cast');
+        for (const card of cards) {
+          const character = data.characters.find(character => character.id === card.id);
+          assert.equal(card.name, at(character.name, number).text, `E${number} ${card.id} uses the visible name`);
+          assert.equal(card.explanationCount, 1, `E${number} ${card.id} has exactly one explanation`);
+          assert.ok(card.explanation, `E${number} ${card.id} needs a meaningful explanation`);
+          assert.equal(card.descriptionResolves, true, `E${number} ${card.id} is described accessibly`);
+          assert.ok(card.explanation.length < 500, `E${number} ${card.id} explanation stays concise`);
+          assert.ok(!/\bE(?:7[5-9]|8\d)\b|\bepisode (?:7[5-9]|8\d)\b/i.test(card.explanation), 'the summary cannot refer to a later episode');
+        }
+      }
+    });
+
+    await test('This episode explanations use the selected episode and distinguish a flashback from present action', async () => {
+      const cast = await createPage();
+      await episode(cast, 1);
+      await view(cast, 'characters');
+      await cast.locator('[data-faction-filter="episode"]').click();
+      assert.equal(await cast.locator('#character-armin .character-involvement').innerText(), data.episodes[0].characterInvolvement?.armin
+        || data.characters.find(character => character.id === 'armin').notes.find(note => note.episode === 1).text, 'an introduction uses its current note rather than later history');
+      await episode(cast, 68);
+      assert.match(await cast.locator('#character-eren .character-involvement').innerText(), /flashback|earlier|recalled/i, 'a recalled arrival is clearly identified');
+      await episode(cast, 73);
+      assert.equal(await cast.locator('#character-armin .character-involvement').innerText(), data.episodes.find(entry => entry.number === 73).characterInvolvement?.armin
+        || data.characters.find(character => character.id === 'armin').notes.find(note => note.episode === 73).text, 'the explanation changes with the selected episode');
+      await episode(cast, 74);
+      const xaver = await cast.locator('#character-xaver .character-involvement').innerText();
+      assert.ok(!/\.\s+[A-Z]/.test(xaver), 'multi-sentence notes are shortened to one sentence');
+      assert.match(await cast.locator('#character-grisha .character-involvement').innerText(), /flashback|earlier|recalled|memories|recollection/i, 'a childhood participant is not presented as current action');
+    });
+
+    await test('This episode search narrows its participants and Everyone restores the full compact gallery', async () => {
+      const cast = await createPage();
+      await episode(cast, 74);
+      await view(cast, 'characters');
+      await cast.locator('[data-faction-filter="episode"]').click();
+      await cast.locator('#character-filter').fill('Levi');
+      assert.deepEqual(await cast.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character)), ['levi']);
+      await cast.locator('#character-filter').fill('Mikasa');
+      assert.equal(await cast.locator('.character-card').count(), 0, 'a known person outside the recorded episode is excluded');
+      await cast.locator('[data-faction-filter="all"]').click();
+      assert.deepEqual(await cast.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character)), ['mikasa'], 'Everyone preserves the search while broadening its scope');
+      await cast.locator('#character-filter').fill('');
+      const everyone = data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= 74);
+      assert.deepEqual((await cast.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character))).sort(), everyone.map(character => character.id).sort());
+      assert.equal(await cast.locator('.character-involvement').count(), 0, 'Everyone keeps its compact cards');
+      await cast.locator('[data-faction-filter="episode"]').click();
+      await cast.locator('#prev-milestone').click();
+      assert.equal(await cast.locator('#episode-select').inputValue(), '73');
+      assert.equal(await cast.locator('[data-faction-filter="episode"]').getAttribute('aria-pressed'), 'true');
+      assert.deepEqual((await cast.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character))).sort(), episodeParticipants(73).sort());
+      await cast.locator('#next-milestone').click();
+      assert.deepEqual((await cast.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character))).sort(), episodeParticipants(74).sort());
+    });
+
+    await test('This episode remains available in the expanded gallery and details restore its filter, search and focus', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
+        const cast = await createPage(viewport);
+        await episode(cast, 74);
+        await view(cast, 'characters');
+        await cast.locator('[data-faction-filter="episode"]').click();
+        await cast.locator('#expand-gallery').click();
+        assert.equal(await cast.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), true);
+        assert.equal(await cast.locator('[data-faction-filter="episode"]').getAttribute('aria-pressed'), 'true');
+        assert.deepEqual((await cast.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character))).sort(), episodeParticipants(74).sort());
+        await cast.locator('#character-filter').fill('Levi');
+        await characterDetails(cast, 'levi');
+        assert.equal(await cast.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), true);
+        await cast.keyboard.press('Escape');
+        assert.equal(await cast.locator('#character-detail-dialog').evaluate(dialog => dialog.open), false);
+        assert.equal(await cast.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), true);
+        assert.equal(await cast.locator('#character-levi .character-card-button').evaluate(button => button === document.activeElement), true);
+        assert.equal(await cast.locator('#character-filter').inputValue(), 'Levi');
+        await assertNoHorizontalOverflow(cast, `${viewport.width}px expanded episode cast`);
+        await cast.locator('#close-expanded-gallery').click();
+        assert.equal(await cast.locator('[data-faction-filter="episode"]').getAttribute('aria-pressed'), 'true');
+        assert.equal(await cast.locator('#character-filter').inputValue(), 'Levi');
+        assert.equal(await cast.locator('#expand-gallery').evaluate(button => button === document.activeElement), true);
+      }
+    });
+
+    await test('map and recap character links reset This episode so a person outside its cast remains reachable', async () => {
+      const cast = await createPage();
+      await episode(cast, 74);
+      const event = data.episodes.find(entry => entry.number === 73).events.find(event => event.people.includes('mikasa'));
+      for (const source of ['recap', 'map']) {
+        await view(cast, 'characters');
+        await cast.locator('[data-faction-filter="episode"]').click();
+        assert.equal(await cast.locator('#character-mikasa').count(), 0);
+        await view(cast, source);
+        if (source === 'recap') await cast.locator(`#recap-${event.id} [data-open-character="mikasa"]`).click();
+        else {
+          await cast.locator('#location-search').fill('Mikasa');
+          await cast.locator('#search-results [data-open-character="mikasa"]').click();
+        }
+        assert.equal(await cast.locator('#characters-view').isVisible(), true);
+        assert.equal(await cast.locator('[data-faction-filter="all"]').getAttribute('aria-pressed'), 'true');
+        assert.equal(await cast.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true);
+        assert.equal(await cast.locator('#character-detail-title').innerText(), at(data.characters.find(character => character.id === 'mikasa').name, 74).text);
+        await closeCharacterDetails(cast);
+        assert.equal(await cast.locator('#character-mikasa .character-card-button').evaluate(button => button === document.activeElement), true);
+      }
+    });
+
+    await test('This episode fits narrow phones with readable explanations and full-card touch targets', async () => {
+      for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 740 }]) {
+        const cast = await createPage(viewport);
+        await episode(cast, 74);
+        await view(cast, 'characters');
+        await cast.locator('[data-faction-filter="episode"]').click();
+        await assertNoHorizontalOverflow(cast, `${viewport.width}px episode cast`);
+        const cards = await cast.locator('.character-card').evaluateAll(items => items.map(card => {
+          const explanation = card.querySelector('.character-involvement');
+          const button = card.querySelector('.character-card-button');
+          const c = card.getBoundingClientRect(), e = explanation.getBoundingClientRect(), b = button.getBoundingClientRect();
+          const style = getComputedStyle(explanation);
+          return { id: card.dataset.character, text: explanation.textContent.trim(), readable: style.display !== 'none' && style.visibility !== 'hidden'
+            && explanation.scrollWidth <= explanation.clientWidth + 1 && explanation.scrollHeight <= explanation.clientHeight + 1,
+            contained: e.left >= c.left && e.right <= c.right + 1 && e.top >= c.top && e.bottom <= c.bottom + 1,
+            width: b.width, height: b.height, cardWidth: c.width, cardHeight: c.height };
+        }));
+        assert.ok(cards.length > 0);
+        for (const card of cards) {
+          assert.equal(card.readable, true, `${viewport.width}px ${card.id} explanation is readable in full`);
+          assert.equal(card.contained, true, `${viewport.width}px ${card.id} explanation stays inside the card`);
+          assert.ok(card.width >= 44 && card.height >= 44, 'card controls keep useful touch targets');
+          assert.ok(card.width >= card.cardWidth - 4 && card.height >= card.cardHeight - 4, 'the full card opens details');
+        }
+        const mode = await cast.locator('[data-faction-filter="episode"]').boundingBox();
+        assert.ok(mode.width >= 44 && mode.height >= 36, 'the episode mode keeps a useful hit area');
+        await cast.locator('[data-faction-filter="all"]').click();
+        assert.equal(await cast.locator('.character-involvement').count(), 0);
+        await assertNoHorizontalOverflow(cast, `${viewport.width}px Everyone after episode cast`);
+      }
     });
 
     await test('whole character cards work by mouse, Enter and Space and return to the same filtered gallery', async () => {

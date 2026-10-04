@@ -141,13 +141,15 @@
     70: { area: "island", locationId: "paradis", note: "Focus: Paradis. The Braus stables and Kaya’s village have no verified map positions." },
     71: { area: "island", locationId: "paradis", note: "Focus: Paradis. Headquarters and meeting sites are not assigned exact coordinates." },
     72: { area: "island", locationId: "paradis", note: "Focus: Paradis. The restaurant is unpinned; Ragako is discussed as an earlier event." },
-    73: { area: "island", locationId: "paradis", note: "Focus: Paradis. The restaurant, forest detention site and transport route are unpinned." }
+    73: { area: "island", locationId: "paradis", note: "Focus: Paradis. The restaurant, forest detention site and transport route are unpinned." },
+    74: { area: "island", locationId: "paradis", note: "Present-day focus: Paradis. Zeke’s Marley memories are flashbacks; the forest transport road is unpinned." }
   };
-  function chapter(number, shortTitle, description, sourceUrl, events) {
+  function chapter(number, shortTitle, description, sourceUrl, events, characterInvolvement) {
     return {
       id: `episode-${number}`, number, title: episodeTitles[number - 1].title, shortTitle, description, sourceUrl,
-      ...(number >= 60 ? { officialSourceUrl: number <= 73 ? `https://shingeki.tv/final/story/#/episode/${number}` : "https://shingeki.tv/final/story/" } : {}),
+      ...(number >= 60 ? { officialSourceUrl: number <= 74 ? `https://shingeki.tv/final/story/#/episode/${number}` : "https://shingeki.tv/final/story/" } : {}),
       ...(episodeMapFocus[number] ? { mapFocus: episodeMapFocus[number] } : {}),
+      ...(characterInvolvement ? { characterInvolvement } : {}),
       events: events.map((event, index) => {
         const setting = mappedSettings[event.placeName];
         return {
@@ -513,9 +515,16 @@
       ]),
       chapter(74, "Zeke’s proposed salvation", "Zeke’s childhood explains the plan he now hopes to carry out with Eren.", "https://attackontitan.fandom.com/wiki/Sole_Salvation_(Episode)", [
         {"title": "A mentor in Marley", "summary": "Zeke recalls the pressure from his parents and his friendship with Tom Xaver, the previous Beast Titan holder.", "people": ["zeke", "xaver", "grisha", "dina"], "locationId": null, "placeName": "Liberio", "connection": "This is a flashback to Zeke’s childhood."},
-        {"title": "The plan to end future births", "summary": "Zeke’s plan is to use the Founding Titan to prevent Subjects of Ymir from having children. His earlier meeting with Eren shows Eren apparently agreeing.", "people": ["zeke", "eren", "xaver"], "locationId": null, "placeName": "Marley"},
-        {"title": "The Thunder Spear explodes", "summary": "While Levi transports him, Zeke detonates the Thunder Spear attached to his body. Both are caught in the blast.", "people": ["zeke", "levi"], "locationId": null, "placeName": "Forest road"}
-      ]),
+        {"title": "The plan to end future births", "summary": "Zeke’s plan is to use the Founding Titan to prevent Subjects of Ymir from having children. His earlier meeting with Eren shows Eren apparently agreeing.", "people": ["zeke", "eren", "xaver"], "locationId": null, "placeName": "Marley", "connection": "The meeting with Eren is recalled; it does not place either brother in Marley in the present."},
+        {"title": "The Thunder Spear explodes", "summary": "While Levi transports him, Zeke detonates the Thunder Spear attached to his body. Both are caught in the blast.", "people": ["zeke", "levi"], "locationId": null, "placeName": "Forest road", "connection": "Present-day transport on Paradis. The road’s exact position is not established."}
+      ], {
+        zeke: "Recalls his childhood and plan before triggering the Thunder Spear during Levi’s transport.",
+        xaver: "In Zeke’s memories, becomes his mentor and helps shape the plan to prevent Eldian births.",
+        grisha: "In Zeke’s childhood memories, pressures his son to become a Warrior for the Restorationists.",
+        dina: "In Zeke’s childhood memories, joins Grisha in urging their son toward the Warrior program.",
+        eren: "In Zeke’s recollection, appears to agree to the plan; his own intentions remain unconfirmed.",
+        levi: "Transports the restrained Zeke and is caught in the Thunder Spear explosion."
+      }),
       chapter(75, "A trap on the roof", "An apparent offer of help reveals Marley’s surprise attack at Shiganshina.", "https://attackontitan.fandom.com/wiki/Above_and_Below_(Episode)", [
         {"title": "A Titan takes Zeke inside", "summary": "A surviving Titan opens its abdomen and places the badly injured Zeke inside. Hange and the Jaegerists hear the explosion.", "people": ["zeke", "hange", "floch"], "locationId": null, "placeName": "Forest road"},
         {"title": "Pieck offers an alliance", "summary": "Pieck approaches Eren and offers to identify Marley’s spies. She leads him and Gabi to the rooftop.", "people": ["pieck", "eren", "gabi"], "locationId": "shiganshina"},
@@ -1047,6 +1056,9 @@
           {"from": 60, "text": "The Beast Titan; Marleyan Warrior leader"},
           {"from": 67, "text": "Working with Eren’s side"},
           {"from": 74, "text": "Seeks to end all further Eldian births"}
+        ],
+        positions: [
+          {"episode": 74, "locationId": null, "note": "Transported by Levi on a forest road on Paradis; triggers the Thunder Spear. The exact road is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sole_Salvation_(Episode)"}
         ],
         notes: [{ episode: 57, text: "Raised to infiltrate the Marleyan army, he turns his parents in instead." },
           {"episode": 60, "text": "Commands the Titan assault at Fort Slava.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"},

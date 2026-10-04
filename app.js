@@ -756,9 +756,23 @@
     ['Military and police', ['garrison', 'mp', 'central']],
     ['Civilians and nobility', ['civilian', 'crown']]
   ];
+  const currentEpisode = () => data.episodes.find(episode => episode.number === state.viewing);
+  const episodeParticipants = () => new Set((currentEpisode()?.events || []).flatMap(event => event.people || []));
+  function episodeInvolvement(character) {
+    const episode = currentEpisode();
+    const event = episode?.events.find(event => (event.people || []).includes(character.id));
+    if (!event) return '';
+    const curated = episode.characterInvolvement?.[character.id];
+    if (curated) return curated;
+    const note = (character.notes || []).find(note => note.episode === state.viewing)?.text.trim();
+    if (note) return note.match(/^[\s\S]*?[.!?](?=\s|$)/)?.[0] || note;
+    return /flashback/i.test(event.connection || '')
+      ? `Appears in the flashback “${event.title}”.` : `Appears in “${event.title}”.`;
+  }
   function characterCard(character) {
+    const involvement = state.characterFaction === 'episode' ? episodeInvolvement(character) : '';
     return `<article class="character-card faction-${factionOf(character)}${revealOf(character) ? ' revealed' : ''}${state.focusCharacter === character.id ? ' focused' : ''}" id="character-${escapeHTML(character.id)}" data-character="${escapeHTML(character.id)}" tabindex="-1">
-      <h3 class="character-card-heading"><button type="button" class="character-card-button" data-show-character="${escapeHTML(character.id)}" aria-label="Open details for ${escapeHTML(nameOf(character))}" aria-haspopup="dialog" aria-controls="character-detail-dialog" aria-expanded="false">${avatar(character, 'lg')}<span class="character-card-copy"><span class="character-name">${escapeHTML(nameOf(character))}</span><span class="character-role" title="${escapeHTML(roleOf(character))}">${escapeHTML(roleOf(character))}</span></span><svg class="icon character-card-chevron" aria-hidden="true"><use href="#i-next"/></svg></button></h3>
+      <h3 class="character-card-heading"><button type="button" class="character-card-button" data-show-character="${escapeHTML(character.id)}" aria-label="Open details for ${escapeHTML(nameOf(character))}"${involvement ? ` aria-describedby="character-involvement-${escapeHTML(character.id)}"` : ''} aria-haspopup="dialog" aria-controls="character-detail-dialog" aria-expanded="false">${avatar(character, 'lg')}<span class="character-card-copy"><span class="character-name">${escapeHTML(nameOf(character))}</span><span class="character-role" title="${escapeHTML(roleOf(character))}">${escapeHTML(roleOf(character))}</span>${involvement ? `<span class="character-involvement" id="character-involvement-${escapeHTML(character.id)}">${escapeHTML(involvement)}</span>` : ''}</span><svg class="icon character-card-chevron" aria-hidden="true"><use href="#i-next"/></svg></button></h3>
     </article>`;
   }
   function characterDetails(character) {
@@ -777,23 +791,29 @@
   }
   function renderCharacters() {
     const query = state.characterFilter.trim().toLocaleLowerCase();
+    const participants = episodeParticipants();
+    const episodeMode = state.characterFaction === 'episode';
     const matches = visibleCharacters().filter(character => character.type !== 'group' && (!query
       || [nameOf(character), roleOf(character), ...(character.aliases || [])].join(' ').toLocaleLowerCase().includes(query)));
     const sortCharacters = (a, b) => Boolean(revealOf(a)) - Boolean(revealOf(b)) || a.firstEpisode - b.firstEpisode;
-    const sections = state.characterFaction === 'all'
-      ? (matches.length ? `<h2 class="sr-only">Characters</h2><div class="character-grid">${matches.sort(sortCharacters).map(characterCard).join('')}</div>` : '')
+    const episodeMatches = matches.filter(character => participants.has(character.id));
+    const displayed = episodeMode ? episodeMatches : matches;
+    const sections = state.characterFaction === 'all' || episodeMode
+      ? (displayed.length ? `<h2 class="sr-only">Characters</h2><div class="character-grid${episodeMode ? ' episode-character-grid' : ''}">${displayed.sort(sortCharacters).map(characterCard).join('')}</div>` : '')
       : CHARACTER_SECTIONS.filter(([title]) => state.characterFaction === title).map(([title, keys]) => {
       const members = matches.filter(character => keys.includes(factionOf(character)))
         .sort(sortCharacters);
       return members.length ? `<section class="character-section"><h2>${title}<span>${members.length}</span></h2><div class="character-grid">${members.map(characterCard).join('')}</div></section>` : '';
     }).join('');
     const counts = Object.fromEntries(CHARACTER_SECTIONS.map(([title, keys]) => [title, matches.filter(character => keys.includes(factionOf(character))).length]));
-    const chips = [['all', 'Everyone', matches.length], ...CHARACTER_SECTIONS.map(([title]) => [title, title, counts[title]])]
-      .filter(([, , count], index) => index === 0 || count)
+    const chips = [['all', 'Everyone', matches.length], ['episode', 'This episode', episodeMatches.length], ...CHARACTER_SECTIONS.map(([title]) => [title, title, counts[title]])]
+      .filter(([, , count], index) => index < 2 || count)
       .map(([value, label, count]) => `<button class="filter-chip" data-faction-filter="${escapeHTML(value)}" aria-pressed="${state.characterFaction === value}">${escapeHTML(label)} <span>${count}</span></button>`).join('');
     // The one expansion button lives beside the title on phones, and beside search elsewhere.
     $('#mobile-gallery-action').replaceChildren();
-    $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><div class="gallery-actions"><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"><button type="button" id="expand-gallery" class="expand-gallery" aria-label="Expand gallery" title="Expand gallery" aria-haspopup="dialog" aria-controls="expanded-gallery-dialog">${icon('expand')}<span class="expand-gallery-label">Expand gallery</span></button></div></div>${sections || '<p class="search-empty">No character matches that filter at this episode.</p>'}`;
+    const coverage = episodeMode ? `<p class="episode-cast-note" role="status">E${pad(state.viewing)} · Characters named in this episode’s recorded events.</p>` : '';
+    const empty = episodeMode ? 'No character in this episode’s recorded events matches that filter.' : 'No character matches that filter at this episode.';
+    $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by episode or group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><div class="gallery-actions"><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"><button type="button" id="expand-gallery" class="expand-gallery" aria-label="Expand gallery" title="Expand gallery" aria-haspopup="dialog" aria-controls="expanded-gallery-dialog">${icon('expand')}<span class="expand-gallery-label">Expand gallery</span></button></div></div>${coverage}${sections || `<p class="search-empty">${empty}</p>`}`;
     syncGalleryAction();
   }
   function render({ save = true } = {}) {

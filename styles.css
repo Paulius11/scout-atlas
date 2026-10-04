@@ -576,6 +576,11 @@ svg.avatar.image-portrait { border: 2px solid var(--ring); background: var(--dis
 .character-card-chevron { width: 12px; height: 16px; color: var(--muted); }
 .character-name { display: block; font: 400 18px/1.2 var(--serif); overflow-wrap: anywhere; }
 .character-role { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.character-involvement { display: block; margin-top: 8px; font-size: 12.5px; font-weight: 400; line-height: 1.5; color: var(--text-2); }
+.episode-cast-note { margin: 0 0 16px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.character-grid.episode-character-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); }
+.episode-character-grid .character-card-button { grid-template-columns: 56px minmax(0, 1fr) 12px; grid-template-rows: auto; align-items: center; justify-items: stretch; gap: 9px; min-height: 108px; padding: 12px; text-align: left; }
+.episode-character-grid .character-card-chevron { position: static; }
 .character-description { margin: 8px 0 12px; font-size: 13px; line-height: 1.6; color: var(--text-2); }
 .character-card.revealed { background: linear-gradient(160deg, var(--reading-wash), transparent 65%); }
 .reveal-line { margin: 12px 0 0; font-size: 14px; color: var(--text-2); }
