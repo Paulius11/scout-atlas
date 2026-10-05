@@ -105,6 +105,27 @@
     const position = lastPosition(character);
     return position && position.locationId === locationId ? [{ character, position }] : [];
   });
+  // Episode appearances can be shown without assigning an unlocated scene to a map pin.
+  const episodeScenes = () => visibleEvents().filter(event => event.episode === state.viewing
+    && event.mapScene && getLocation(event.mapScene.relatedLocationId));
+  function sceneCard(event, { panel = false } = {}) {
+    const scene = event.mapScene;
+    const individuals = (event.people || []).filter(id => getCharacter(id)?.type !== 'group');
+    return `<article class="${panel ? 'related-scene' : 'map-scene-card'}" data-scene-event="${escapeHTML(event.id)}">
+      <p class="scene-kicker">This episode · E${event.episode}</p><h3>${escapeHTML(scene.name)}</h3>
+      ${panel ? `<p class="scene-summary">${escapeHTML(event.summary)}</p>` : ''}
+      ${peopleList(individuals, { compact: true })}
+      <p class="scene-geography">${escapeHTML(scene.geography)}</p>
+      <button type="button" class="card-link" data-open-event="${escapeHTML(event.id)}">${escapeHTML(event.title)} ${icon('next')}</button>
+    </article>`;
+  }
+  function renderScenes() {
+    const scenes = episodeScenes().filter(event => event.mapScene.mapArea === state.mapExtent
+      || (event.mapScene.mapArea === 'island' && state.mapExtent === 'walls'));
+    const container = $('#map-scenes');
+    container.hidden = !state.layers.groups || !scenes.length;
+    container.innerHTML = scenes.map(event => sceneCard(event)).join('');
+  }
   // Held/lost ground and gate states, as of the viewing episode.
   const statusHistory = target => (data.status || []).filter(item => item.target === target && item.from <= state.viewing).sort((a, b) => a.from - b.from);
   const statusOf = target => statusHistory(target).pop() || null;
@@ -470,6 +491,7 @@
     $('.legend-lost-item').hidden = !(state.layers.territory && statusOf('belt:maria-rose')?.state === 'lost');
     $('#wall-labels').style.display = state.layers.walls ? '' : 'none';
     for (const name of ['locations', 'groups', 'territory', 'walls']) $(`#layer-${name}`).checked = Boolean(state.layers[name]);
+    renderScenes();
   }
 
   // Labels keep a constant screen size, so crowded places compete for room. Place the most
@@ -683,10 +705,12 @@
     const gates = statusHistory(`gate:${location.id}`);
     const lost = statusOf('belt:maria-rose')?.state === 'lost' && location.tags.some(tag => tag === 'Between the walls' || tag === 'Beyond Wall Rose') ? statusOf('belt:maria-rose') : null;
     const here = peopleAt(location.id);
-    const latest = thisEpisode[0] || events[0];
+    const scenes = episodeScenes().filter(event => event.mapScene.relatedLocationId === location.id);
+    const latest = scenes[0] || thisEpisode[0] || events[0];
     $('#location-panel').innerHTML = `<button type="button" id="place-peek" class="place-peek" aria-controls="place-details"><span class="sheet-handle" aria-hidden="true"></span><span class="place-peek-copy"><strong>${escapeHTML(location.name)}</strong><small>${latest ? `E${latest.episode} · ${escapeHTML(latest.title)}` : 'No event recorded here yet'}</small></span><span class="peek-action"></span></button><div id="place-details">${illustration(location)}<div class="panel-content">
       <header class="place-heading"><p class="panel-kicker">As of episode ${state.viewing}</p><h2>${escapeHTML(location.name)}</h2><p class="panel-subtitle">${escapeHTML(location.subtitle)}</p></header>${knowledgeBadge('approximate')}
       ${gates.length || lost ? `<p class="status-line">${gates.map(gate => `<span class="status-chip gate-${escapeHTML(gate.state)}">Gate ${escapeHTML(gate.state)}, E${gate.from}</span>`).join('')}${lost ? `<span class="status-chip gate-breached">Lost ground since E${lost.from}</span>` : ''}</p>` : ''}
+      ${scenes.length ? `<section class="panel-block now-block"><h3>Related scene · position unknown</h3>${scenes.map(event => sceneCard(event, { panel: true })).join('')}</section>` : ''}
       ${thisEpisode.length ? `<section class="panel-block now-block"><h3>This episode</h3>${thisEpisode.map(eventCard).join('')}</section>` : ''}
       <section class="panel-block"><h3>${thisEpisode.length ? 'Earlier here' : 'What happened here'}</h3>${earlierEvents.length ? earlierEvents.map(eventCard).join('') : `<p>${thisEpisode.length ? 'Nothing earlier is recorded here.' : 'No event is recorded here by the selected episode.'}</p>`}</section>
       ${here.length ? `<section class="panel-block"><h3>Last recorded here</h3>${here.map(({ character, position }) => `<button class="person-row" data-open-character="${escapeHTML(character.id)}">${avatar(character, 'sm')}<span><strong>${escapeHTML(nameOf(character))}</strong><small>Episode ${position.episode}. ${escapeHTML(position.note)}</small></span></button>`).join('')}</section>` : ''}
@@ -1122,9 +1146,10 @@
   const mapToolbar = $('.map-toolbar');
   const episodeControl = $('.episode-control');
   const changesPanel = $('#episode-changes-panel');
+  const mapScenes = $('#map-scenes');
   const mapStyleSwitch = $('#map-style-switch');
   // Anchors let every original control return to the same place without duplicate IDs/listeners.
-  const mapHomes = [mapStage, locationPanel, mapToolbar, episodeControl, changesPanel, mapStyleSwitch].map(element => {
+  const mapHomes = [mapStage, locationPanel, mapToolbar, episodeControl, changesPanel, mapScenes, mapStyleSwitch].map(element => {
     const anchor = document.createComment('Map control home');
     element.before(anchor);
     return { element, anchor };
@@ -1152,7 +1177,7 @@
     $('#expanded-map-slot').append(mapStage, locationPanel);
     $('#expanded-toolbar-slot').append(mapToolbar);
     $('#expanded-episode-slot').append(episodeControl);
-    $('#expanded-changes-slot').append(changesPanel);
+    $('#expanded-changes-slot').append(changesPanel, mapScenes);
     $('#map-options-content').prepend(mapStyleSwitch);
     $('#map-options-label').textContent = 'Layers & style';
     $('#map-options').open = false;

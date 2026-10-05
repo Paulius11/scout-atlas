@@ -167,6 +167,29 @@ check('episode character explanations only describe visible recorded participant
     });
   });
 });
+check('forest scene references keep their setting separate from established map coordinates', bad => {
+  const scenes = events.filter(event => event.mapScene !== undefined);
+  if (scenes.filter(event => event.episode <= 67).length) bad('later forest scenes appear before the return to the island');
+  for (const number of [68, 72, 73, 74]) {
+    if (scenes.filter(event => event.episode === number).length !== 1) bad(`E${number}: expected one recorded forest scene`);
+  }
+  scenes.forEach(event => {
+    const scene = event.mapScene;
+    if (!scene || typeof scene !== 'object' || Array.isArray(scene)) {
+      bad(`${event.id}: a scene needs setting metadata`);
+      return;
+    }
+    const location = place[scene.relatedLocationId];
+    if (!location || location.firstEpisode > event.episode) bad(`${event.id}: its related map place is not known`);
+    if (scene.relatedLocationId !== 'giant-forest' || scene.mapArea !== 'island') bad(`${event.id}: wrong forest scene context`);
+    ['name', 'geography'].forEach(field => {
+      if (typeof scene[field] !== 'string' || !scene[field].trim()) bad(`${event.id}: missing ${field}`);
+    });
+    if (['x', 'y', 'locationId', 'worldPosition'].some(field => Object.hasOwn(scene, field))) bad(`${event.id}: scene metadata must not invent a map point`);
+    if (![null, 'ragako'].includes(event.locationId)) bad(`${event.id}: a forest scene must not reuse the expedition forest pin`);
+    if (!event.people?.some(id => person[id]?.type === 'person' && person[id].firstEpisode <= event.episode)) bad(`${event.id}: scene has no visible individual`);
+  });
+});
 check('places fit their declared map area', bad => {
   d.locations.forEach(l => {
     const bounds = mapBounds(locationArea(l));

@@ -37,6 +37,9 @@ const mappedLocations = (number, area) => data.locations.filter(location => loca
 const placeSymbols = { 'liberio-hospital': 'hospital', 'liberio-festival': 'festival', 'liberio-basement': 'stairs' };
 const episodeParticipants = number => [...new Set(data.episodes.find(episode => episode.number === number).events.flatMap(event => event.people || []))]
   .filter(id => data.characters.some(character => character.id === id && character.type !== 'group' && character.firstEpisode <= number));
+const forestSceneEvent = number => data.episodes.find(episode => episode.number === number).events.find(event => event.mapScene);
+const sceneParticipants = (event, number) => [...new Set(event.people || [])]
+  .filter(id => data.characters.some(character => character.id === id && character.type !== 'group' && character.firstEpisode <= number));
 async function mapArea(page) { return page.locator('#map-stage').getAttribute('data-extent'); }
 async function expectedMapLocations(page, number) { return mappedLocations(number, await mapArea(page)); }
 // Everything the atlas introduces after episode 1: none of it may show while viewing episode 1.
@@ -477,6 +480,146 @@ async function main() {
       await closeCharacterDetails(focused);
       await focused.reload({ waitUntil: 'load' });
       assert.equal(await focused.locator('#episode-select').inputValue(), '74', 'the saved episode survives the update');
+    });
+
+    await test('forest scenes follow only the current episode and its visible participants without changing map pins', async () => {
+      const forest = await createPage();
+      const expeditionForest = data.locations.find(location => location.id === 'giant-forest');
+      for (const number of [67, 68, 69, 72, 73, 74]) {
+        await episode(forest, number);
+        await forest.locator('[data-map-extent="island"]').click();
+        if (![68, 72, 73, 74].includes(number)) {
+          assert.equal(await forest.locator('#map-scenes .map-scene-card').count(), 0, `E${number} does not retain another episode's forest scene`);
+          continue;
+        }
+        const event = forestSceneEvent(number);
+        const card = forest.locator('#map-scenes .map-scene-card');
+        assert.equal(await card.count(), 1, `E${number} has one source scene`);
+        assert.equal(await card.isVisible(), true);
+        assert.equal(await card.getAttribute('data-scene-event'), event.id);
+        assert.equal(await card.locator('[data-open-event]').getAttribute('data-open-event'), event.id);
+        assert.ok((await card.innerText()).includes(event.mapScene.name), 'the scene setting is named');
+        assert.ok((await card.innerText()).includes(event.title), 'the recorded event is identified');
+        assert.deepEqual((await card.locator('[data-open-character]').evaluateAll(buttons => buttons.map(button => button.dataset.openCharacter))).sort(), sceneParticipants(event, number).sort());
+        const people = await card.locator('[data-open-character]').evaluateAll(buttons => buttons.map(button => ({ id: button.dataset.openCharacter, name: button.textContent.trim(), portraits: button.querySelectorAll('[data-portrait]').length })));
+        for (const person of people) {
+          assert.ok(person.name.includes(at(data.characters.find(character => character.id === person.id).name, number).text), 'scene labels use the episode-visible name');
+          assert.equal(person.portraits, 1, 'each person has a real portrait');
+        }
+        assert.equal(await forest.locator('#location-markers [data-location]').count(), mappedLocations(number, 'island').length, 'a scene card adds no map location');
+        assert.equal(await forest.locator('#location-markers [data-location="giant-forest"]').getAttribute('transform'), `translate(${expeditionForest.x} ${expeditionForest.y})`, 'scene context does not move the established forest marker');
+        assert.equal(await forest.locator('[data-location="giant-forest"] [data-person="levi"], [data-location="giant-forest"] [data-person="zeke"]').count(), 0, 'scene portraits do not become recorded positions at the expedition forest');
+      }
+      await episode(forest, 73);
+      const futureEvent = forestSceneEvent(74);
+      assert.ok(!(await forest.locator('#map-scenes').innerText()).includes(futureEvent.title), 'E74 action is absent from the E73 map scene');
+      await episode(forest, 67);
+      await chooseLocation(forest, 'Forest of Giant Trees', 'giant-forest');
+      assert.equal(await forest.locator('#location-panel .related-scene').count(), 0, 'the place panel has no future forest scene before E68');
+    });
+
+    await test('forest scene visibility follows Island and Walls and the People layer', async () => {
+      const forest = await createPage();
+      await episode(forest, 74);
+      for (const area of ['island', 'walls', 'world', 'liberio']) {
+        await forest.locator(`[data-map-extent="${area}"]`).click();
+        assert.equal(await forest.locator('#map-scenes .map-scene-card:visible').count(), ['island', 'walls'].includes(area) ? 1 : 0, `${area} controls scene visibility`);
+      }
+      await forest.locator('[data-map-extent="walls"]').click();
+      await setLayer(forest, 'groups', false);
+      assert.equal(await forest.locator('#map-scenes .map-scene-card:visible').count(), 0, 'hiding People also hides scene portraits');
+      await setLayer(forest, 'groups', true);
+      assert.equal(await forest.locator('#map-scenes .map-scene-card:visible').count(), 1, 'restoring People restores the scene');
+      assert.equal(await forest.locator('#location-markers [data-location]').count(), mappedLocations(74, 'walls').length, 'layers never create an additional forest pin');
+    });
+
+    await test('forest scene portraits open character details and its event control preserves pinned and unpinned navigation', async () => {
+      const forest = await createPage();
+      for (const number of [72, 73, 74]) {
+        await view(forest, 'map');
+        await episode(forest, number);
+        await forest.locator('[data-map-extent="island"]').click();
+        const event = forestSceneEvent(number);
+        await forest.locator(`#map-scenes [data-scene-event="${event.id}"] [data-open-event]`).click();
+        assert.equal(await forest.locator('#episode-select').inputValue(), String(number), 'reading a source event keeps the selected episode');
+        if (event.locationId) {
+          assert.equal(await forest.locator('#map-view').isVisible(), true);
+          assert.equal(await forest.locator('.map-marker.selected').getAttribute('data-location'), event.locationId, 'an established event place remains selectable');
+        } else {
+          assert.equal(await forest.locator('#recap-view').isVisible(), true, 'an unpinned event opens its recap');
+          assert.equal(await forest.locator(`#recap-${event.id}`).evaluate(card => card === document.activeElement), true, 'focus moves to the source recap');
+        }
+      }
+      await view(forest, 'map');
+      await episode(forest, 74);
+      await forest.locator('[data-map-extent="island"]').click();
+      for (const id of ['levi', 'zeke']) {
+        await forest.locator(`#map-scenes [data-open-character="${id}"]`).click();
+        assert.equal(await forest.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true);
+        assert.equal(await forest.locator('#character-detail-title').innerText(), at(data.characters.find(character => character.id === id).name, 74).text);
+        assert.equal(await forest.locator('#character-detail-body [data-open-place]').count(), 0, 'a scene portrait keeps the uncertain last-recorded position unpinned');
+        await closeCharacterDetails(forest);
+        await view(forest, 'map');
+      }
+    });
+
+    await test('the forest place panel distinguishes related scene context from a recorded forest position', async () => {
+      const forest = await createPage();
+      for (const number of [68, 72, 73, 74]) {
+        await episode(forest, number);
+        await chooseLocation(forest, 'Forest of Giant Trees', 'giant-forest');
+        const event = forestSceneEvent(number);
+        const related = forest.locator('#location-panel .related-scene');
+        assert.equal(await related.count(), 1, `E${number} has current related context`);
+        const copy = await related.innerText();
+        assert.ok(copy.includes(event.mapScene.name));
+        assert.ok(copy.includes(event.summary), 'the original event summary is available');
+        assert.ok(copy.includes(event.mapScene.geography), 'the relationship to the established forest is explained');
+        assert.equal(await related.locator('[data-open-event]').getAttribute('data-open-event'), event.id);
+        assert.deepEqual((await related.locator('[data-open-character]').evaluateAll(buttons => buttons.map(button => button.dataset.openCharacter))).sort(), sceneParticipants(event, number).sort());
+      }
+      await forest.locator('#location-panel .related-scene [data-open-character="levi"]').click();
+      assert.equal(await forest.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true, 'related-panel portraits also open details');
+      await closeCharacterDetails(forest);
+      await view(forest, 'map');
+      await episode(forest, 69);
+      await chooseLocation(forest, 'Forest of Giant Trees', 'giant-forest');
+      assert.equal(await forest.locator('#location-panel .related-scene').count(), 0, 'an episode without that setting does not retain the previous scene');
+    });
+
+    await test('forest scene strips fit phone and expanded views without covering the map controls', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }, { width: 320, height: 740 }]) {
+        const forest = await createPage(viewport);
+        await episode(forest, 74);
+        for (const expanded of [false, true]) {
+          if (expanded) await forest.locator('#expand-map').click();
+          const card = forest.locator('#map-scenes .map-scene-card');
+          assert.equal(await card.isVisible(), true, 'the current forest scene remains available');
+          const stage = await forest.locator('#map-stage').boundingBox();
+          const box = await card.boundingBox();
+          const scope = await forest.locator(expanded ? '#expanded-map-dialog' : '#map-view').boundingBox();
+          assert.ok(box.x >= scope.x - 1 && box.x + box.width <= scope.x + scope.width + 1
+            && box.y >= scope.y - 1 && box.y + box.height <= scope.y + scope.height + 1, `${viewport.width}px expanded=${expanded}: scene stays inside its view`);
+          assert.equal(overlap({ left: box.x, right: box.x + box.width, top: box.y, bottom: box.y + box.height },
+            { left: stage.x, right: stage.x + stage.width, top: stage.y, bottom: stage.y + stage.height }), false, 'scene content does not cover the map or its controls');
+          const controls = await card.locator('[data-open-character], [data-open-event]').evaluateAll(buttons => buttons.map(button => {
+            const box = button.getBoundingClientRect();
+            return { x: box.x, y: box.y, width: box.width, height: box.height, name: button.textContent.trim(), readable: button.scrollWidth <= button.clientWidth + 1 };
+          }));
+          assert.ok(controls.length >= 3);
+          for (const control of controls) {
+            assert.ok(control.x >= box.x - 1 && control.y >= box.y - 1 && control.x + control.width <= box.x + box.width + 1
+              && control.y + control.height <= box.y + box.height + 1, 'scene controls are inside their card');
+            assert.equal(control.readable, true, 'button labels do not overflow');
+            assert.ok(control.width >= 24 && control.height >= 24, 'portrait and source controls remain reachable');
+          }
+          for (const control of await card.locator('[data-open-character], [data-open-event]').all()) {
+            await control.click({ trial: true });
+          }
+          await assertNoHorizontalOverflow(forest, `${viewport.width}px forest scene expanded=${expanded}`);
+          if (expanded) await forest.locator('#close-expanded-map').click();
+        }
+      }
     });
 
     await test('Liberio pins use episode-known places and explicitly approximate geography', async () => {
