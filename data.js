@@ -1,7 +1,9 @@
-/* Scout Atlas: curated anime milestones through overall episode 87 only.
+/* Scout Atlas: curated anime milestones through episode 87 and both Final Chapters specials.
  * All coordinates and map geometry are schematic, not measured geography.
  * Every episode number here (firstEpisode, positions[].episode, from, revealedAs.episode)
- * is an OVERALL anime episode number. Nothing from an episode after maxEpisode is bundled.
+ * is an OVERALL anime episode number through 87. Values 88/89 order SP1/SP2 within
+ * this atlas; they are not the separately released episodic recuts numbered 88–94.
+ * Nothing from an episode or special after maxEpisode is bundled.
  */
 (() => {
   "use strict";
@@ -20,10 +22,14 @@
     e31: wiki("Warrior_%28Episode%29"),
     e37: "https://www.crunchyroll.com/watch/GR098QNGR/scream",
     e37detail: wiki("Scream_%28Episode%29"),
-    orvud: wiki("Orvud_District")
+    orvud: wiki("Orvud_District"),
+    sp1: wiki("THE_FINAL_CHAPTERS_Special_1"),
+    sp2: wiki("THE_FINAL_CHAPTERS_Special_2"),
+    officialSp1: "https://shingeki.tv/news/archives/7639",
+    officialSp2: "https://shingeki.tv/news/archives/7877"
   };
   // English episode titles through the viewer's ceiling, including episodes without map events.
-  // English titles checked against season episode tables; Season 4 is bounded to episodes 60–87.
+  // English titles checked against season episode tables; SP1/SP2 follow episode 87.
   const episodeTitles = [
     "To You, in 2000 Years: The Fall of Shiganshina, Part 1",
     "That Day: The Fall of Shiganshina, Part 2",
@@ -112,9 +118,12 @@
     "Traitor",
     "Retrospective",
     "The Dawn of Humanity",
+    "The Final Chapters — Special 1",
+    "The Final Chapters — Special 2",
   ].map((title, index) => ({
     number: index + 1, title,
-    sourceUrl: `https://en.wikipedia.org/wiki/Attack_on_Titan_season_${index < 25 ? 1 : index < 37 ? 2 : index < 59 ? 3 : 4}`
+    ...(index >= 87 ? { displayCode: `SP${index - 86}`, special: index - 86 } : {}),
+    sourceUrl: index >= 87 ? sources[`sp${index - 86}`] : `https://en.wikipedia.org/wiki/Attack_on_Titan_season_${index < 25 ? 1 : index < 37 ? 2 : index < 59 ? 3 : 4}`
   }));
   // Resolve only named settings already established by the selected episode. A regional
   // anchor represents the whole island/country; it does not claim a street-level position.
@@ -142,12 +151,16 @@
     71: { area: "island", locationId: "paradis", note: "Focus: Paradis. Headquarters and meeting sites are not assigned exact coordinates." },
     72: { area: "island", locationId: "paradis", note: "Focus: Paradis. The restaurant is unpinned; Ragako is discussed as an earlier event." },
     73: { area: "island", locationId: "paradis", note: "Focus: Paradis. The restaurant, forest detention site and transport route are unpinned." },
-    74: { area: "island", locationId: "paradis", note: "Present-day focus: Paradis. Zeke’s Marley memories are flashbacks; the forest transport road is unpinned." }
+    74: { area: "island", locationId: "paradis", note: "Present-day focus: Paradis. Zeke’s Marley memories are flashbacks; the forest transport road is unpinned." },
+    88: { area: "world", locationId: "marley", note: "Focus: mainland Marley. Odiha, Fort Salta and the flying boat’s route have no verified map coordinates." },
+    89: { area: "world", locationId: "marley", note: "The final battle is near Fort Salta in mainland Marley, whose exact position is unpinned. Later scenes return to Paradis; Paths and the cabin vision are not physical map locations." }
   };
   function chapter(number, shortTitle, description, sourceUrl, events, characterInvolvement) {
+    const catalogEntry = episodeTitles[number - 1];
     return {
-      id: `episode-${number}`, number, title: episodeTitles[number - 1].title, shortTitle, description, sourceUrl,
-      ...(number >= 60 ? { officialSourceUrl: number <= 74 ? `https://shingeki.tv/final/story/#/episode/${number}` : "https://shingeki.tv/final/story/" } : {}),
+      id: `episode-${number}`, number, title: catalogEntry.title, shortTitle, description, sourceUrl,
+      ...(catalogEntry.special ? { displayCode: catalogEntry.displayCode, special: catalogEntry.special } : {}),
+      ...(number >= 60 ? { officialSourceUrl: catalogEntry.special ? sources[`officialSp${catalogEntry.special}`] : number <= 74 ? `https://shingeki.tv/final/story/#/episode/${number}` : "https://shingeki.tv/final/story/" } : {}),
       ...(episodeMapFocus[number] ? { mapFocus: episodeMapFocus[number] } : {}),
       ...(characterInvolvement ? { characterInvolvement } : {}),
       events: events.map((event, index) => {
@@ -162,7 +175,7 @@
     };
   }
   window.ATLAS_DATA = {
-    maxEpisode: 87,
+    maxEpisode: 89,
     episodeTitles,
     mapGeometry: {
       center: { x: 600, y: 405 }, unitsPerKm: 5 / 6,
@@ -186,7 +199,7 @@
       { season: 1, first: 1, last: 25 },
       { season: 2, first: 26, last: 37 },
       { season: 3, first: 38, last: 59 },
-      { season: 4, first: 60 }
+      { season: 4, first: 60, last: 89 }
     ],
     episodes: [
       chapter(1, "Shiganshina", "Start at the southern district of Wall Maria, where Eren, Mikasa, and Armin live.", official(1), [
@@ -590,7 +603,73 @@
         {"title": "The Scouts’ earlier visit", "summary": "A flashback shows the Scouts meeting Ramzi and other refugees in Marley. An advocacy meeting rejects the islanders, and Eren leaves the group.", "people": ["mikasa", "eren", "armin", "hange", "ramzi"], "locationId": null, "placeName": "Marley", "connection": "This visit happened before the Liberio raid; it is being recalled now."},
         {"title": "Eren’s plan before the raid", "summary": "Eren’s memories show him telling Floch his real plan and discussing it with Historia. Zeke rejects the claim that Mikasa is compelled by her ancestry to obey Eren.", "people": ["eren", "floch", "historia", "zeke", "mikasa"], "locationId": null, "placeName": "Earlier conversations"},
         {"title": "The fleet cannot stop the march", "summary": "The Wall Titans destroy the international fleet and reach Marley’s coast, with Eren advancing behind them.", "people": ["eren"], "locationId": null, "placeName": "Marley coast"}
-      ])
+      ]),
+      chapter(88, "The last departure", "The Rumbling devastates the mainland as the alliance prepares its final flight to reach Eren.", sources.sp1, [
+        { locationId: "marley", people: ["eren", "ramzi"], title: "The Rumbling reaches the refugees", summary: "Eren recalls apologizing to Ramzi before the attack. In the present, Ramzi and Halil die as the Wall Titans crush their city.", connection: "The country marker gives regional context without assigning the refugees’ street a precise location. The earlier apology is a flashback, not Eren’s current position." },
+        { locationId: null, placeName: "Odiha", people: ["hange", "armin", "kiyomi", "onyankopon", "yelena", "levi"], title: "Preparing the flying boat", summary: "The group reaches abandoned Odiha to ready the aircraft. Yelena identifies Fort Salta, an airship base in southern Marley, as a likely target.", connection: "Both settings are on the mainland; neither has verified coordinates on this map. Yelena’s forecast is an assessment until the later arrival." },
+        { locationId: null, placeName: "Odiha hangar", people: ["floch", "mikasa", "hange", "armin"], title: "A costly delay and a new commander", summary: "Floch damages the fuel tank before Mikasa kills him. Hange appoints Armin commander, then dies holding back Titans while the others escape." },
+        { locationId: null, placeName: "Hange’s farewell vision", people: ["hange", "erwin", "sasha", "pixis", "keith"], title: "A farewell to fallen Scouts", summary: "After Hange’s sacrifice, a farewell scene shows fallen comrades welcoming them.", connection: "This symbolic scene is not a physical destination or a new position for the deceased characters." },
+        { locationId: null, placeName: "Azumabito ship", people: ["annie", "falco", "gabi", "kiyomi"], title: "A possible way to fly", summary: "Annie remains with Kiyomi’s ship. Falco tells Annie and Gabi about memories of flying, suggesting his Jaw Titan may be able to help.", connection: "The ship’s route is unpinned; the possibility of flight is proposed here and demonstrated in Special 2." },
+        { locationId: null, placeName: "Paths", people: ["eren", "founder-ymir", "armin", "mikasa", "jean", "connie", "reiner", "pieck", "levi"], title: "Eren refuses to stop", summary: "The alliance pleads with Eren in Paths. He refuses compromise while leaving them free to oppose him.", connection: "Paths is not a mainland location and does not relocate the people traveling in the aircraft." },
+        { locationId: null, placeName: "Fort Salta approach", people: ["eren", "armin", "mikasa", "jean", "connie", "reiner", "pieck", "levi", "onyankopon"], title: "The alliance reaches the Founder", summary: "A Marleyan bombing run fails. Onyankopon brings the flying boat over Eren near Fort Salta, and the alliance jumps onto the Founding Titan.", connection: "Fort Salta is established in southern Marley. The fortress, moving Titan and aircraft are not assigned guessed coordinates." }
+      ], {
+        eren: "Continues the Rumbling and refuses the alliance’s plea to stop in Paths.",
+        ramzi: "Appears in Eren’s earlier apology before being killed by the Rumbling.",
+        hange: "Hands command to Armin and sacrifices themself to let the aircraft escape.",
+        armin: "Becomes Survey Corps commander and leads the flight to confront Eren.",
+        kiyomi: "Helps prepare the aircraft and shelters Annie, Falco and Gabi aboard her ship.",
+        onyankopon: "Pilots the flying boat from Odiha to the battle near Fort Salta.",
+        yelena: "Identifies Fort Salta’s airship base as a likely target for Eren.",
+        levi: "Joins the attack despite his injuries, determined to find Zeke.",
+        floch: "Damages the aircraft’s fuel tank before Mikasa kills him.",
+        mikasa: "Stops Floch and joins the attack while still hoping to bring Eren back.",
+        erwin: "Appears among the fallen Scouts welcoming Hange in the farewell scene.",
+        sasha: "Appears among the fallen Scouts in Hange’s farewell scene.",
+        pixis: "Appears among the fallen comrades in Hange’s farewell scene.",
+        keith: "Appears among the fallen comrades in Hange’s farewell scene.",
+        annie: "Stays with the ship before hearing Falco’s idea about flying.",
+        falco: "Recalls memories suggesting that his Jaw Titan could fly.",
+        gabi: "Stays with Falco and Annie aboard Kiyomi’s ship.",
+        "founder-ymir": "Appears beside Eren in Paths as he refuses to stop the Rumbling.",
+        jean: "Joins the alliance’s plea in Paths and the landing on the Founder.",
+        connie: "Reflects on fighting former comrades, then joins the attack on the Founder.",
+        reiner: "Considers whether Eren wants to be stopped and attacks the replica Beast Titan.",
+        pieck: "Joins the attack while ensuring that Gabi and Falco remain with Kiyomi."
+      }),
+      chapter(89, "The final battle and its aftermath", "The alliance fights near Fort Salta, the power of the Titans ends, and the survivors face an uncertain peace.", sources.sp2, [
+        { locationId: null, placeName: "Founding Titan near Fort Salta", people: ["eren", "founder-ymir", "armin", "mikasa", "jean", "connie", "reiner", "pieck", "levi", "onyankopon"], title: "Past Titans defend the Founder", summary: "Onyankopon delivers the alliance before crash-landing. Replicas of earlier Titans overwhelm the fighters; Armin is captured while Pieck places neck explosives.", connection: "The battle takes place on a moving Titan near Fort Salta, not at a fixed city marker." },
+        { locationId: null, placeName: "Fort Salta skies", people: ["falco", "annie", "gabi", "mikasa", "levi", "jean", "connie", "reiner"], title: "Falco brings reinforcements", summary: "Falco arrives in a flying Jaw Titan with Annie and Gabi. They rescue the exhausted fighters and help launch another attempt to free Armin." },
+        { locationId: null, placeName: "Paths", people: ["armin", "zeke", "xaver", "grisha", "kruger", "bertholdt", "ymir", "porco", "marcel"], title: "An opening through Paths", summary: "Armin helps Zeke recognize the value of ordinary moments. Deceased Titan holders assist their friends, allowing Armin’s rescue.", connection: "These appearances in Paths and through Titan replicas do not restore the deceased characters to ordinary life or establish new map positions." },
+        { locationId: null, placeName: "Founding Titan near Fort Salta", people: ["zeke", "levi", "jean", "reiner", "pieck", "armin", "eren"], title: "The Rumbling stops", summary: "Levi kills Zeke, stopping the Wall Titans. Jean detonates the neck explosives; Reiner restrains the emerging creature as Armin transforms." },
+        { locationId: null, placeName: "Fort Salta", people: ["eren", "armin", "mikasa", "levi", "falco", "gabi", "jean", "connie", "reiner", "annie", "pieck"], title: "One last transformation", summary: "Eren returns in a colossal form. The creature’s gas transforms Eldian refugees, including Jean, Connie and Gabi, while the remaining fighters try to stop it." },
+        { locationId: null, placeName: "Cabin vision and final battle", people: ["mikasa", "eren", "levi", "falco", "founder-ymir"], title: "Mikasa makes her choice", summary: "After a shared cabin vision with Eren, Mikasa locates him inside his Titan’s mouth. Levi opens a path, and Mikasa kills Eren.", connection: "The cabin sequence is a vision, not evidence that either character traveled to a mapped mountain cabin." },
+        { locationId: null, placeName: "Paths and Fort Salta aftermath", people: ["eren", "armin", "mikasa", "founder-ymir", "gabi", "falco", "jean", "connie", "reiner", "annie", "pieck", "levi"], title: "The power of the Titans ends", summary: "Armin remembers his earlier conversation with Eren, including the destruction of eighty percent of humanity. Titan powers vanish, transformed people return to human form, and Armin speaks for the survivors.", connection: "Eren’s conversation with Armin happened earlier through Paths; remembering it does not place Eren alive at the aftermath." },
+        { locationId: "paradis", people: ["historia", "armin", "jean", "connie", "reiner", "annie", "pieck"], title: "Three years later", summary: "Paradis strengthens its military under the Yeagerists. Historia protects the survivors’ families while Armin’s group sails toward the island as peace ambassadors.", connection: "Paradis is a regional anchor. The ambassadors are aboard an approaching ship, not already at a verified island landing point." },
+        { locationId: "shiganshina", people: ["mikasa", "eren"], title: "The tree on the hill", summary: "Mikasa visits Eren’s grave near Shiganshina. The closing montage follows later generations, renewed conflict and a boy finding the ancient tree.", connection: "Eren appears here through his grave and Mikasa’s memories. The montage spans a long, unspecified time; it does not establish a future for every named survivor." }
+      ], {
+        eren: "Faces the alliance, dies by Mikasa’s hand, and explains his choices in Armin’s recovered memory.",
+        "founder-ymir": "Directs the past Titan replicas and is released after Mikasa’s choice ends Titan power.",
+        onyankopon: "Delivers the alliance over the Founder, survives the aircraft crash, and reappears in the aftermath.",
+        armin: "Reaches Zeke in Paths, fights Eren, then speaks for the survivors and later seeks peace.",
+        mikasa: "Kills Eren to end the battle and later returns to his grave on Paradis.",
+        jean: "Detonates the Founder’s neck explosives, returns to human form, and later joins the peace mission.",
+        connie: "Helps rescue Armin, survives his temporary transformation, and later joins the peace mission.",
+        reiner: "Holds back the creature, survives the end of Titan power, and later joins the peace mission.",
+        pieck: "Places the neck explosives, keeps fighting, and later becomes a peace ambassador.",
+        levi: "Kills Zeke to stop the Rumbling and opens the way for Mikasa’s final attack.",
+        falco: "Uses his flying Jaw Titan to carry reinforcements and rescue his friends.",
+        annie: "Returns with Falco to rescue Armin, fights the creature, and later joins the peace mission.",
+        gabi: "Helps free Armin with a rifle shot and returns to human form after Titan power ends.",
+        zeke: "Helps Armin awaken past Titan holders and exposes himself so Levi can stop the Rumbling.",
+        xaver: "Appears in Paths and through his former Titan to help the alliance.",
+        grisha: "Appears in Paths and through his former Titan to help the alliance.",
+        kruger: "Appears in Paths and through his former Titan to help the alliance.",
+        bertholdt: "His Colossal Titan assists the alliance after Armin and Zeke connect with past holders.",
+        ymir: "Her former Jaw Titan helps Reiner during the battle on the Founder.",
+        porco: "His former Jaw Titan helps Jean and Pieck against the attacking replicas.",
+        marcel: "His former Jaw Titan joins Porco’s in helping the alliance.",
+        historia: "Protects the survivors’ families and prepares to receive the peace ambassadors on Paradis."
+      })
     ],
     // Held and lost ground, and the state of district gates, as of the viewing episode.
     // target: "belt:maria-rose", "gate:<location id>", or "walls:all" (former wall boundaries).
@@ -662,7 +741,8 @@
         role: [{ from: 1, text: "Shiganshina resident" }, { from: 3, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }, { from: 38, text: "Survey Corps, Levi squad" },
           {"from": 66, "text": "Holds the Attack, Founding and War Hammer Titan powers"},
           {"from": 71, "text": "Leader followed by the Yeagerists"},
-          {"from": 80, "text": "Directs the Rumbling"}
+          {"from": 80, "text": "Directs the Rumbling"},
+          {"from": 89, "text": "Killed in the final battle; the power of the Titans has ended"}
         ],
         notes: [
           { episode: 1, text: "Grew up in Shiganshina and wants to see the world beyond the walls." },
@@ -688,7 +768,9 @@
           {"episode": 78, "text": "Rejects Zeke’s plan in Paths.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"},
           {"episode": 79, "text": "Pushes Grisha to take the Founding Titan through their encounter in the memories.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Memories_of_the_Future_(Episode)"},
           {"episode": 80, "text": "Starts the Rumbling and announces that he intends to destroy life outside Paradis.", "sourceUrl": "https://attackontitan.fandom.com/wiki/From_You%2C_2%2C000_Years_Ago_(Episode)"},
-          {"episode": 87, "text": "The earlier visit to Marley and his private conversations reveal more of his decisions; the Wall Titans reach the mainland.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Dawn_of_Humanity_(Episode)"}
+          {"episode": 87, "text": "The earlier visit to Marley and his private conversations reveal more of his decisions; the Wall Titans reach the mainland.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Dawn_of_Humanity_(Episode)"},
+          {"episode": 88, "text": "Continues the Rumbling, recalls his apology to Ramzi, and refuses his friends’ request to stop.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "Mikasa kills him. Armin recovers their earlier conversation about Eren’s choices and the destruction of eighty percent of humanity.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         positions: [
           { episode: 1, locationId: "shiganshina", note: "Observed in his home district during the attack. This is a recorded observation, not continuous tracking.", sourceUrl: official(1) },
@@ -729,11 +811,19 @@
           {"episode": 75, "locationId": "shiganshina", "note": "At Shiganshina when Pieck draws him into the Marleyan attack.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Above_and_Below_(Episode)"},
           {"episode": 78, "locationId": null, "note": "In Paths after contact with Zeke; this space is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"},
           {"episode": 80, "locationId": null, "note": "Begins the Rumbling; the moving Titan formation has no fixed pin.", "sourceUrl": "https://attackontitan.fandom.com/wiki/From_You%2C_2%2C000_Years_Ago_(Episode)"},
-          {"episode": 87, "locationId": null, "note": "Reaches the mainland with the Wall Titans; this island map does not place that landing.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Dawn_of_Humanity_(Episode)"}
+          {"episode": 87, "locationId": null, "note": "Reaches the mainland with the Wall Titans; this island map does not place that landing.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Dawn_of_Humanity_(Episode)"},
+          {"episode": 88, "locationId": null, "note": "The moving Founding Titan approaches Fort Salta in Marley; neither the fortress nor his route has verified map coordinates.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": null, "note": "Killed in the final battle near Fort Salta. Later scenes show his grave and memories, not a new living position.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: official(1) },
       { id: "mikasa", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Mikasa Ackerman" }],
         faction: [{ from: 1, key: "civilian" }, { from: 3, key: "cadet" }, { from: 16, key: "survey" }],
-        role: [{ from: 1, text: "Lives with Eren’s family" }, { from: 3, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }],
+        role: [{ from: 1, text: "Lives with Eren’s family" }, { from: 3, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" },
+          {"from": 89, "text": "Former Survey Corps soldier; returns to Paradis"}
+        ],
+        positions: [
+          {"episode": 88, "locationId": null, "note": "Aboard the flying boat, then on the Founder near Fort Salta. The flight and battle sites are unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": "shiganshina", "note": "In the three-year epilogue, visits Eren’s grave near her home district. The district is an approximate anchor, not the grave’s exact coordinates.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
+        ],
         notes: [
           { episode: 1, text: "Lives with Eren’s family in Shiganshina and watches out for him." },
           { episode: 22, text: "Pursues the Female Titan with Levi to get Eren back." },
@@ -747,11 +837,20 @@
           {"episode": 69, "text": "Learns that her mother’s family connects her to Hizuru’s ruling clan.", "sourceUrl": "https://attackontitan.fandom.com/wiki/A_Sound_Argument_(Episode)"},
           {"episode": 73, "text": "Hears Eren’s hurtful claims about her loyalty; his account is not independently established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Savagery_(Episode)"},
           {"episode": 83, "text": "Retrieves her scarf and joins the group opposing the Rumbling.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
-          {"episode": 87, "text": "Remembers the Scouts’ first visit to Marley. Zeke’s conversation with Eren contradicts the claimed blood-bound duty to protect him.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Dawn_of_Humanity_(Episode)"}
+          {"episode": 87, "text": "Remembers the Scouts’ first visit to Marley. Zeke’s conversation with Eren contradicts the claimed blood-bound duty to protect him.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Dawn_of_Humanity_(Episode)"},
+          {"episode": 88, "text": "Stops Floch at Odiha and joins the flight to confront Eren.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "Kills Eren with Levi’s help, then takes his remains back to Paradis and visits his grave near Shiganshina.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: official(1) },
       { id: "armin", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Armin Arlert" }],
         faction: [{ from: 1, key: "civilian" }, { from: 3, key: "cadet" }, { from: 16, key: "survey" }],
-        role: [{ from: 1, text: "Eren’s childhood friend" }, { from: 3, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }, { from: 55, text: "Survey Corps, holds the Colossal Titan’s power" }],
+        role: [{ from: 1, text: "Eren’s childhood friend" }, { from: 3, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }, { from: 55, text: "Survey Corps, holds the Colossal Titan’s power" },
+          {"from": 88, "text": "Fifteenth commander of the Survey Corps; holds the Colossal Titan’s power"},
+          {"from": 89, "text": "Former Survey Corps commander; peace ambassador"}
+        ],
+        positions: [
+          {"episode": 88, "locationId": null, "note": "Aboard the flying boat and then on the Founder near Fort Salta; the flight and battle sites are unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": null, "note": "In the three-year epilogue, sails toward Paradis as a peace ambassador. No exact ship position or arrival point is established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
+        ],
         notes: [
           { episode: 1, text: "Eren’s childhood friend in Shiganshina, more thinker than fighter." },
           { episode: 8, text: "Proposes the plan that gets the soldiers to the supply headquarters in Trost." },
@@ -768,11 +867,15 @@
           {"episode": 73, "text": "Challenges Eren over his treatment of Mikasa and is beaten.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Savagery_(Episode)"},
           {"episode": 81, "text": "Helps defend Shiganshina and kills the Titan that Pixis became.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Thaw_(Episode)"},
           {"episode": 83, "text": "Risks his life rescuing Falco from Connie at Ragako.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
-          {"episode": 85, "text": "His effort to take the flying boat peacefully fails; he is shot by a former comrade.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Traitor_(Episode)"}
+          {"episode": 85, "text": "His effort to take the flying boat peacefully fails; he is shot by a former comrade.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Traitor_(Episode)"},
+          {"episode": 88, "text": "Hange appoints him the fifteenth Survey Corps commander before the final departure from Odiha.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "Helps Zeke in Paths, fights Eren and speaks for the survivors. Three years later, travels to Paradis as a peace ambassador.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: official(3) },
       { id: "levi", type: "person", firstEpisode: 14, name: [{ from: 14, text: "Levi" }],
         faction: [{ from: 14, key: "survey" }],
-        role: [{ from: 14, text: "Survey Corps, leads his own squad" }],
+        role: [{ from: 14, text: "Survey Corps, leads his own squad" },
+          {"from": 89, "text": "Former Survey Corps captain; survivor of the final battle"}
+        ],
         notes: [
           { episode: 14, text: "Known as humanity’s strongest soldier." },
           { episode: 22, text: "Frees Eren from the Female Titan." },
@@ -787,7 +890,9 @@
           {"episode": 73, "text": "Kills the transformed soldiers guarding Zeke, then recaptures him.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Savagery_(Episode)"},
           {"episode": 74, "text": "Caught in the blast when Zeke triggers the thunder spear.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sole_Salvation_(Episode)"},
           {"episode": 83, "text": "Joins Hange’s group, severely injured.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
-          {"episode": 86, "text": "Sails from the harbor.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "text": "Sails from the harbor.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "text": "Joins the final attack despite his injuries and intends to find Zeke.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "Kills Zeke to halt the Rumbling and helps Mikasa reach Eren. Survives, later using a wheelchair.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         positions: [
           { episode: 15, locationId: null, note: "At the squad headquarters, whose location is not pinned.", sourceUrl: official(15) },
@@ -811,7 +916,9 @@
           { episode: 73, locationId: null, note: "Takes Zeke away after recapturing him. The forest detention site and transport route are unpinned; this is not assigned to the earlier expedition forest.", sourceUrl: wiki("Savagery_(Episode)") },
           {"episode": 74, "locationId": null, "note": "Caught in the roadside explosion; the exact site is not established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sole_Salvation_(Episode)"},
           {"episode": 83, "locationId": null, "note": "With Hange outside the ruined walls; the meeting place is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
-          {"episode": 86, "locationId": null, "note": "Aboard the departing ship; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "locationId": null, "note": "Aboard the departing ship; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "locationId": null, "note": "Aboard the flying boat, then joins the battle near Fort Salta; neither route nor battle site has verified coordinates.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": null, "note": "Survives the final battle and appears in the later aftermath. The epilogue setting has no verified coordinates on this map.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: official(15) },
       { id: "erwin", type: "person", firstEpisode: 14, name: [{ from: 14, text: "Erwin Smith" }],
         faction: [{ from: 14, key: "survey" }], role: [{ from: 14, text: "Commander of the Survey Corps" }],
@@ -827,7 +934,11 @@
       { id: "hange", type: "person", firstEpisode: 15, name: [{ from: 15, text: "Hange Zoë" }],
         faction: [{ from: 15, key: "survey" }], role: [{ from: 15, text: "Survey Corps squad leader, studies Titans" },
           {"from": 66, "text": "Commander of the Survey Corps"},
-          {"from": 83, "text": "Leads the combined group opposing the Rumbling"}
+          {"from": 83, "text": "Leads the combined group opposing the Rumbling"},
+          {"from": 88, "text": "Fallen Survey Corps commander; succeeded by Armin"}
+        ],
+        positions: [
+          {"episode": 88, "locationId": null, "note": "Dies at Odiha buying time for the aircraft; Odiha’s exact map position is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"}
         ],
         notes: [
           { episode: 15, text: "Studies captured Titans and explains the experiments to Eren." },
@@ -844,10 +955,17 @@
           {"episode": 68, "text": "Earlier cooperation with the Volunteers brought technology to the island.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Brave_Volunteers_(Episode)"},
           {"episode": 69, "text": "Confronts Eren over acting alone.", "sourceUrl": "https://attackontitan.fandom.com/wiki/A_Sound_Argument_(Episode)"},
           {"episode": 83, "text": "Forms a group with surviving Scouts and Marleyan Warriors.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
-          {"episode": 86, "text": "Escapes with the engineers.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "text": "Escapes with the engineers.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "text": "Appoints Armin commander and dies delaying the Wall Titans so the aircraft can leave Odiha.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"}
         ], sourceUrl: official(15) },
       { id: "jean", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Jean Kirstein" }],
-        faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }], role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }],
+        faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }], role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" },
+          {"from": 89, "text": "Former Survey Corps soldier; peace ambassador"}
+        ],
+        positions: [
+          {"episode": 88, "locationId": null, "note": "Joins the battle on the moving Founder near Fort Salta; the site is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": null, "note": "Travels toward Paradis aboard the peace ambassadors’ ship in the three-year epilogue; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
+        ],
         notes: [
           { episode: 8, text: "Leads a group of soldiers to the supply headquarters in Trost." },
           { episode: 41, text: "Levi leaves the captured Military Police officers in his charge." },
@@ -857,10 +975,18 @@
           {"episode": 67, "text": "Stops the other Scouts from throwing Gabi and Falco from the airship.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Assassin's_Bullet_(Episode)"},
           {"episode": 83, "text": "Helps rescue the Volunteers and joins the group.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
           {"episode": 84, "text": "Confronts Reiner over Marco’s death and agrees to oppose the Rumbling.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Night_of_the_End_(Episode)"},
-          {"episode": 86, "text": "Defends the departing ship.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "text": "Defends the departing ship.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "text": "Joins the flight and landing on Eren’s Founding Titan.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "Detonates the Founder’s neck explosives. His temporary Titan transformation is undone, and he later joins the peace mission.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: official(7) },
       { id: "connie", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Connie Springer" }],
-        faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }], role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }],
+        faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }], role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" },
+          {"from": 89, "text": "Former Survey Corps soldier; peace ambassador"}
+        ],
+        positions: [
+          {"episode": 88, "locationId": null, "note": "Joins the battle on the moving Founder near Fort Salta; the site is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": null, "note": "Travels toward Paradis aboard the peace ambassadors’ ship in the three-year epilogue; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
+        ],
         notes: [
           { episode: 28, text: "Finds his home village, Ragako, wrecked, with no bodies." },
           { episode: 29, text: "Ymir takes his knife before she transforms." },
@@ -869,7 +995,9 @@
           {"episode": 67, "text": "Grieves after Sasha is shot.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Assassin's_Bullet_(Episode)"},
           {"episode": 81, "text": "Takes Falco away intending to restore his mother by feeding him to her Titan.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Thaw_(Episode)"},
           {"episode": 83, "text": "Saves Armin at Ragako and spares Falco.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
-          {"episode": 85, "text": "Kills former comrades to keep the flying boat from being destroyed.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Traitor_(Episode)"}
+          {"episode": 85, "text": "Kills former comrades to keep the flying boat from being destroyed.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Traitor_(Episode)"},
+          {"episode": 88, "text": "Joins the alliance’s final flight after reflecting on killing former comrades.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "Helps rescue Armin and returns to human form when Titan power ends; later travels as a peace ambassador.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: official(6) },
       { id: "sasha", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Sasha Blouse" }],
         faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }], role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" },
@@ -899,7 +1027,8 @@
           { episode: 59, text: "Decides the people must be told the truth, and gives medals to the nine surviving Scouts." }
         ,
           {"episode": 69, "text": "Pregnant and living on a farm; earlier talks show her willingness to inherit the Beast Titan, which Eren opposed.", "sourceUrl": "https://attackontitan.fandom.com/wiki/A_Sound_Argument_(Episode)"},
-          {"episode": 87, "text": "An earlier private conversation with Eren reveals that she knew about his intentions and asked about having a child.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Dawn_of_Humanity_(Episode)"}
+          {"episode": 87, "text": "An earlier private conversation with Eren reveals that she knew about his intentions and asked about having a child.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Dawn_of_Humanity_(Episode)"},
+          {"episode": 89, "text": "Remains queen after the Rumbling. Protects the survivors’ families and prepares to receive the peace ambassadors while Paradis strengthens its military.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         positions: [
           { episode: 30, locationId: "utgard", note: "Tells Ymir her real name after the rescue at Utgard.", sourceUrl: sources.s2 },
@@ -908,7 +1037,8 @@
           { episode: 39, locationId: null, note: "Carried off with Eren after the wagon is attacked.", sourceUrl: sources.s3 },
           { episode: 43, locationId: "reiss-chapel", note: "Stands with Rod beneath the chapel.", sourceUrl: sources.s3 },
           { episode: 47, locationId: "orvud", note: "Brings down Rod’s Titan and declares herself the true ruler.", sourceUrl: sources.s3 },
-          { episode: 48, locationId: null, note: "On a farm this map does not place.", sourceUrl: sources.s3 }
+          { episode: 48, locationId: null, note: "On a farm this map does not place.", sourceUrl: sources.s3 },
+          {"episode": 89, "locationId": "paradis", "note": "In the three-year epilogue, remains queen on Paradis. This country-level record does not establish a precise meeting site.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: sources.s2 },
       { id: "ymir", type: "person", firstEpisode: 16, name: [{ from: 16, text: "Ymir" }],
         faction: [{ from: 16, key: "survey" }, { from: 29, key: "shifter" }],
@@ -920,11 +1050,18 @@
           { episode: 29, text: "Takes Connie’s knife, jumps from Utgard’s tower and transforms into a Titan." },
           { episode: 37, text: "Chooses to leave with Reiner and Bertholdt." }
         ,
-          {"episode": 61, "text": "Porco has inherited the Jaw Titan power she previously held and can see some of her memories.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Midnight_Train_(Episode)"}
+          {"episode": 61, "text": "Porco has inherited the Jaw Titan power she previously held and can see some of her memories.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Midnight_Train_(Episode)"},
+          {"episode": 89, "text": "Her former Jaw Titan helps Reiner during the final battle; this does not restore her to ordinary life.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: sources.e29 },
       { id: "reiner", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Reiner Braun" }],
         faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }, { from: 31, key: "shifter" }],
-        role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }, { from: 31, text: "The Armored Titan" }],
+        role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }, { from: 31, text: "The Armored Titan" },
+          {"from": 89, "text": "Former Armored Titan holder; peace ambassador"}
+        ],
+        positions: [
+          {"episode": 88, "locationId": null, "note": "Joins the attack on the Founder near Fort Salta; neither the moving Titan nor fortress has verified coordinates.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": null, "note": "Travels toward Paradis with the peace ambassadors in the three-year epilogue; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
+        ],
         notes: [
           { episode: 4, text: "A dependable leader among the cadets." },
           { episode: 31, text: "Reveals that he is the Armored Titan." },
@@ -939,7 +1076,9 @@
           {"episode": 64, "text": "Faces Eren in Liberio and acknowledges his own part in the attack on the walls.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Declaration_of_War_(Episode)"},
           {"episode": 75, "text": "Returns to Shiganshina with the Marleyan assault.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Above_and_Below_(Episode)"},
           {"episode": 84, "text": "Agrees to work with former enemies to stop the Rumbling.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Night_of_the_End_(Episode)"},
-          {"episode": 86, "text": "Protects the departing ship.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "text": "Protects the departing ship.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "text": "Boards the flying boat and attacks the replica Beast Titan on the Founder.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "Restrains the creature while his allies fight Eren. Loses Titan power and later joins the peace mission.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: sources.e31 },
       { id: "bertholdt", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Bertholdt Hoover" }],
         faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }, { from: 31, key: "shifter" }],
@@ -950,13 +1089,19 @@
           { episode: 49, text: "Stands guard on Wall Maria with Reiner." },
           { episode: 52, text: "Remembers leaving Marco to be eaten in Trost; drops into Shiganshina and becomes the Colossal Titan." },
           { episode: 54, text: "Eren tears him out of the Colossal Titan." },
-          { episode: 55, text: "Eaten by Armin’s Titan." }
+          { episode: 55, text: "Eaten by Armin’s Titan." },
+          {"episode": 89, "text": "His former Colossal Titan helps the alliance rescue Armin. This does not restore Bertholdt to ordinary life.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: sources.e31 },
       { id: "annie", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Annie Leonhart" }],
         faction: [{ from: 4, key: "cadet" }, { from: 23, key: "mp" }, { from: 24, key: "shifter" }],
         role: [{ from: 4, text: "104th Training Corps" }, { from: 23, text: "Military Police, Stohess" }, { from: 24, text: "The Female Titan" },
           {"from": 82, "text": "Free from her crystal"},
-          {"from": 83, "text": "With the group opposing the Rumbling"}
+          {"from": 83, "text": "With the group opposing the Rumbling"},
+          {"from": 89, "text": "Former Female Titan holder; peace ambassador"}
+        ],
+        positions: [
+          {"episode": 88, "locationId": null, "note": "Leaves Odiha aboard Kiyomi’s ship rather than the flying boat; the sea route is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": null, "note": "Travels toward Paradis with the peace ambassadors in the three-year epilogue; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         notes: [
           { episode: 4, text: "A cadet with outstanding hand-to-hand skill." },
@@ -967,7 +1112,9 @@
           {"episode": 82, "text": "The hardening has undone and she leaves with Hitch, hoping to reach her father.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sunset_(Episode)"},
           {"episode": 83, "text": "Joins Armin’s group at Shiganshina.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
           {"episode": 85, "text": "Uses her Female Titan to defend the engineers.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Traitor_(Episode)"},
-          {"episode": 86, "text": "Cannot reach Liberio before the Rumbling.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "text": "Cannot reach Liberio before the Rumbling.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "text": "Initially stays aboard Kiyomi’s ship, then learns of Falco’s idea that his Titan could fly.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "Returns with Falco and Gabi to help rescue Armin. Loses Titan power, reunites with her father and later joins the peace mission.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: sources.s2 },
       { id: "hannes", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Hannes" }],
         faction: [{ from: 1, key: "garrison" }], role: [{ from: 1, text: "Garrison" }],
@@ -1040,7 +1187,8 @@
           { episode: 58, text: "Kruger sends him behind the walls to take the Founding Titan from the royal family, then has him injected." },
           { episode: 59, text: "Eren sees him confronting the royal family." }
         ,
-          {"episode": 79, "text": "His memories show Eren pressuring him to attack the Reiss family; afterward he apologises to Zeke and asks him to stop Eren.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Memories_of_the_Future_(Episode)"}
+          {"episode": 79, "text": "His memories show Eren pressuring him to attack the Reiss family; afterward he apologises to Zeke and asks him to stop Eren.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Memories_of_the_Future_(Episode)"},
+          {"episode": 89, "text": "Appears in Paths; his former Attack Titan helps the alliance in the final battle.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: sources.s3 },
       { id: "dina", type: "person", firstEpisode: 57, name: [{ from: 57, text: "Dina Fritz" }],
         faction: [{ from: 57, key: "crown" }], role: [{ from: 57, text: "Grisha’s first wife, of royal blood" }],
@@ -1056,10 +1204,12 @@
         ], role: [{ from: 57, text: "Grisha and Dina’s son" },
           {"from": 60, "text": "The Beast Titan; Marleyan Warrior leader"},
           {"from": 67, "text": "Working with Eren’s side"},
-          {"from": 74, "text": "Seeks to end all further Eldian births"}
+          {"from": 74, "text": "Seeks to end all further Eldian births"},
+          {"from": 89, "text": "Killed in the final battle; former Beast Titan holder"}
         ],
         positions: [
-          {"episode": 74, "locationId": null, "note": "Transported by Levi on a forest road on Paradis; triggers the Thunder Spear. The exact road is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sole_Salvation_(Episode)"}
+          {"episode": 74, "locationId": null, "note": "Transported by Levi on a forest road on Paradis; triggers the Thunder Spear. The exact road is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sole_Salvation_(Episode)"},
+          {"episode": 89, "locationId": null, "note": "Appears in Paths and then exposes himself on the Founder near Fort Salta before Levi kills him. The physical battle site is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         notes: [{ episode: 57, text: "Raised to infiltrate the Marleyan army, he turns his parents in instead." },
           {"episode": 60, "text": "Commands the Titan assault at Fort Slava.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"},
@@ -1068,13 +1218,15 @@
           {"episode": 74, "text": "His childhood with Xaver explains the plan to prevent further Eldian births; he triggers the thunder spear beside Levi.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sole_Salvation_(Episode)"},
           {"episode": 78, "text": "His scream transforms Falco and the wine drinkers; contact with Eren opens Paths.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"},
           {"episode": 79, "text": "Learns that Grisha did not raise Eren as he expected and receives his father’s apology.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Memories_of_the_Future_(Episode)"},
-          {"episode": 80, "text": "His attempt to command Founder Ymir fails when she chooses to support Eren.", "sourceUrl": "https://attackontitan.fandom.com/wiki/From_You%2C_2%2C000_Years_Ago_(Episode)"}
+          {"episode": 80, "text": "His attempt to command Founder Ymir fails when she chooses to support Eren.", "sourceUrl": "https://attackontitan.fandom.com/wiki/From_You%2C_2%2C000_Years_Ago_(Episode)"},
+          {"episode": 89, "text": "Armin helps him value ordinary moments in Paths. Awakens past Titan holders, then exposes himself; Levi kills him and the Rumbling stops.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: sources.s3summary },
       { id: "kruger", type: "person", firstEpisode: 57, name: [{ from: 57, text: "Kruger" }, { from: 58, text: "Eren Kruger" }],
         faction: [{ from: 57, key: "shifter" }], role: [{ from: 57, text: "Marleyan officer, secretly the Owl" }],
         notes: [
           { episode: 57, text: "Catches young Grisha outside Liberio; years later reveals he is the Owl and a Titan shifter." },
-          { episode: 58, text: "Tells Grisha a Titan power leaves thirteen years to live, and sends him to take the Founding Titan." }
+          { episode: 58, text: "Tells Grisha a Titan power leaves thirteen years to live, and sends him to take the Founding Titan." },
+          {"episode": 89, "text": "Appears in Paths; his former Attack Titan helps the alliance in the final battle.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: sources.s3summary },
       { id: "carla", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Carla Yeager" }],
         faction: [{ from: 1, key: "civilian" }], role: [{ from: 1, text: "Eren’s mother" }],
@@ -1193,32 +1345,42 @@
           {"episode": 76, "locationId": "shiganshina", "note": "Released members help defend Shiganshina against the Marleyan assault.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Judgment_(Episode)"},
           {"episode": 83, "locationId": "shiganshina", "note": "The departing group gathers after the Ragako rescue.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
           {"episode": 84, "locationId": null, "note": "The combined group camps at a location not identified by this map.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Night_of_the_End_(Episode)"},
-          {"episode": 86, "locationId": null, "note": "Leaves the harbor by ship; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "locationId": null, "note": "Leaves the harbor by ship; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "locationId": null, "note": "The surviving alliance departs Odiha by aircraft; it is not the entire regiment or a fixed map position.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": null, "note": "The former Scouts take separate paths after the final battle. There is no single current position for the group.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: sources.e16 },
       { id: "gabi", type: "person", firstEpisode: 60,
         name: [{"from": 60, "text": "Gabi Braun"}],
         faction: [{"from": 60, "key": "marley"}],
-        role: [{"from": 60, "text": "Marleyan Warrior candidate"}],
+        role: [{"from": 60, "text": "Marleyan Warrior candidate"},
+          {"from": 89, "text": "Former Warrior candidate; survivor of the final battle"}
+        ],
         notes: [
           {"episode": 60, "text": "Destroys the armored train at Fort Slava; wants to inherit the Armored Titan.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"},
           {"episode": 67, "text": "Boards the Scouts’ airship with Falco and shoots Sasha.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Assassin's_Bullet_(Episode)"},
           {"episode": 70, "text": "Escapes custody with Falco and finds shelter with Sasha’s family.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Deceiver"},
           {"episode": 78, "text": "Shoots Eren before he reaches Zeke.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"},
           {"episode": 81, "text": "Protects Kaya from a Titan, helping them set aside their hostility.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Thaw_(Episode)"},
-          {"episode": 86, "text": "Shoots Floch during the escape.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "text": "Shoots Floch during the escape.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "text": "Remains with Falco and Annie aboard Kiyomi’s ship.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "Helps free Armin with her rifle. Briefly becomes a Titan near Fort Salta, then returns to human form and survives.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea",
         positions: [
           {"episode": 73, "locationId": "shiganshina", "note": "Brought to Shiganshina with the restaurant captives.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Savagery_(Episode)"},
           {"episode": 83, "locationId": "shiganshina", "note": "Regroups at Shiganshina, then departs with Falco, Armin and Connie.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
           {"episode": 84, "locationId": null, "note": "Travelling with the combined group; their camp has no established coordinates on this map.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Night_of_the_End_(Episode)"},
-          {"episode": 86, "locationId": null, "note": "Departs by ship; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "locationId": null, "note": "Departs by ship; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "locationId": null, "note": "Aboard Kiyomi’s ship with Falco and Annie; the sea route is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": null, "note": "Survives the battle near Fort Salta and appears in the later aftermath; no exact epilogue location is established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ]
       },
       { id: "falco", type: "person", firstEpisode: 60,
         name: [{"from": 60, "text": "Falco Grice"}],
         faction: [{"from": 60, "key": "marley"}, {"from": 78, "key": "shifter"}],
-        role: [{"from": 60, "text": "Marleyan Warrior candidate"}, {"from": 78, "text": "Holds the Jaw Titan’s power"}],
+        role: [{"from": 60, "text": "Marleyan Warrior candidate"}, {"from": 78, "text": "Holds the Jaw Titan’s power"},
+          {"from": 89, "text": "Former Jaw Titan holder; survivor of the final battle"}
+        ],
         notes: [
           {"episode": 60, "text": "Fights at Fort Slava and tries to protect Gabi.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"},
           {"episode": 63, "text": "Carries letters for the wounded soldier, then brings Reiner to meet him.", "sourceUrl": "https://attackontitan.fandom.com/wiki/From_One_Hand_to_Another_(Episode)"},
@@ -1226,7 +1388,9 @@
           {"episode": 72, "text": "Protects Gabi from Niccolo’s attack and swallows some of the tainted wine.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Children_of_the_Forest_(Episode)"},
           {"episode": 78, "text": "Becomes a Titan, eats Porco and inherits the Jaw.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"},
           {"episode": 83, "text": "Connie spares him at Ragako.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
-          {"episode": 86, "text": "Loses control; Magath extracts him.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "text": "Loses control; Magath extracts him.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "text": "Recalls memories suggesting that his Jaw Titan could fly.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "His winged Jaw Titan carries Annie and Gabi to the battle and rescues their friends. Loses Titan power when the battle ends.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea",
         positions: [
@@ -1234,7 +1398,9 @@
           {"episode": 82, "locationId": null, "note": "Carried toward Ragako by Connie; the journey is not continuously tracked.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sunset_(Episode)"},
           {"episode": 83, "locationId": "shiganshina", "note": "Regroups at Shiganshina after Ragako, then leaves with the combined group.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
           {"episode": 84, "locationId": null, "note": "Travelling with the combined group; their camp is not placed on this map.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Night_of_the_End_(Episode)"},
-          {"episode": 86, "locationId": null, "note": "Aboard the departing ship; unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "locationId": null, "note": "Aboard the departing ship; unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "locationId": null, "note": "Aboard Kiyomi’s ship after the Odiha departure; the sea route is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": null, "note": "Survives the battle near Fort Salta and appears in the later aftermath; no exact epilogue location is established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ]
       },
       { id: "colt", type: "person", firstEpisode: 60,
@@ -1285,19 +1451,25 @@
       { id: "pieck", type: "person", firstEpisode: 61,
         name: [{"from": 61, "text": "Pieck"}],
         faction: [{"from": 61, "key": "shifter"}],
-        role: [{"from": 61, "text": "Marleyan Warrior; the Cart Titan"}],
+        role: [{"from": 61, "text": "Marleyan Warrior; the Cart Titan"},
+          {"from": 89, "text": "Former Cart Titan holder; peace ambassador"}
+        ],
         notes: [
           {"episode": 61, "text": "Appears in human form after spending months in her Titan body.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Midnight_Train_(Episode)"},
           {"episode": 67, "text": "Recognises the disguised soldier who trapped her as Yelena.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Assassin's_Bullet_(Episode)"},
           {"episode": 75, "text": "Pretends to join Eren to draw him into Marley’s ambush.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Above_and_Below_(Episode)"},
           {"episode": 84, "text": "Joins the combined group seeking to stop the Rumbling.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Night_of_the_End_(Episode)"},
-          {"episode": 86, "text": "Defends the departing group.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "text": "Defends the departing group.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "text": "Joins the attack while entrusting Gabi and Falco to Kiyomi.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "Places explosives around the Founder’s neck and repeatedly transforms to keep fighting. Loses Titan power and later becomes a peace ambassador.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/Midnight_Train_(Episode)",
         positions: [
           {"episode": 75, "locationId": "shiganshina", "note": "Confronts Eren and signals the Marleyan attack.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Above_and_Below_(Episode)"},
           {"episode": 83, "locationId": null, "note": "Meets the Scouts outside the ruined wall; exact site unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
-          {"episode": 86, "locationId": null, "note": "Departs by ship from an unpinned harbor.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "locationId": null, "note": "Departs by ship from an unpinned harbor.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "locationId": null, "note": "Joins the battle on the moving Founder near Fort Salta; the site is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": null, "note": "Travels toward Paradis with the peace ambassadors in the three-year epilogue; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ]
       },
       { id: "porco", type: "person", firstEpisode: 61,
@@ -1307,7 +1479,8 @@
         notes: [
           {"episode": 61, "text": "Has inherited the Jaw Titan that Ymir previously held; blames Reiner for his brother’s death.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Midnight_Train_(Episode)"},
           {"episode": 66, "text": "Eren uses his Titan’s jaws to break the War Hammer holder’s crystal.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Assault_(Episode)"},
-          {"episode": 78, "text": "Offers himself to Falco’s Titan after being severely injured.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"}
+          {"episode": 78, "text": "Offers himself to Falco’s Titan after being severely injured.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"},
+          {"episode": 89, "text": "His former Jaw Titan helps the alliance on the Founder; Porco remains deceased.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/Midnight_Train_(Episode)"
       },
@@ -1336,12 +1509,16 @@
         name: [{"from": 64, "text": "Kiyomi Azumabito"}],
         faction: [{"from": 64, "key": "civilian"}],
         role: [{"from": 64, "text": "Diplomat from Hizuru"}, {"from": 69, "text": "Hizuru’s envoy to Paradis"}],
+        positions: [
+          {"episode": 88, "locationId": null, "note": "Leaves Odiha by ship with Annie, Gabi and Falco; no exact sea route is established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"}
+        ],
         notes: [
           {"episode": 64, "text": "Greets Willy backstage before his presentation.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Declaration_of_War_(Episode)"},
           {"episode": 69, "text": "Offers an alliance with Paradis; recognises Mikasa’s connection to Hizuru’s ruling family.", "sourceUrl": "https://attackontitan.fandom.com/wiki/A_Sound_Argument_(Episode)"},
           {"episode": 70, "text": "Returns with engineers and a flying boat powered by the island’s resources.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Deceiver"},
           {"episode": 85, "text": "Resists Floch and helps keep the engineers alive.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Traitor_(Episode)"},
-          {"episode": 86, "text": "Suggests Odiha for aircraft preparations.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "text": "Suggests Odiha for aircraft preparations.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "text": "Her engineers prepare the flying boat at Odiha. She takes Annie, Gabi and Falco aboard her ship.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"}
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/Declaration_of_War_(Episode)"
       },
@@ -1349,13 +1526,17 @@
         name: [{"from": 67, "text": "Yelena"}],
         faction: [{"from": 67, "key": "marley"}, {"from": 68, "key": "volunteer"}],
         role: [{"from": 67, "text": "Soldier identified by Pieck"}, {"from": 68, "text": "Anti-Marleyan Volunteer"}],
+        positions: [
+          {"episode": 88, "locationId": null, "note": "Aboard the ship at Odiha when questioned. The harbor’s exact position is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"}
+        ],
         notes: [
           {"episode": 67, "text": "Identified as the disguised soldier who trapped the Warriors during the Liberio operation.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Assassin's_Bullet_(Episode)"},
           {"episode": 68, "text": "The earlier arrival of her group explains how Paradis obtained military knowledge and new technology.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Brave_Volunteers_(Episode)"},
           {"episode": 71, "text": "Admits to a secret meeting with Eren before his departure for Marley.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Guides_(Episode)"},
           {"episode": 75, "text": "Explains Zeke’s plan to prevent any further births among the Subjects of Ymir.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Above_and_Below_(Episode)"},
           {"episode": 84, "text": "Magath and Pieck expose her claim to come from a conquered nation as false.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Night_of_the_End_(Episode)"},
-          {"episode": 86, "text": "Sails with the group.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "text": "Sails with the group.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "text": "Identifies Fort Salta’s airship research base as a likely target and again argues for Zeke’s plan.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"}
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/Assassin's_Bullet_(Episode)"
       },
@@ -1363,11 +1544,17 @@
         name: [{"from": 68, "text": "Onyankopon"}],
         faction: [{"from": 68, "key": "volunteer"}],
         role: [{"from": 68, "text": "Anti-Marleyan Volunteer"}],
+        positions: [
+          {"episode": 88, "locationId": null, "note": "Pilots the flying boat toward Fort Salta; its route is not mapped.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "locationId": null, "note": "Survives the aircraft crash and appears in the later aftermath. Neither exact setting is pinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
+        ],
         notes: [
           {"episode": 68, "text": "Helps the islanders understand technology and the wider world.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Brave_Volunteers_(Episode)"},
           {"episode": 76, "text": "Releases the imprisoned Scouts so they can defend Shiganshina.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Judgment_(Episode)"},
           {"episode": 83, "text": "Opposes the Rumbling; Jean helps rescue him from execution.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Pride_(Episode)"},
-          {"episode": 86, "text": "Departs by ship.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "text": "Departs by ship.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "text": "Pilots the flying boat from Odiha to the Founding Titan near Fort Salta.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "Brings the alliance over the Founder, survives the crash, and appears again in the later aftermath.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/Brave_Volunteers_(Episode)"
       },
@@ -1385,13 +1572,19 @@
       { id: "floch", type: "person", firstEpisode: 49,
         name: [{"from": 49, "text": "Floch"}],
         faction: [{"from": 49, "key": "survey"}, {"from": 71, "key": "yeagerist"}],
-        role: [{"from": 49, "text": "Survey Corps recruit"}, {"from": 71, "text": "Leader among Eren’s supporters"}],
+        role: [{"from": 49, "text": "Survey Corps recruit"}, {"from": 71, "text": "Leader among Eren’s supporters"},
+          {"from": 88, "text": "Killed at Odiha while trying to stop the alliance"}
+        ],
+        positions: [
+          {"episode": 88, "locationId": null, "note": "Killed in the Odiha hangar, whose exact map position is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"}
+        ],
         notes: [
           {"episode": 55, "text": "Brings the wounded Erwin to the survivors and argues that he should receive the Titan drug.", "sourceUrl": "https://shingeki.tv/season3/story/"},
           {"episode": 71, "text": "Meets Eren after his escape and leads supporters seeking control of the military.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Guides_(Episode)"},
           {"episode": 73, "text": "Forces the training cadets to beat Keith and join his cause.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Savagery_(Episode)"},
           {"episode": 82, "text": "Threatens the Volunteers with submission or death.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sunset_(Episode)"},
-          {"episode": 86, "text": "Shot by Gabi; falls into the sea, fate unconfirmed.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"}
+          {"episode": 86, "text": "Shot by Gabi; falls into the sea, fate unconfirmed.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Retrospective_(Episode)"},
+          {"episode": 88, "text": "Survived the harbor escape by holding onto the ship. Damages the aircraft’s fuel tank at Odiha before Mikasa kills him.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"}
         ],
         sourceUrl: "https://shingeki.tv/season3/story/"
       },
@@ -1423,17 +1616,22 @@
         faction: [{"from": 74, "key": "shifter"}],
         role: [{"from": 74, "text": "Earlier holder of the Beast Titan"}],
         notes: [
-          {"episode": 74, "text": "Befriends young Zeke and researches Titan abilities. Their discussions lead to Zeke’s plan to end Eldian births.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sole_Salvation_(Episode)"}
+          {"episode": 74, "text": "Befriends young Zeke and researches Titan abilities. Their discussions lead to Zeke’s plan to end Eldian births.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sole_Salvation_(Episode)"},
+          {"episode": 89, "text": "Appears in Paths; his former Titan helps the alliance after Armin and Zeke connect with the deceased holders.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/Sole_Salvation_(Episode)"
       },
       { id: "founder-ymir", type: "person", firstEpisode: 78,
         name: [{"from": 78, "text": "Founder Ymir"}],
         faction: [{"from": 78, "key": "civilian"}],
-        role: [{"from": 78, "text": "The girl encountered in the Paths"}, {"from": 80, "text": "Origin of the Titans; no longer following Zeke’s command"}],
+        role: [{"from": 78, "text": "The girl encountered in the Paths"}, {"from": 80, "text": "Origin of the Titans; no longer following Zeke’s command"},
+          {"from": 89, "text": "Released from Paths; the power of the Titans has ended"}
+        ],
         notes: [
           {"episode": 78, "text": "In Paths, Zeke claims she obeys royal blood.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"},
-          {"episode": 80, "text": "Her memories reveal the origin of Titan power and the slavery imposed by King Fritz. Eren asks her to choose for herself.", "sourceUrl": "https://attackontitan.fandom.com/wiki/From_You%2C_2%2C000_Years_Ago_(Episode)"}
+          {"episode": 80, "text": "Her memories reveal the origin of Titan power and the slavery imposed by King Fritz. Eren asks her to choose for herself.", "sourceUrl": "https://attackontitan.fandom.com/wiki/From_You%2C_2%2C000_Years_Ago_(Episode)"},
+          {"episode": 88, "text": "Appears beside Eren in Paths when he refuses the alliance’s plea.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
+          {"episode": 89, "text": "Directs replicas of past Titans. Mikasa’s choice releases her and brings the power of the Titans to an end.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"
       },
@@ -1443,16 +1641,23 @@
         role: [{"from": 62, "text": "Earlier Warrior; Porco’s brother"}],
         notes: [
           {"episode": 62, "text": "Reiner’s memories identify the Warrior eaten by Ymir before the original mission reached the walls.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Door_of_Hope_(Episode)"},
-          {"episode": 78, "text": "Porco recalls Marcel influencing Reiner’s selection as the Armored Titan.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"}
+          {"episode": 78, "text": "Porco recalls Marcel influencing Reiner’s selection as the Armored Titan.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"},
+          {"episode": 89, "text": "His former Jaw Titan assists the alliance alongside Porco’s; Marcel remains deceased.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/The_Door_of_Hope_(Episode)"
       },
       { id: "ramzi", type: "person", firstEpisode: 87,
         name: [{"from": 87, "text": "Ramzi"}],
         faction: [{"from": 87, "key": "civilian"}],
-        role: [{"from": 87, "text": "Young refugee on the Marleyan mainland"}],
+        role: [{"from": 87, "text": "Young refugee on the Marleyan mainland"},
+          {"from": 88, "text": "Young refugee killed by the Rumbling"}
+        ],
+        positions: [
+          {"episode": 88, "locationId": null, "note": "Killed by the Rumbling on the mainland. This records his fate, not a living character position.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"}
+        ],
         notes: [
-          {"episode": 87, "text": "The Scouts protect him in Marley, then visit his refugee family.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Dawn_of_Humanity_(Episode)"}
+          {"episode": 87, "text": "The Scouts protect him in Marley, then visit his refugee family.", "sourceUrl": "https://attackontitan.fandom.com/wiki/The_Dawn_of_Humanity_(Episode)"},
+          {"episode": 88, "text": "Appears in Eren’s earlier apology. He and Halil are killed by the Rumbling.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"}
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/The_Dawn_of_Humanity_(Episode)"
       },

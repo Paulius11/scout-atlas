@@ -11,13 +11,21 @@
   const MAX_EPISODE = Math.max(1, Math.trunc(Number(data.maxEpisode)) || 1);
   const episodeNumber = value => Math.min(MAX_EPISODE, Math.max(1, Math.trunc(Number(value)) || 1));
   const isMapStyle = value => value === 'parchment' || value === 'night';
-  const episodeTitles = new Map((data.episodeTitles || data.episodes).map(episode => [episode.number, episode.title]));
-  const titleOfEpisode = number => episodeTitles.get(number) || `Episode ${number}`;
+  const episodeCatalog = new Map((data.episodeTitles || data.episodes).map(episode => [episode.number, episode]));
+  const titleOfEpisode = number => episodeCatalog.get(number)?.title || `Episode ${number}`;
+  const episodeCode = number => episodeCatalog.get(number)?.displayCode || `E${pad(number)}`;
+  const episodeLabel = number => episodeCatalog.get(number)?.special
+    ? `Special ${episodeCatalog.get(number).special}` : `Episode ${number}`;
 
   // Versioned fields: the entry with the latest `from` at or before the episode wins.
   const at = (list, episode) => (list || []).reduce((found, item) => (item.from <= episode && (!found || item.from >= found.from) ? item : found), null);
   const seasonOf = number => data.seasons.filter(season => season.first <= number).sort((a, b) => b.first - a.first)[0];
-  const seasonText = number => { const season = seasonOf(number); return season ? `Season ${season.season}, episode ${number - season.first + 1}` : `Episode ${number}`; };
+  const seasonText = number => {
+    const special = episodeCatalog.get(number)?.special;
+    if (special) return `Final Season, Special ${special}`;
+    const season = seasonOf(number);
+    return season ? `Season ${season.season}, episode ${number - season.first + 1}` : `Episode ${number}`;
+  };
 
   /* ---------- Storage ---------- */
   let unreadableCopy = null;
@@ -112,7 +120,7 @@
     const scene = event.mapScene;
     const individuals = (event.people || []).filter(id => getCharacter(id)?.type !== 'group');
     return `<article class="${panel ? 'related-scene' : 'map-scene-card'}" data-scene-event="${escapeHTML(event.id)}">
-      <p class="scene-kicker">This episode · E${event.episode}</p><h3>${escapeHTML(scene.name)}</h3>
+      <p class="scene-kicker">This episode · ${episodeCode(event.episode)}</p><h3>${escapeHTML(scene.name)}</h3>
       ${panel ? `<p class="scene-summary">${escapeHTML(event.summary)}</p>` : ''}
       ${peopleList(individuals, { compact: true })}
       <p class="scene-geography">${escapeHTML(scene.geography)}</p>
@@ -153,7 +161,7 @@
     const panel = $('#episode-changes-panel');
     panel.hidden = !state.changesOnly;
     $('#show-changes').setAttribute('aria-pressed', String(state.changesOnly));
-    panel.innerHTML = `<header><strong>Episode ${state.viewing}</strong><span role="status">${changes.length} recorded ${changes.length === 1 ? 'change' : 'changes'}</span></header><div class="change-list">${changes.length ? changes.map(change => {
+    panel.innerHTML = `<header><strong>${episodeLabel(state.viewing)}</strong><span role="status">${changes.length} recorded ${changes.length === 1 ? 'change' : 'changes'}</span></header><div class="change-list">${changes.length ? changes.map(change => {
       const place = getLocation(change.locationId);
       const copy = `<strong>${escapeHTML(change.title)}</strong><small>${place || change.placeName ? `${escapeHTML(place?.name || change.placeName)} · ` : ''}${escapeHTML(change.summary)}</small>`;
       return place ? `<button data-change-place="${escapeHTML(place.id)}"${change.type === 'Event' ? ` data-change-event="${escapeHTML(change.id)}"` : ''}>${copy}</button>` : `<div class="change-unpinned">${copy}<span>${change.type === 'Event' ? 'Not pinned on the map' : 'Territory'}</span></div>`;
@@ -233,30 +241,30 @@
   }
   const milestones = () => data.episodes.map(episode => episode.number).filter(number => number <= state.cutoff);
   function updateHeader() {
-    $('#about-ceiling').textContent = `Its story content ends at episode ${MAX_EPISODE} (${seasonText(MAX_EPISODE).toLowerCase()}).`;
-    $('#edition-hint').textContent = `Leave the limit at ${MAX_EPISODE} to browse every episode included in this atlas.`;
+    $('#about-ceiling').textContent = `Its story content ends at ${episodeLabel(MAX_EPISODE).toLowerCase()} (${seasonText(MAX_EPISODE).toLowerCase()}).`;
+    $('#edition-hint').textContent = `Leave the limit at ${MAX_EPISODE} (${episodeCode(MAX_EPISODE)}) to browse every episode included in this atlas.`;
     $('#cutoff-input').max = String(MAX_EPISODE);
     const groups = data.seasons.filter(season => season.first <= state.cutoff).map(season => {
       const last = Math.min(state.cutoff, season.last ?? state.cutoff);
       const options = [];
       for (let number = season.first; number <= last; number += 1) {
-        options.push(`<option value="${number}" ${number === state.viewing ? 'selected' : ''}>E${pad(number)}  ${escapeHTML(titleOfEpisode(number))}</option>`);
+        options.push(`<option value="${number}" ${number === state.viewing ? 'selected' : ''}>${episodeCode(number)}  ${escapeHTML(titleOfEpisode(number))}</option>`);
       }
       return `<optgroup label="Season ${season.season}">${options.join('')}</optgroup>`;
     });
     $('#episode-select').innerHTML = groups.join('');
     $('#episode-select').title = titleOfEpisode(state.viewing);
-    $('#expanded-map-episode').textContent = `Episode ${state.viewing} · ${titleOfEpisode(state.viewing)}`;
-    $('#expanded-gallery-episode').textContent = `Episode ${state.viewing} · ${titleOfEpisode(state.viewing)}`;
+    $('#expanded-map-episode').textContent = `${episodeLabel(state.viewing)} · ${titleOfEpisode(state.viewing)}`;
+    $('#expanded-gallery-episode').textContent = `${episodeLabel(state.viewing)} · ${titleOfEpisode(state.viewing)}`;
     const numbers = milestones();
     $('#prev-milestone').disabled = !numbers.some(number => number < state.viewing);
     $('#next-milestone').disabled = !numbers.some(number => number > state.viewing);
     $('#character-count').textContent = visibleCharacters().filter(character => character.type !== 'group').length;
     const milestone = data.episodes.find(entry => entry.number === state.viewing);
     const headings = {
-      map: ['Explore the atlas.', milestone ? `Episode ${milestone.number} · ${milestone.description}` : `Episode ${state.viewing} has no milestone of its own; the map shows everything known by then.`],
-      recap: ['The story so far.', `A briefing built only from what is known through episode ${state.viewing}.`],
-      characters: ['The people.', `Everyone the atlas knows about as of episode ${state.viewing}, and only what is known by then.`]
+      map: ['Explore the atlas.', milestone ? `${episodeLabel(milestone.number)} · ${milestone.description}` : `${episodeLabel(state.viewing)} has no milestone of its own; the map shows everything known by then.`],
+      recap: ['The story so far.', `A briefing built only from what is known through ${episodeLabel(state.viewing).toLowerCase()}.`],
+      characters: ['The people.', `Everyone the atlas knows about as of ${episodeLabel(state.viewing).toLowerCase()}, and only what is known by then.`]
     }[state.view];
     $('#page-title').textContent = headings[0];
     $('#page-description').textContent = headings[1];
@@ -357,7 +365,7 @@
   function renderTerritory() {
     const belt = statusOf('belt:maria-rose');
     $('#territory-art').innerHTML = belt?.state === 'lost'
-      ? `<path class="lost-ground" fill-rule="evenodd" d="${ellipsePath(RINGS.maria)} ${ellipsePath(RINGS.rose)}"><title>Lost to the Titans since episode ${belt.from}</title></path>`
+      ? `<path class="lost-ground" fill-rule="evenodd" d="${ellipsePath(RINGS.maria)} ${ellipsePath(RINGS.rose)}"><title>Lost to the Titans since ${episodeLabel(belt.from).toLowerCase()}</title></path>`
       : '';
     const walls = statusOf('walls:all');
     const fallen = walls?.state === 'fallen';
@@ -440,7 +448,7 @@
       const half = wall.width / 2;
       const outline = `M${wall.start} ${-half}h${wall.depth}q${wall.bulge} ${half} 0 ${wall.width}h${-wall.depth}Z`;
       const gate = statusOf(`gate:${location.id}`);
-      return `<g class="district${fresh}" transform="translate(${location.x} ${location.y}) rotate(${angle.toFixed(1)})">${gate ? `<title>Gate ${gate.state} in episode ${gate.from}</title>` : ''}<path class="district-gate${gate ? ` gate-${gate.state}` : ''}" d="${outline}"/><path class="district-town" d="${outline}"/></g>`;
+      return `<g class="district${fresh}" transform="translate(${location.x} ${location.y}) rotate(${angle.toFixed(1)})">${gate ? `<title>Gate ${gate.state} in ${episodeLabel(gate.from).toLowerCase()}</title>` : ''}<path class="district-gate${gate ? ` gate-${gate.state}` : ''}" d="${outline}"/><path class="district-town" d="${outline}"/></g>`;
     }).join('');
   }
   function renderMarkers() {
@@ -461,7 +469,7 @@
       const base = side === 'left' ? 0 : side === 'below' ? -90 : 180;
       const chips = shown.map(({ character }, index) => mapAvatar(character, ...chipOffset(base, index), shownBefore && !shownBefore.has(`${character.id}@${location.id}`))).join('');
       const more = here.length > 3 ? `<text class="people-more" transform="translate(${chipOffset(base, 3).join(' ')})" y="4" text-anchor="middle">+${here.length - 3}</text>` : '';
-      const peopleText = here.map(({ character, position }) => `${nameOf(character)}, last recorded in episode ${position.episode}`).join('; ');
+      const peopleText = here.map(({ character, position }) => `${nameOf(character)}, last recorded in ${episodeLabel(position.episode).toLowerCase()}`).join('; ');
       const label = location.mapLabel || location.name;
       const primary = ['district', 'capital', 'island', 'country', 'city', 'site'].includes(location.kind);
       const rank = selected ? 0 : now ? 1 : here.length ? 2 : primary ? 3 : 4;
@@ -553,8 +561,11 @@
     const zoomed = map.dataset.detail === 'detail';
     for (const marker of markers) {
       const eps = marker.dataset.episodes;
+      const numbers = eps ? eps.split(',').map(Number) : [];
+      const episodeCaption = numbers.length === 1 ? episodeLabel(numbers[0])
+        : `Episodes ${numbers.map(number => episodeCatalog.get(number)?.special ? episodeCode(number) : number).join(', ')}`;
       const change = marker.dataset.change;
-      $('.marker-caption', marker).textContent = state.changesOnly && change ? (change.length > 34 ? `${change.slice(0, 31)}…` : change) : zoomed && eps ? `${eps.includes(',') ? 'Episodes' : 'Episode'} ${eps}` : marker.dataset.caption;
+      $('.marker-caption', marker).textContent = state.changesOnly && change ? (change.length > 34 ? `${change.slice(0, 31)}…` : change) : zoomed && eps ? episodeCaption : marker.dataset.caption;
     }
     // Labels must stay inside the map.
     const stage = inflate($('#map-stage').getBoundingClientRect(), -4);
@@ -626,9 +637,9 @@
       .sort((a, b) => b.episode - a.episode)
       .slice(0, 2);
     return `<button class="card-close" data-close-card aria-label="Close">×</button>
-      <div class="person-card-head">${avatar(character, 'xl')}<div><p class="panel-kicker">${escapeHTML(location.name)}, episode ${position.episode}</p><h3>${escapeHTML(nameOf(character))}</h3><p class="character-role">${escapeHTML(roleOf(character))}</p></div></div>
+      <div class="person-card-head">${avatar(character, 'xl')}<div><p class="panel-kicker">${escapeHTML(location.name)}, ${episodeLabel(position.episode).toLowerCase()}</p><h3>${escapeHTML(nameOf(character))}</h3><p class="character-role">${escapeHTML(roleOf(character))}</p></div></div>
       <p class="person-card-note">${escapeHTML(position.note)}</p>
-      ${doing.length ? `<p class="person-card-sub">What happens here</p><ol class="character-notes">${doing.map(event => `<li><span class="note-episode">E${pad(event.episode)}</span><span><strong>${escapeHTML(event.title)}.</strong> ${escapeHTML(event.summary)}</span></li>`).join('')}</ol>` : ''}
+      ${doing.length ? `<p class="person-card-sub">What happens here</p><ol class="character-notes">${doing.map(event => `<li><span class="note-episode">${episodeCode(event.episode)}</span><span><strong>${escapeHTML(event.title)}.</strong> ${escapeHTML(event.summary)}</span></li>`).join('')}</ol>` : ''}
       <div class="person-card-actions">${character.type === 'group' ? '' : `<button class="card-link" data-open-character="${escapeHTML(character.id)}">Open character card</button>`}${pinned ? '' : '<span class="person-card-hint">Click the portrait to keep this open</span>'}</div>`;
   }
   function openCard(chip, pinned) {
@@ -692,7 +703,7 @@
     return `<div class="panel-illustration" aria-hidden="true"><svg viewBox="0 0 300 120" preserveAspectRatio="xMidYMid slice"><rect width="300" height="120" fill="var(--scene-sky)"/><circle cx="218" cy="30" r="21" fill="var(--scene-light)" opacity=".12"/><path d="M0 57 24 38 59 48 103 26 147 46 186 35 232 58 279 37 300 47V120H0Z" fill="var(--scene-ground)" opacity=".5"/>${scene}<path d="M0 115Q150 93 300 113V120H0Z" fill="var(--scene-dark)"/></svg><span class="panel-image-tag">${escapeHTML(KIND_LABEL[location.kind] || 'Place')}</span></div>`;
   }
   function eventCard(event) {
-    return `<article class="event-card" data-event-id="${escapeHTML(event.id)}"><p class="episode-tag">Episode ${event.episode}</p><h4>${escapeHTML(event.title)}</h4><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}<div class="event-foot">${knowledgeBadge(event.kind)}</div>${peopleList(event.people, { compact: true })}</article>`;
+    return `<article class="event-card" data-event-id="${escapeHTML(event.id)}"><p class="episode-tag">${episodeLabel(event.episode)}</p><h4>${escapeHTML(event.title)}</h4><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}<div class="event-foot">${knowledgeBadge(event.kind)}</div>${peopleList(event.people, { compact: true })}</article>`;
   }
   function renderPanel() {
     const location = getLocation(state.selected);
@@ -707,13 +718,13 @@
     const here = peopleAt(location.id);
     const scenes = episodeScenes().filter(event => event.mapScene.relatedLocationId === location.id);
     const latest = scenes[0] || thisEpisode[0] || events[0];
-    $('#location-panel').innerHTML = `<button type="button" id="place-peek" class="place-peek" aria-controls="place-details"><span class="sheet-handle" aria-hidden="true"></span><span class="place-peek-copy"><strong>${escapeHTML(location.name)}</strong><small>${latest ? `E${latest.episode} · ${escapeHTML(latest.title)}` : 'No event recorded here yet'}</small></span><span class="peek-action"></span></button><div id="place-details">${illustration(location)}<div class="panel-content">
-      <header class="place-heading"><p class="panel-kicker">As of episode ${state.viewing}</p><h2>${escapeHTML(location.name)}</h2><p class="panel-subtitle">${escapeHTML(location.subtitle)}</p></header>${knowledgeBadge('approximate')}
-      ${gates.length || lost ? `<p class="status-line">${gates.map(gate => `<span class="status-chip gate-${escapeHTML(gate.state)}">Gate ${escapeHTML(gate.state)}, E${gate.from}</span>`).join('')}${lost ? `<span class="status-chip gate-breached">Lost ground since E${lost.from}</span>` : ''}</p>` : ''}
+    $('#location-panel').innerHTML = `<button type="button" id="place-peek" class="place-peek" aria-controls="place-details"><span class="sheet-handle" aria-hidden="true"></span><span class="place-peek-copy"><strong>${escapeHTML(location.name)}</strong><small>${latest ? `${episodeCode(latest.episode)} · ${escapeHTML(latest.title)}` : 'No event recorded here yet'}</small></span><span class="peek-action"></span></button><div id="place-details">${illustration(location)}<div class="panel-content">
+      <header class="place-heading"><p class="panel-kicker">As of ${episodeLabel(state.viewing).toLowerCase()}</p><h2>${escapeHTML(location.name)}</h2><p class="panel-subtitle">${escapeHTML(location.subtitle)}</p></header>${knowledgeBadge('approximate')}
+      ${gates.length || lost ? `<p class="status-line">${gates.map(gate => `<span class="status-chip gate-${escapeHTML(gate.state)}">Gate ${escapeHTML(gate.state)}, ${episodeCode(gate.from)}</span>`).join('')}${lost ? `<span class="status-chip gate-breached">Lost ground since ${episodeCode(lost.from)}</span>` : ''}</p>` : ''}
       ${scenes.length ? `<section class="panel-block now-block"><h3>Related scene · position unknown</h3>${scenes.map(event => sceneCard(event, { panel: true })).join('')}</section>` : ''}
       ${thisEpisode.length ? `<section class="panel-block now-block"><h3>This episode</h3>${thisEpisode.map(eventCard).join('')}</section>` : ''}
       <section class="panel-block"><h3>${thisEpisode.length ? 'Earlier here' : 'What happened here'}</h3>${earlierEvents.length ? earlierEvents.map(eventCard).join('') : `<p>${thisEpisode.length ? 'Nothing earlier is recorded here.' : 'No event is recorded here by the selected episode.'}</p>`}</section>
-      ${here.length ? `<section class="panel-block"><h3>Last recorded here</h3>${here.map(({ character, position }) => `<button class="person-row" data-open-character="${escapeHTML(character.id)}">${avatar(character, 'sm')}<span><strong>${escapeHTML(nameOf(character))}</strong><small>Episode ${position.episode}. ${escapeHTML(position.note)}</small></span></button>`).join('')}</section>` : ''}
+      ${here.length ? `<section class="panel-block"><h3>Last recorded here</h3>${here.map(({ character, position }) => `<button class="person-row" data-open-character="${escapeHTML(character.id)}">${avatar(character, 'sm')}<span><strong>${escapeHTML(nameOf(character))}</strong><small>${episodeLabel(position.episode)}. ${escapeHTML(position.note)}</small></span></button>`).join('')}</section>` : ''}
       <section class="panel-block"><h3>About this place</h3><p>${escapeHTML(location.summary)}</p><p class="why-text">${escapeHTML(location.why)}</p></section>
       <p class="panel-footnote" id="place-geography-note"><strong>Map accuracy.</strong> ${escapeHTML(location.geographyNote || location.geography)}</p>
     </div></div>`;
@@ -752,7 +763,7 @@
       const places = [...new Set(episode.events.map(event => event.locationId).filter(Boolean))].map(getLocation).filter(Boolean);
       const settings = [...new Set(episode.events.map(event => event.placeName).filter(Boolean))];
       const where = places.length ? places.map(place => place.mapLabel || place.name).join(', ') : settings.join(', ') || 'Not pinned on the map';
-      return `<button class="timeline-event ${episode.number === state.viewing ? 'active' : ''}" data-episode="${episode.number}" title="${escapeHTML(episode.title)}" aria-label="View episode ${episode.number}: ${escapeHTML(episode.title)}, ${escapeHTML(where)}" ${episode.number === state.viewing ? 'aria-current="step"' : ''}><span class="time-number">E${pad(episode.number)}</span><strong>${escapeHTML(episode.title)}</strong><span class="time-place">${escapeHTML(where)}</span></button>`;
+      return `<button class="timeline-event ${episode.number === state.viewing ? 'active' : ''}" data-episode="${episode.number}" title="${escapeHTML(episode.title)}" aria-label="View ${episodeLabel(episode.number).toLowerCase()}: ${escapeHTML(episode.title)}, ${escapeHTML(where)}" ${episode.number === state.viewing ? 'aria-current="step"' : ''}><span class="time-number">${episodeCode(episode.number)}</span><strong>${escapeHTML(episode.title)}</strong><span class="time-place">${escapeHTML(where)}</span></button>`;
     }).join('');
     centerTimeline();
   }
@@ -764,10 +775,10 @@
   function renderRecap() {
     const currentEpisode = data.episodes.find(episode => episode.number === state.viewing);
     const events = visibleEvents().slice().reverse();
-    $('#recap-view').innerHTML = `<div class="recap-intro">${icon('shield')}<div><p class="panel-kicker">Briefing, episode ${state.viewing}</p><h2>${escapeHTML(titleOfEpisode(state.viewing))}</h2><p>${escapeHTML(currentEpisode?.description || `No new milestone is mapped for episode ${state.viewing}. Below are the selected events established by this point.`)}</p><p class="coverage-note">A selective recap, newest first. Some events happen in places the atlas cannot pin.</p></div></div><div class="recap-grid">${events.map((event, index) => {
+    $('#recap-view').innerHTML = `<div class="recap-intro">${icon('shield')}<div><p class="panel-kicker">Briefing, ${episodeLabel(state.viewing).toLowerCase()}</p><h2>${escapeHTML(titleOfEpisode(state.viewing))}</h2><p>${escapeHTML(currentEpisode?.description || `No new milestone is mapped for ${episodeLabel(state.viewing).toLowerCase()}. Below are the selected events established by this point.`)}</p><p class="coverage-note">A selective recap, newest first. Some events happen in places the atlas cannot pin.</p></div></div><div class="recap-grid">${events.map((event, index) => {
       const location = event.locationId ? getLocation(event.locationId) : null;
       if (event.locationId && !location) return '';
-      return `<article id="recap-${escapeHTML(event.id)}" tabindex="-1" class="recap-card${index === 0 ? ' recap-lead' : ''}">${index === 0 ? '<p class="recap-label">Latest recorded moment</p>' : ''}<p class="recap-meta">Episode ${event.episode}${location || event.placeName ? `, ${escapeHTML(location?.name || event.placeName)}` : ''}</p><h3>${escapeHTML(event.title)}</h3><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}${knowledgeBadge(event.kind)}${peopleList(event.people, { compact: true })}${location ? `<button class="card-link" data-open-event="${escapeHTML(event.id)}">Find it on the map</button>` : '<p class="unpinned">Not pinned on the map</p>'}</article>`;
+      return `<article id="recap-${escapeHTML(event.id)}" tabindex="-1" class="recap-card${index === 0 ? ' recap-lead' : ''}">${index === 0 ? '<p class="recap-label">Latest recorded moment</p>' : ''}<p class="recap-meta">${episodeLabel(event.episode)}${location || event.placeName ? `, ${escapeHTML(location?.name || event.placeName)}` : ''}</p><h3>${escapeHTML(event.title)}</h3><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}${knowledgeBadge(event.kind)}${peopleList(event.people, { compact: true })}${location ? `<button class="card-link" data-open-event="${escapeHTML(event.id)}">Find it on the map</button>` : '<p class="unpinned">Not pinned on the map</p>'}</article>`;
     }).join('')}</div>`;
   }
   const CHARACTER_SECTIONS = [
@@ -804,13 +815,13 @@
     const position = lastPosition(character);
     const place = position?.locationId ? getLocation(position.locationId) : null;
     const notes = (character.notes || []).filter(note => note.episode <= state.viewing).sort((a, b) => b.episode - a.episode);
-    const noteItem = note => `<li><span class="note-episode">E${pad(note.episode)}</span><span>${escapeHTML(note.text)}</span></li>`;
+    const noteItem = note => `<li><span class="note-episode">${episodeCode(note.episode)}</span><span>${escapeHTML(note.text)}</span></li>`;
     return `<div class="character-detail-identity">${avatar(character, 'lg')}<p class="character-description">${escapeHTML(roleOf(character))}</p></div>
-        ${revealed ? `<p class="reveal-line">Revealed in episode ${character.revealedAs.episode}: <button class="inline-link" data-open-character="${escapeHTML(revealed.id)}">${escapeHTML(nameOf(revealed))}</button></p>` : ''}
+        ${revealed ? `<p class="reveal-line">Revealed in ${episodeLabel(character.revealedAs.episode).toLowerCase()}: <button class="inline-link" data-open-character="${escapeHTML(revealed.id)}">${escapeHTML(nameOf(revealed))}</button></p>` : ''}
         ${notes.length ? `<section class="character-detail-notes"><h3>Known so far</h3><ol class="character-notes">${notes.slice(0, 3).map(noteItem).join('')}</ol>${notes.length > 3 ? `<details class="more-notes"><summary>Earlier (${notes.length - 3})</summary><ol class="character-notes">${notes.slice(3).map(noteItem).join('')}</ol></details>` : ''}</section>` : ''}
         <footer class="character-detail-footer">${position ? (place
-          ? `<button class="card-link" data-open-place="${escapeHTML(place.id)}">Last recorded at ${escapeHTML(place.name)}, episode ${position.episode}</button>`
-          : `<span>Last recorded in episode ${position.episode}, somewhere this map does not place.</span>`) : ''}<span class="since">In the atlas from episode ${character.firstEpisode}</span></footer>
+          ? `<button class="card-link" data-open-place="${escapeHTML(place.id)}">Last recorded at ${escapeHTML(place.name)}, ${episodeLabel(position.episode).toLowerCase()}</button>`
+          : `<span>Last recorded in ${episodeLabel(position.episode).toLowerCase()}, somewhere this map does not place.</span>`) : ''}<span class="since">In the atlas from ${episodeLabel(character.firstEpisode).toLowerCase()}</span></footer>
     `;
   }
   function renderCharacters() {
@@ -835,7 +846,7 @@
       .map(([value, label, count]) => `<button class="filter-chip" data-faction-filter="${escapeHTML(value)}" aria-pressed="${state.characterFaction === value}">${escapeHTML(label)} <span>${count}</span></button>`).join('');
     // The one expansion button lives beside the title on phones, and beside search elsewhere.
     $('#mobile-gallery-action').replaceChildren();
-    const coverage = episodeMode ? `<p class="episode-cast-note" role="status">E${pad(state.viewing)} · Characters named in this episode’s recorded events.</p>` : '';
+    const coverage = episodeMode ? `<p class="episode-cast-note" role="status">${episodeCode(state.viewing)} · Characters named in this episode’s recorded events.</p>` : '';
     const empty = episodeMode ? 'No character in this episode’s recorded events matches that filter.' : 'No character matches that filter at this episode.';
     $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by episode or group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><div class="gallery-actions"><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"><button type="button" id="expand-gallery" class="expand-gallery" aria-label="Expand gallery" title="Expand gallery" aria-haspopup="dialog" aria-controls="expanded-gallery-dialog">${icon('expand')}<span class="expand-gallery-label">Expand gallery</span></button></div></div>${coverage}${sections || `<p class="search-empty">${empty}</p>`}`;
     syncGalleryAction();
@@ -944,7 +955,7 @@
     const group = (title, items) => (items.length ? `<p class="search-group">${title}</p>${items.join('')}` : '');
     results.innerHTML = (group('Places', places.map(location => `<button data-search-location="${escapeHTML(location.id)}"><span>${escapeHTML(location.name)}</span><small>${escapeHTML(location.subtitle)}</small></button>`))
       + group('People', people.map(character => `<button class="search-person" data-open-character="${escapeHTML(character.id)}">${avatar(character, 'xs')}<span>${escapeHTML(nameOf(character))}<small>${escapeHTML(roleOf(character))}</small></span></button>`))
-      + group('Events', events.map(event => `<button data-open-event="${escapeHTML(event.id)}"><span>${escapeHTML(event.title)}</span><small>Episode ${event.episode} · ${escapeHTML(getLocation(event.locationId)?.name || event.placeName || 'Recap')}${event.locationId ? '' : ' · Read recap'}</small></button>`)))
+      + group('Events', events.map(event => `<button data-open-event="${escapeHTML(event.id)}"><span>${escapeHTML(event.title)}</span><small>${episodeLabel(event.episode)} · ${escapeHTML(getLocation(event.locationId)?.name || event.placeName || 'Recap')}${event.locationId ? '' : ' · Read recap'}</small></button>`)))
       || '<p class="search-empty">Nothing matching is recorded by this episode.</p>';
     results.hidden = false;
   }
@@ -1265,7 +1276,7 @@
     const body = $('#character-detail-body');
     const hadBodyFocus = body.contains(document.activeElement);
     $('#character-detail-title').textContent = nameOf(character);
-    $('#character-detail-episode').textContent = `As of E${pad(state.viewing)} · ${titleOfEpisode(state.viewing)}`;
+    $('#character-detail-episode').textContent = `As of ${episodeCode(state.viewing)} · ${titleOfEpisode(state.viewing)}`;
     body.innerHTML = characterDetails(character);
     $$('.character-card').forEach(card => card.classList.toggle('focused', card.dataset.character === character.id));
     $$('.character-card-button').forEach(button => button.setAttribute('aria-expanded', String(button.dataset.showCharacter === character.id)));
@@ -1421,8 +1432,8 @@
   function cutoffHint() {
     const value = Math.trunc(Number($('#cutoff-input').value));
     if (!value || value < 1) { $('#cutoff-hint').textContent = ''; return; }
-    if (value > MAX_EPISODE) { $('#cutoff-hint').textContent = `This edition stops at episode ${MAX_EPISODE}.`; return; }
-    $('#cutoff-hint').textContent = `Episode ${value} is ${seasonText(value).toLowerCase()}, “${titleOfEpisode(value)}”.`;
+    if (value > MAX_EPISODE) { $('#cutoff-hint').textContent = `This edition stops at ${episodeLabel(MAX_EPISODE).toLowerCase()}.`; return; }
+    $('#cutoff-hint').textContent = `${episodeLabel(value)} is ${seasonText(value).toLowerCase()}, “${titleOfEpisode(value)}”.`;
   }
   function showSettings() { $('#cutoff-input').value = state.cutoff; cutoffHint(); $('#settings-dialog').showModal(); }
   $('#cutoff-input').addEventListener('input', cutoffHint);
@@ -1435,7 +1446,7 @@
     state.activeEvent = null;
     render();
     $('#settings-dialog').close();
-    toast(`Spoiler limit set to episode ${state.cutoff}.`);
+    toast(`Spoiler limit set to ${episodeLabel(state.cutoff).toLowerCase()}.`);
   });
   $('#about-button').addEventListener('click', () => $('#about-dialog').showModal());
   $('#map-guide').addEventListener('click', () => $('#about-dialog').showModal());
@@ -1518,5 +1529,5 @@
   applyCamera();
   $('#map-legend').addEventListener('toggle', scheduleLayout);
   if (unreadableCopy) toast('Saved data could not be read. A copy was kept in this browser and the atlas started fresh.');
-  else if (extended) toast(`The atlas now reaches episode ${MAX_EPISODE}, and your spoiler limit followed.`);
+  else if (extended) toast(`The atlas now reaches ${episodeLabel(MAX_EPISODE).toLowerCase()}, and your spoiler limit followed.`);
 })();

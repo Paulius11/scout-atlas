@@ -70,6 +70,37 @@ check('milestones use the published episode title', bad => {
     if (titles.get(episode.number) !== episode.title) bad(`E${episode.number} differs from the title catalog`);
   });
 });
+check('the complete edition contains 87 regular episodes and exactly two long Final Chapters specials', bad => {
+  if (d.maxEpisode !== 89 || d.episodes.length !== 89) bad('the two long specials must follow the 87 regular episodes');
+  const episodes = d.episodes.filter(episode => episode.special !== undefined);
+  const titles = d.episodeTitles.filter(episode => episode.special !== undefined);
+  if (episodes.length !== 2 || titles.length !== 2) bad('long specials must not be duplicated as the seven television recuts');
+  for (const [number, special, code] of [[88, 1, 'SP1'], [89, 2, 'SP2']]) {
+    const episode = d.episodes.find(entry => entry.number === number);
+    const title = d.episodeTitles.find(entry => entry.number === number);
+    if (episode?.special !== special || title?.special !== special || episode?.displayCode !== code || title?.displayCode !== code) bad(`${code}: missing its unique long-special metadata`);
+    if (!episode?.events.length || !/^https:\/\//.test(episode?.officialSourceUrl || '')) bad(`${code}: needs a sourced recap and official reference`);
+    if (episode?.mapFocus?.area !== 'world' || episode?.mapFocus?.locationId !== 'marley'
+      || typeof episode.mapFocus.note !== 'string' || !episode.mapFocus.note.trim()) bad(`${code}: the mainland needs broad context with an explained geographical limit`);
+  }
+  if (d.locations.some(location => location.firstEpisode >= 88)) bad('named finale settings must not acquire unsupported map coordinates');
+  if (d.seasons.find(season => season.season === 4)?.last !== 89) bad('the Final Season must include both long specials');
+});
+check('Final Chapters character observations retain their episode boundary and source', bad => {
+  d.characters.forEach(character => {
+    (character.notes || []).filter(note => note.episode >= 88).forEach(note => {
+      if (!/^https:\/\//.test(note.sourceUrl || '')) bad(`${character.id}: an added special note needs a source`);
+      if (typeof note.text !== 'string' || !note.text.trim()) bad(`${character.id}: an added special note needs text`);
+    });
+    (character.positions || []).filter(position => position.episode >= 88).forEach(position => {
+      if (!/^https:\/\//.test(position.sourceUrl || '')) bad(`${character.id}: an added special position needs a source`);
+      if (position.locationId !== null && place[position.locationId]?.firstEpisode > position.episode) bad(`${character.id}: position uses a place before its introduction`);
+      const established = position.episode === 89 && ((character.id === 'mikasa' && position.locationId === 'shiganshina')
+        || (character.id === 'historia' && position.locationId === 'paradis'));
+      if (position.locationId !== null && !established) bad(`${character.id}: an uncertain finale observation must stay unpinned`);
+    });
+  });
+});
 check('seasons are contiguous and cover every episode', bad => {
   if (d.seasons[0]?.first !== 1) bad('the first season must start at episode 1');
   d.seasons.forEach((s, i) => {

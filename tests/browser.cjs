@@ -24,6 +24,12 @@ if (require('node:fs').existsSync(portraitsFile)) require(portraitsFile);
 const portraits = window.ATLAS_PORTRAITS || {};
 const portraitVersions = id => Array.isArray(portraits[id]) ? portraits[id] : typeof portraits[id] === 'string' ? [{ from: 1, file: portraits[id] }] : [];
 const MAX = data.maxEpisode;
+const episodeCode = number => data.episodeTitles.find(episode => episode.number === number)?.displayCode || `E${String(number).padStart(2, '0')}`;
+const episodeLabel = number => {
+  const special = data.episodeTitles.find(episode => episode.number === number)?.special;
+  return special ? `Special ${special}` : `Episode ${number}`;
+};
+const noteEpisodeNumber = text => data.episodeTitles.find(episode => episodeCode(episode.number) === text.trim())?.number;
 const milestones = data.episodes.map(e => e.number);
 const at = (list, episode) => list.filter(v => v.from <= episode).sort((a, b) => b.from - a.from)[0];
 const pinnedPersonAt = number => data.characters.find(character => character.type !== 'group' && character.firstEpisode <= number &&
@@ -186,7 +192,7 @@ async function main() {
     await test('published titles appear for every allowed episode and stay within the cutoff', async () => {
       const titled = await createPage();
       const options = await titled.locator('#episode-select option').evaluateAll(items => items.map(item => ({ number: Number(item.value), text: item.textContent })));
-      assert.deepEqual(options, data.episodeTitles.map(episode => ({ number: episode.number, text: `E${String(episode.number).padStart(2, '0')}  ${episode.title}` })));
+      assert.deepEqual(options, data.episodeTitles.map(episode => ({ number: episode.number, text: `${episodeCode(episode.number)}  ${episode.title}` })));
       for (const n of [1, 3, 13, MAX]) {
         await episode(titled, n);
         const title = data.episodeTitles.find(item => item.number === n).title;
@@ -202,7 +208,7 @@ async function main() {
       await setCutoff(titled, 3);
       assert.equal(await titled.locator('#episode-select option').count(), 3);
       // Compare whole titles: a later title can be a prefix of an earlier one ("That Day").
-      const allowed = await titled.locator('#episode-select option').evaluateAll(items => items.map(item => item.textContent.replace(/^E\d+\s+/, '')));
+      const allowed = await titled.locator('#episode-select option').evaluateAll(items => items.map(item => item.textContent.replace(/^(?:E\d+|SP[12])\s+/, '')));
       for (const item of data.episodeTitles.filter(item => item.number > 3)) assert.ok(!allowed.includes(item.title), `E${item.number} title is beyond the cutoff`);
     });
 
@@ -219,6 +225,146 @@ async function main() {
           const futureIds = next.events.map(event => event.id);
           assert.equal(await complete.locator(futureIds.map(id => `[data-open-event="${id}"]`).join(',')).count(), 0, `E${entry.number} shows a later event`);
         }
+      }
+    });
+
+    await test('Final Chapters specials have two distinct choices, complete recaps and clear special labels', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 320, height: 740 }]) {
+        const complete = await createPage(viewport);
+        const specials = await complete.locator('#episode-select option').evaluateAll(options => options.filter(option => /^SP/.test(option.textContent))
+          .map(option => ({ number: Number(option.value), code: option.textContent.trim().split(/\s+/)[0] })));
+        assert.deepEqual(specials, [{ number: 88, code: 'SP1' }, { number: 89, code: 'SP2' }], 'the two long specials are separate from the seven television recuts');
+        assert.equal(await complete.locator('#episode-select optgroup[label="Season 4"] option').count(), 30, 'the Final Season includes28regular episodes and both specials');
+        await episode(complete, 87);
+        for (const number of [88, 89]) {
+          await complete.locator('#next-milestone').click();
+          assert.equal(await complete.locator('#episode-select').inputValue(), String(number), 'stepping follows the two special entries');
+          const entry = data.episodes.find(episode => episode.number === number);
+          assert.equal(await complete.locator(`.timeline-event[data-episode="${number}"] .time-number`).innerText(), episodeCode(number));
+          assert.ok((await complete.locator('#page-description').innerText()).includes(episodeLabel(number)), 'the current view calls it a special');
+          await view(complete, 'recap');
+          assert.equal(await complete.locator('.recap-intro h2').innerText(), entry.title);
+          assert.ok((await complete.locator('.recap-intro .panel-kicker').innerText()).toLowerCase().includes(episodeLabel(number).toLowerCase()), 'the recap identifies its special');
+          for (const event of entry.events) {
+            const card = complete.locator(`#recap-${event.id}`);
+            assert.equal(await card.count(), 1, 'each sourced special event appears once');
+            assert.equal(await card.locator('h3').innerText(), event.title);
+            assert.ok((await card.locator('.recap-meta').innerText()).includes(episodeLabel(number)), 'special event metadata uses the special label');
+          }
+          await view(complete, 'map');
+          await complete.locator('#settings-button').click();
+          await complete.locator('#cutoff-input').fill(String(number));
+          assert.ok((await complete.locator('#cutoff-hint').innerText()).toLowerCase().includes(`final season, special ${number - 87}`), 'settings explain the internal ordering as a long special');
+          assert.ok(!/season 4, episode (?:29|30)/i.test(await complete.locator('#cutoff-hint').innerText()), 'a special is not mislabeled as a regular season episode');
+          await complete.keyboard.press('Escape');
+          await assertNoHorizontalOverflow(complete, `${viewport.width}px ${episodeCode(number)} map`);
+        }
+        assert.equal(await complete.locator('#next-milestone').isDisabled(), true, 'there are no duplicate recut entries after the second special');
+        await complete.locator('#prev-milestone').click();
+        assert.equal(await complete.locator('#episode-select').inputValue(), '88');
+        await complete.locator('#expand-map').click();
+        assert.ok((await complete.locator('#expanded-map-episode').innerText()).startsWith('Special 1 ·'), 'expanded map retains the special label');
+        await complete.locator('#close-expanded-map').click();
+      }
+    });
+
+    await test('a regular-episode cutoff hides both Final Chapters specials and Special1 hides the second finale', async () => {
+      const bounded = await createPage(undefined, `if (!localStorage.getItem(${JSON.stringify(storageKey)})) localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify({ cutoff: 87, viewing: 87, edition: MAX }))})`);
+      const assertBoundary = async number => {
+        const later = data.episodes.filter(episode => episode.number > number);
+        assert.equal(await bounded.locator('#episode-select option').count(), number);
+        for (const entry of later) {
+          assert.equal(await bounded.locator(`#episode-select option[value="${entry.number}"]`).count(), 0, 'a later special is unavailable in the picker');
+          assert.equal(await bounded.locator(`.timeline-event[data-episode="${entry.number}"]`).count(), 0, 'a later special is absent from the trail');
+        }
+        await view(bounded, 'recap');
+        for (const entry of later) for (const event of entry.events) assert.equal(await bounded.locator(`#recap-${event.id}`).count(), 0, 'later special events are absent from the recap');
+        await view(bounded, 'characters');
+        for (const character of data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= number
+          && (character.notes || []).some(note => note.episode > number))) {
+          const body = await characterDetails(bounded, character.id);
+          const noteNumbers = (await body.locator('.note-episode').allTextContents()).map(noteEpisodeNumber);
+          assert.ok(noteNumbers.every(episode => Number.isInteger(episode) && episode <= number), 'character notes stop at the chosen boundary');
+          assert.equal(await body.locator('.character-description').innerText(), at(character.role, number).text, 'finale role changes stay behind the cutoff');
+          await closeCharacterDetails(bounded);
+        }
+        await view(bounded, 'map');
+        for (const entry of later) for (const event of entry.events) {
+          await bounded.locator('#location-search').fill(event.title);
+          assert.equal(await bounded.locator(`#search-results [data-open-event="${event.id}"]`).count(), 0, 'search cannot reveal a later special event');
+        }
+        await bounded.locator('#location-search').fill('');
+      };
+      await assertBoundary(87);
+      await setCutoff(bounded, 88);
+      await episode(bounded, 88);
+      assert.equal(await bounded.locator('#episode-select option[value="88"]').count(), 1, 'raising the boundary enables the first special');
+      await assertBoundary(88);
+      await bounded.reload({ waitUntil: 'load' });
+      assert.equal(await bounded.locator('#episode-select').inputValue(), '88');
+      assert.equal(await bounded.locator('#episode-select option[value="89"]').count(), 0, 'the chosen first-special cutoff survives reload');
+    });
+
+    await test('Final Chapters episode cast and character notes follow each special and remain accessible when expanded', async () => {
+      const cast = await createPage();
+      await view(cast, 'characters');
+      await cast.locator('[data-faction-filter="episode"]').click();
+      for (const number of [88, 89]) {
+        await episode(cast, number);
+        const expected = episodeParticipants(number);
+        assert.deepEqual((await cast.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character))).sort(), expected.sort(), 'the selected special has exactly its recorded individual participants');
+        assert.ok((await cast.locator('.episode-cast-note').innerText()).includes(episodeCode(number)), 'the cast explains which special is selected');
+        for (const id of expected) {
+          const character = data.characters.find(character => character.id === id);
+          const card = cast.locator(`#character-${id}`);
+          assert.equal(await card.locator('.character-name').innerText(), at(character.name, number).text, 'the displayed identity belongs to this special');
+          assert.ok((await card.locator('.character-involvement').innerText()).trim(), 'each person has an episode-specific explanation');
+          const descriptionId = await card.locator('.character-card-button').getAttribute('aria-describedby');
+          assert.equal(descriptionId, await card.locator('.character-involvement').getAttribute('id'), 'the explanation describes the clickable card accessibly');
+          const updates = (character.notes || []).filter(note => note.episode === number);
+          if (!updates.length) continue;
+          const body = await characterDetails(cast, id);
+          const allNotes = await body.locator('.character-notes').allTextContents();
+          for (const update of updates) assert.ok(allNotes.some(text => text.includes(update.text)), 'the special-specific character update is available');
+          const noteNumbers = (await body.locator('.note-episode').allTextContents()).map(noteEpisodeNumber);
+          assert.ok(noteNumbers.includes(number), 'the new note uses its special code');
+          assert.ok(noteNumbers.every(episode => Number.isInteger(episode) && episode <= number), 'later special notes remain hidden');
+          await closeCharacterDetails(cast);
+        }
+      }
+      await cast.locator('#expand-gallery').click();
+      assert.ok((await cast.locator('#expanded-gallery-episode').innerText()).startsWith('Special 2 ·'));
+      assert.equal(await cast.locator('[data-faction-filter="episode"]').getAttribute('aria-pressed'), 'true');
+      assert.deepEqual((await cast.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character))).sort(), episodeParticipants(89).sort());
+      await cast.locator('#close-expanded-gallery').click();
+    });
+
+    await test('Final Chapters map focus uses supported geography and keeps unlocated character observations unpinned', async () => {
+      const map = await createPage();
+      for (const number of [88, 89]) {
+        const entry = data.episodes.find(episode => episode.number === number);
+        assert.ok(entry.mapFocus, 'each long special has deliberate geographical context');
+        await episode(map, number);
+        assert.equal(await mapArea(map), entry.mapFocus.area);
+        assert.ok((await map.locator('#map-area-note').innerText()).includes(entry.mapFocus.note), 'the broad context explains the unlocated finale settings');
+        if (entry.mapFocus.locationId) assert.equal(await map.locator('.map-marker.selected').getAttribute('data-location'), entry.mapFocus.locationId);
+        assert.equal(await map.locator('#location-markers [data-location]').count(), mappedLocations(number, entry.mapFocus.area).length, 'the special does not add improvised map points');
+        const locations = mappedLocations(number, entry.mapFocus.area);
+        for (const location of locations) {
+          const point = entry.mapFocus.area === 'world' && location.worldPosition ? location.worldPosition
+            : entry.mapFocus.area === 'island' && location.id === 'paradis' ? { x: data.mapGeometry.islandView.cx, y: data.mapGeometry.islandView.cy } : location;
+          assert.equal(await map.locator(`#location-markers [data-location="${location.id}"]`).getAttribute('transform'), `translate(${point.x} ${point.y})`, 'established map geometry is retained');
+        }
+        await map.locator('[data-map-extent="island"]').click();
+        const unpinned = data.characters.filter(character => (character.positions || []).filter(position => position.episode <= number).at(-1)?.locationId === null);
+        for (const character of unpinned) assert.equal(await map.locator(`#location-markers [data-person="${character.id}"]`).count(), 0, 'uncertain observations produce no character map pin on the island');
+        if (number === 89) {
+          assert.equal(await map.locator('[data-location="shiganshina"] [data-person="mikasa"]').count(), 1, 'the established epilogue observation remains visible on the island');
+          assert.equal(await map.locator('[data-location="paradis"] [data-person="historia"]').count(), 1, 'the established country-level observation remains separate from an unknown farm setting');
+        }
+        await map.locator('#return-to-episode').click();
+        assert.equal(await mapArea(map), entry.mapFocus.area, 'return restores the special context');
+        assert.equal(await map.locator('#episode-select').inputValue(), String(number));
       }
     });
 
@@ -1149,7 +1295,7 @@ async function main() {
         assert.ok(largeScale > normalScale * 1.25, `${viewport.width}px: expanded drawing scale grew by ${(largeScale / normalScale).toFixed(3)}; it should exceed 1.25`);
         assert.equal(await expanded.locator('#map-camera').getAttribute('transform'), camera);
         assert.equal(await expanded.locator('.map-marker.selected').getAttribute('data-location'), selected);
-        assert.equal(await expanded.locator('#expanded-map-episode').innerText(), `Episode ${MAX} · ${data.episodeTitles[MAX - 1].title}`);
+        assert.equal(await expanded.locator('#expanded-map-episode').innerText(), `${episodeLabel(MAX)} · ${data.episodeTitles[MAX - 1].title}`);
         await expanded.locator('#zoom-in').click();
         const largerCamera = await expanded.locator('#map-camera').getAttribute('transform');
         assert.notEqual(largerCamera, camera, 'zoom does not work inside the expanded map');
@@ -1499,7 +1645,9 @@ async function main() {
         await episode(bounded, MAX);
         await view(bounded, 'recap');
         assert.equal(await bounded.locator('.recap-intro h2').innerText(), data.episodeTitles[MAX - 1].title);
-        assert.deepEqual(await bounded.locator('#recap-view .recap-meta').evaluateAll(items => [...new Set(items.map(item => Number(/Episode (\d+)/.exec(item.textContent)[1])))]), [...milestones].reverse());
+        const sourceEpisodes = Object.fromEntries(data.episodes.flatMap(episode => episode.events.map(event => [`recap-${event.id}`, episode.number])));
+        const shownEpisodes = await bounded.locator('#recap-view .recap-card').evaluateAll((cards, sourceEpisodes) => [...new Set(cards.map(card => sourceEpisodes[card.id]))], sourceEpisodes);
+        assert.deepEqual(shownEpisodes, [...milestones].reverse(), 'the complete recap covers every regular episode and both specials');
       });
 
       await test('Season 4 cards and detail panels follow every character update and clear stale map positions', async () => {
@@ -1526,7 +1674,7 @@ async function main() {
               const body = await characterDetails(cast, character.id);
               assert.equal(await cast.locator('#character-detail-title').innerText(), at(character.name, number).text, `E${number} ${character.id} detail name`);
               assert.equal(await body.locator('.character-description').innerText(), at(character.role, number).text, `E${number} ${character.id} role`);
-              const noteEpisodes = await body.locator('.note-episode').evaluateAll(notes => notes.map(note => Number(note.textContent.slice(1))));
+              const noteEpisodes = (await body.locator('.note-episode').allTextContents()).map(noteEpisodeNumber);
               assert.deepEqual(noteEpisodes, (character.notes || []).filter(note => note.episode <= number).map(note => note.episode).sort((a, b) => b - a), `E${number} ${character.id} notes`);
               const position = (character.positions || []).filter(item => item.episode <= number).sort((a, b) => b.episode - a.episode)[0];
               const place = await body.locator('[data-open-place]').count() ? await body.locator('[data-open-place]').getAttribute('data-open-place') : null;
@@ -1552,7 +1700,7 @@ async function main() {
         await drawer.waitForFunction(() => document.querySelector('#episode-select').value === '13');
         if (await drawer.locator('#character-detail-dialog').evaluate(dialog => dialog.open)) {
           assert.equal(await drawer.locator('#character-detail-body .character-description').innerText(), at(data.characters.find(character => character.id === 'eren').role, 13).text);
-          assert.ok((await drawer.locator('#character-detail-body .note-episode').evaluateAll(notes => notes.map(note => Number(note.textContent.slice(1))))).every(number => number <= 13));
+          assert.ok((await drawer.locator('#character-detail-body .note-episode').allTextContents()).map(noteEpisodeNumber).every(number => number <= 13));
           await closeCharacterDetails(drawer);
         }
         await setCutoff(drawer, MAX);
@@ -1864,7 +2012,7 @@ async function main() {
       assert.equal(state.cutoff, 13);
       await page.locator('#settings-button').click();
       await page.locator('#cutoff-input').fill(String(MAX + 1));
-      assert.match(await page.locator('#cutoff-hint').innerText(), new RegExp(`stops at episode ${MAX}`));
+      assert.ok((await page.locator('#cutoff-hint').innerText()).toLowerCase().includes(`stops at ${episodeLabel(MAX).toLowerCase()}`));
       await page.locator('#settings-form [type="submit"]').click();
       assert.equal(await page.locator('#settings-dialog').evaluate(dialog => dialog.open), true, `Episode ${MAX + 1} must not be accepted`);
       await page.locator('#cutoff-input').fill(String(MAX));
@@ -1882,6 +2030,12 @@ async function main() {
           [{ cutoff: 59, edition: 59, viewing: 59 }, MAX, true],
           [{ cutoff: 58, edition: 59, viewing: 58 }, 58, false]
         ] : []),
+        ...(MAX > 87 ? [
+          [{ cutoff: 87, edition: 87, viewing: 87 }, MAX, true],
+          [{ cutoff: 87, edition: 87, viewing: 74 }, MAX, true],
+          [{ cutoff: 74, edition: 87, viewing: 73 }, 74, false],
+          [{ cutoff: 87, edition: MAX, viewing: 87 }, 87, false]
+        ] : []),
         [{ cutoff: 13, viewing: 13 }, 13, false],
         [{ cutoff: 46, edition: 47, viewing: 46 }, 46, false],
         [{ cutoff: MAX, edition: MAX, viewing: MAX }, MAX, false]
@@ -1892,7 +2046,7 @@ async function main() {
         assert.equal(await p.locator('#episode-select option').count(), expected, label);
         assert.equal(await p.locator('#episode-select').inputValue(), String(Math.min(saved.viewing, expected)), `${label}: the viewing episode stays put`);
         assert.equal(await p.locator('#toast').evaluate(el => el.classList.contains('visible')), followed, `${label}: toast`);
-        if (followed) assert.match(await p.locator('#toast').innerText(), new RegExp(`episode ${MAX}\\b`));
+        if (followed) assert.ok((await p.locator('#toast').innerText()).toLowerCase().includes(episodeLabel(MAX).toLowerCase()), 'the toast identifies the new special ceiling');
         const stored = await p.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
         assert.deepEqual([stored.cutoff, stored.edition], [expected, MAX], `${label}: saved`);
         await p.locator('#settings-button').click();
@@ -2076,7 +2230,7 @@ async function main() {
         const illustrated = await createPage();
         await view(illustrated, 'characters');
         const cast = data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= MAX);
-        assert.equal(cast.length, 56, 'the E87 cast contains 56 people and Titans');
+        assert.equal(data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= 87).length, 56, 'the 87-episode cast retains its 56 people and Titans');
         assert.equal(await illustrated.locator('.character-card').count(), cast.length);
         for (const character of cast) {
           const portrait = illustrated.locator(`#character-${character.id} [data-portrait]`);
