@@ -85,12 +85,6 @@ async function setLayer(page, name, checked) {
   await page.locator(`#layer-${name}`).setChecked(checked);
   await page.locator('#map-options').evaluate(element => { element.open = false; });
 }
-async function setCutoff(page, value) {
-  await page.locator('#settings-button').click();
-  await page.locator('#cutoff-input').fill(String(value));
-  await page.locator('#settings-form [type="submit"]').click();
-  await page.waitForFunction(() => !document.querySelector('#settings-dialog').open);
-}
 async function view(page, name) { await page.locator(`.primary-nav [data-view="${name}"]`).click(); }
 async function episode(page, number) { await page.locator('#episode-select').selectOption(String(number)); }
 async function characterDetails(page, id) {
@@ -132,64 +126,68 @@ async function main() {
   try {
     const page = await createPage();
 
-    await test(`fresh session starts at episode ${MAX} with bounded choices`, async () => {
-      assert.equal(await page.locator('#episode-select').inputValue(), String(MAX));
-      assert.equal(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).cutoff, storageKey), MAX);
+    await test('fresh session starts at E1 with every episode available and no Atlas settings', async () => {
+      assert.equal(await page.locator('#episode-select').inputValue(), '1');
+      const stored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
+      assert.equal(stored.viewing, 1);
+      assert.equal(Object.hasOwn(stored, 'cutoff'), false);
+      assert.equal(Object.hasOwn(stored, 'edition'), false);
       const options = await page.locator('#episode-select option').evaluateAll(items => items.map(item => Number(item.value)));
       assert.deepEqual(options, Array.from({ length: MAX }, (_, index) => index + 1));
       assert.equal(await page.locator('#episode-select optgroup').count(), data.seasons.length);
-      assert.equal(await page.locator('#location-markers [data-location]').count(), (await expectedMapLocations(page, MAX)).length);
-      assert.equal(await page.locator('#timeline-track [data-episode]').count(), milestones.length);
-      assert.equal(await page.locator('#cutoff-input').getAttribute('max'), String(MAX));
+      assert.equal(await page.locator('#location-markers [data-location]').count(), (await expectedMapLocations(page, 1)).length);
+      assert.equal(await page.locator('#timeline-track [data-episode]').count(), 1);
+      assert.equal(await page.locator('#settings-button, #settings-dialog, #settings-form, #cutoff-input').count(), 0);
+      assert.equal((await page.locator('label[for="episode-select"]').innerText()).trim(), 'Viewing episode');
+      const copy = await readUi(page);
+      for (const name of laterNames) assert.ok(!copy.includes(name), `fresh E1 reveals ${name}`);
       assert.equal(await page.locator('meta[http-equiv="Content-Security-Policy"]').count(), 1);
       await assertNoHorizontalOverflow(page, 'desktop map');
     });
 
-    await test('viewing an earlier episode keeps the saved spoiler limit and later choices available', async () => {
+    // The shared exploration fixture uses complete content; fresh visits are checked above
+    // and by separate unseeded pages below. Local checks select their own relevant episode.
+    await episode(page, MAX);
+
+    await test('the Viewing episode picker keeps every choice available and preserves the selected episode on reload', async () => {
       const browsing = await createPage();
       await episode(browsing, 13);
       assert.equal(await browsing.locator('#episode-select option').count(), MAX, 'browsing the past does not limit later choices');
-      assert.equal(await browsing.evaluate(key => JSON.parse(localStorage.getItem(key)).cutoff, storageKey), MAX);
+      assert.equal(await browsing.evaluate(key => JSON.parse(localStorage.getItem(key)).viewing, storageKey), 13);
       await browsing.reload({ waitUntil: 'load' });
       assert.equal(await browsing.locator('#episode-select').inputValue(), '13', 'the chosen episode survives reload');
       assert.equal(await browsing.locator('#episode-select option').count(), MAX);
       await episode(browsing, MAX);
-      assert.equal(await browsing.locator('#episode-select').inputValue(), String(MAX), 'returning to the current edition needs only the picker');
+      assert.equal(await browsing.locator('#episode-select').inputValue(), String(MAX), 'the finale needs only the picker');
+      await episode(browsing, 1);
+      assert.equal(await browsing.locator('#next-milestone').isEnabled(), true, 'an early episode can always advance');
+      assert.equal(await browsing.locator('#prev-milestone').isDisabled(), true, 'E1 remains the first entry');
     });
 
-    await test('settings stay reachable across tabs and phone widths, and Escape cancels an unsaved limit', async () => {
+    await test('Viewing episode stays reachable across tabs and phone widths without a second settings control', async () => {
       for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }, { width: 320, height: 740 }]) {
-        const settings = await createPage(viewport);
+        const controls = await createPage(viewport);
         for (const name of ['map', 'recap', 'characters']) {
-          await view(settings, name);
-          const button = settings.getByRole('button', { name: 'Atlas settings', exact: true });
-          await button.scrollIntoViewIfNeeded();
-          const box = await button.boundingBox();
-          assert.ok(box && box.x >= 0 && box.x + box.width <= viewport.width + 1, `${viewport.width}px ${name}: settings are inside the viewport`);
-          await button.click();
-          assert.equal(await settings.locator('#settings-dialog').evaluate(dialog => dialog.open), true, `${viewport.width}px ${name}: settings open`);
-          assert.equal(await settings.locator('#cutoff-input').inputValue(), String(MAX), 'settings reflect the saved limit');
-          await settings.locator('#cutoff-input').fill('13');
-          await assertNoHorizontalOverflow(settings, `${viewport.width}px ${name} settings`);
-          await settings.keyboard.press('Escape');
-          assert.equal(await settings.locator('#settings-dialog').evaluate(dialog => dialog.open), false);
-          assert.equal(await button.evaluate(element => element === document.activeElement), true, 'closing settings restores focus');
-          assert.equal(await settings.locator('#episode-select').inputValue(), String(MAX), 'cancel leaves the chosen episode unchanged');
-          assert.equal(await settings.locator('#episode-select option').count(), MAX, 'cancel does not restrict choices');
-          assert.equal(await settings.evaluate(key => JSON.parse(localStorage.getItem(key)).cutoff, storageKey), MAX, 'cancel does not save the draft');
+          await view(controls, name);
+          const picker = controls.locator('#episode-select');
+          await picker.scrollIntoViewIfNeeded();
+          const box = await picker.boundingBox();
+          assert.ok(box && box.x >= 0 && box.x + box.width <= viewport.width + 1, `${viewport.width}px ${name}: the episode picker is inside the viewport`);
+          assert.equal(await controls.getByRole('button', { name: 'Atlas settings', exact: true }).count(), 0);
+          assert.equal(await controls.locator('#settings-dialog, #cutoff-input').count(), 0);
+          await episode(controls, 13);
+          assert.equal(await picker.inputValue(), '13');
+          assert.equal(await controls.locator('#episode-select option').count(), MAX);
+          assert.equal(await controls.locator(`#${name}-view`).isVisible(), true, 'changing the episode retains the active tab');
+          await assertNoHorizontalOverflow(controls, `${viewport.width}px ${name} episode controls`);
         }
-        await setCutoff(settings, 13);
-        assert.equal(await settings.locator('#episode-select').inputValue(), '13', 'the optional limit still clamps the view');
-        await settings.reload({ waitUntil: 'load' });
-        assert.equal(await settings.locator('#episode-select option').count(), 13, 'the optional limit survives reload');
-        await settings.locator('#settings-button').click();
-        assert.equal(await settings.locator('#cutoff-input').inputValue(), '13', 'reopening settings discards any old draft');
-        await settings.keyboard.press('Escape');
-        await assertNoHorizontalOverflow(settings, `${viewport.width}px saved settings`);
+        await controls.reload({ waitUntil: 'load' });
+        assert.equal(await controls.locator('#episode-select').inputValue(), '13');
+        assert.equal(await controls.locator('#episode-select option').count(), MAX);
       }
     });
 
-    await test('published titles appear for every allowed episode and stay within the cutoff', async () => {
+    await test('published titles remain available for the complete catalog while timeline content follows Viewing episode', async () => {
       const titled = await createPage();
       const options = await titled.locator('#episode-select option').evaluateAll(items => items.map(item => ({ number: Number(item.value), text: item.textContent })));
       assert.deepEqual(options, data.episodeTitles.map(episode => ({ number: episode.number, text: `${episodeCode(episode.number)}  ${episode.title}` })));
@@ -201,15 +199,14 @@ async function main() {
         await view(titled, 'recap');
         assert.equal(await titled.locator('.recap-intro h2').innerText(), title);
         await view(titled, 'map');
+        for (const entry of data.episodes.filter(entry => entry.number <= n)) {
+          assert.equal(await titled.locator(`.timeline-event[data-episode="${entry.number}"] strong`).innerText(), entry.title);
+        }
+        for (const entry of data.episodes.filter(entry => entry.number > n)) {
+          assert.equal(await titled.locator(`.timeline-event[data-episode="${entry.number}"]`).count(), 0, 'future events remain outside the trail');
+        }
+        assert.deepEqual(await titled.locator('#episode-select option').evaluateAll(items => items.map(item => Number(item.value))), Array.from({ length: MAX }, (_, index) => index + 1));
       }
-      for (const milestone of data.episodes) {
-        assert.equal(await titled.locator(`.timeline-event[data-episode="${milestone.number}"] strong`).innerText(), milestone.title);
-      }
-      await setCutoff(titled, 3);
-      assert.equal(await titled.locator('#episode-select option').count(), 3);
-      // Compare whole titles: a later title can be a prefix of an earlier one ("That Day").
-      const allowed = await titled.locator('#episode-select option').evaluateAll(items => items.map(item => item.textContent.replace(/^(?:E\d+|SP[12])\s+/, '')));
-      for (const item of data.episodeTitles.filter(item => item.number > 3)) assert.ok(!allowed.includes(item.title), `E${item.number} title is beyond the cutoff`);
     });
 
     await test('every episode has its own recap and does not borrow a later event', async () => {
@@ -252,11 +249,8 @@ async function main() {
             assert.ok((await card.locator('.recap-meta').innerText()).includes(episodeLabel(number)), 'special event metadata uses the special label');
           }
           await view(complete, 'map');
-          await complete.locator('#settings-button').click();
-          await complete.locator('#cutoff-input').fill(String(number));
-          assert.ok((await complete.locator('#cutoff-hint').innerText()).toLowerCase().includes(`final season, special ${number - 87}`), 'settings explain the internal ordering as a long special');
-          assert.ok(!/season 4, episode (?:29|30)/i.test(await complete.locator('#cutoff-hint').innerText()), 'a special is not mislabeled as a regular season episode');
-          await complete.keyboard.press('Escape');
+          const visibleCopy = (await complete.locator('#page-description, #timeline-track').allTextContents()).join(' ');
+          assert.ok(!/season 4, episode (?:29|30)/i.test(visibleCopy), 'a special is not mislabeled as a regular season episode');
           await assertNoHorizontalOverflow(complete, `${viewport.width}px ${episodeCode(number)} map`);
         }
         assert.equal(await complete.locator('#next-milestone').isDisabled(), true, 'there are no duplicate recut entries after the second special');
@@ -268,13 +262,13 @@ async function main() {
       }
     });
 
-    await test('a regular-episode cutoff hides both Final Chapters specials and Special1 hides the second finale', async () => {
+    await test('Viewing E87 hides finale content and Viewing SP1 hides SP2 content while both choices remain available', async () => {
       const bounded = await createPage(undefined, `if (!localStorage.getItem(${JSON.stringify(storageKey)})) localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify({ cutoff: 87, viewing: 87, edition: MAX }))})`);
       const assertBoundary = async number => {
         const later = data.episodes.filter(episode => episode.number > number);
-        assert.equal(await bounded.locator('#episode-select option').count(), number);
+        assert.equal(await bounded.locator('#episode-select option').count(), MAX);
         for (const entry of later) {
-          assert.equal(await bounded.locator(`#episode-select option[value="${entry.number}"]`).count(), 0, 'a later special is unavailable in the picker');
+          assert.equal(await bounded.locator(`#episode-select option[value="${entry.number}"]`).count(), 1, 'each later special remains available to select');
           assert.equal(await bounded.locator(`.timeline-event[data-episode="${entry.number}"]`).count(), 0, 'a later special is absent from the trail');
         }
         await view(bounded, 'recap');
@@ -285,7 +279,7 @@ async function main() {
           const body = await characterDetails(bounded, character.id);
           const noteNumbers = (await body.locator('.note-episode').allTextContents()).map(noteEpisodeNumber);
           assert.ok(noteNumbers.every(episode => Number.isInteger(episode) && episode <= number), 'character notes stop at the chosen boundary');
-          assert.equal(await body.locator('.character-description').innerText(), at(character.role, number).text, 'finale role changes stay behind the cutoff');
+          assert.equal(await body.locator('.character-description').innerText(), at(character.role, number).text, 'finale role changes stay behind the viewing episode');
           await closeCharacterDetails(bounded);
         }
         await view(bounded, 'map');
@@ -296,13 +290,12 @@ async function main() {
         await bounded.locator('#location-search').fill('');
       };
       await assertBoundary(87);
-      await setCutoff(bounded, 88);
       await episode(bounded, 88);
       assert.equal(await bounded.locator('#episode-select option[value="88"]').count(), 1, 'raising the boundary enables the first special');
       await assertBoundary(88);
       await bounded.reload({ waitUntil: 'load' });
       assert.equal(await bounded.locator('#episode-select').inputValue(), '88');
-      assert.equal(await bounded.locator('#episode-select option[value="89"]').count(), 0, 'the chosen first-special cutoff survives reload');
+      assert.equal(await bounded.locator('#episode-select option[value="89"]').count(), 1, 'the second special remains selectable after reload');
     });
 
     await test('Final Chapters episode cast and character notes follow each special and remain accessible when expanded', async () => {
@@ -370,6 +363,7 @@ async function main() {
 
     await test('walls are circular, share the published scale and keep the scale bar accurate', async () => {
       const scaled = await createPage();
+      await episode(scaled, MAX);
       await scaled.locator('[data-map-extent="walls"]').click();
       for (const [name, km] of Object.entries(data.mapGeometry.wallRadiusKm)) {
         const shape = scaled.locator(`#wall-geometry [data-wall="${name}"]`).nth(1);
@@ -569,8 +563,8 @@ async function main() {
         assert.match(await focused.locator('#map-area-note').innerText(), /restaurant.*forest detention site.*route.*unpinned/i, 'the island context retains the limits of its local settings');
         assert.deepEqual(await focused.evaluate(key => {
           const saved = JSON.parse(localStorage.getItem(key));
-          return { cutoff: saved.cutoff, viewing: saved.viewing };
-        }, storageKey), { cutoff: 73, viewing: 73 }, 'return keeps the chosen episode and spoiler limit');
+          return { viewing: saved.viewing };
+        }, storageKey), { viewing: 73 }, 'return keeps the chosen episode');
         await focused.reload({ waitUntil: 'load' });
         assert.equal(await focused.locator('#episode-select').inputValue(), '73', 'the content update preserves the saved episode');
         await assertNoHorizontalOverflow(focused, `${viewport.width}px E73 focus`);
@@ -804,7 +798,7 @@ async function main() {
 
     await test('recognizable place symbols appear only when their local settings are known', async () => {
       const symbols = await createPage();
-      await setCutoff(symbols, 65);
+      await episode(symbols, 65);
       for (const number of [56, 57, 61, 62, 63, 65]) {
         await episode(symbols, number);
         if (number >= 57) await symbols.locator('[data-map-extent="liberio"]').click();
@@ -820,7 +814,7 @@ async function main() {
       }
       await symbols.locator('[data-map-extent="world"]').click();
       assert.equal(await symbols.locator('#location-markers [data-map-symbol]').count(), 0, 'local symbols do not crowd the world overview');
-      await setCutoff(symbols, 61);
+      await episode(symbols, 61);
       await symbols.locator('[data-map-extent="liberio"]').click();
       assert.equal(await symbols.locator('#location-markers [data-map-symbol]').count(), 0, 'lowering the limit removes all later local symbols');
     });
@@ -829,7 +823,6 @@ async function main() {
       const sizes = [];
       for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }, { width: 320, height: 740 }]) {
         const symbols = await createPage(viewport);
-        await setCutoff(symbols, 65);
         await episode(symbols, 65);
         for (const style of ['parchment', 'night']) {
           await symbols.locator(`button[data-map-style="${style}"]`).click();
@@ -837,6 +830,12 @@ async function main() {
             if (expanded) await symbols.locator('#expand-map').click();
             for (const zoomed of [false, true]) {
               if (zoomed) await symbols.locator('#zoom-in').click();
+              // Pins newly revealed by this episode enter at a partial scale. Measure the
+              // finished geometry rather than a frame partway through their entrance.
+              await symbols.locator('#location-markers .pin-mark').evaluateAll(elements => Promise.all(elements
+                .flatMap(element => element.getAnimations())
+                .filter(animation => Number.isFinite(animation.effect.getComputedTiming().endTime))
+                .map(animation => animation.finished.catch(() => {}))));
               await symbols.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
               const measured = await symbols.locator('#location-markers [data-map-symbol]').evaluateAll(glyphs => glyphs.map(glyph => {
                 const marker = glyph.closest('[data-location]');
@@ -869,7 +868,6 @@ async function main() {
     await test('Back to this episode restores its map focus after exploration without changing progress', async () => {
       for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }, { width: 320, height: 740 }]) {
         const returning = await createPage(viewport);
-        await setCutoff(returning, 65);
         await episode(returning, 65);
         const action = returning.locator('#return-to-episode');
         assert.equal(await action.isVisible(), false, 'the return action leaves the map clear while already focused');
@@ -886,7 +884,7 @@ async function main() {
           await returning.keyboard.press('ArrowRight');
           const before = await returning.evaluate(key => {
             const saved = JSON.parse(localStorage.getItem(key));
-            return { cutoff: saved.cutoff, viewing: saved.viewing };
+            return { viewing: saved.viewing };
           }, storageKey);
           assert.notEqual(await returning.locator('#map-camera').getAttribute('transform'), 'translate(0 0) scale(1)', 'exploration changes the camera');
           await action.focus();
@@ -898,8 +896,8 @@ async function main() {
           assert.equal(await returning.locator('#episode-select').inputValue(), '65', 'return does not change the chosen episode');
           assert.deepEqual(await returning.evaluate(key => {
             const saved = JSON.parse(localStorage.getItem(key));
-            return { cutoff: saved.cutoff, viewing: saved.viewing };
-          }, storageKey), before, 'return preserves the saved episode and spoiler limit');
+            return { viewing: saved.viewing };
+          }, storageKey), before, 'return preserves the saved viewing episode');
           assert.equal(await action.isDisabled(), true, 'return is complete');
           assert.equal(await returning.locator('#expanded-map-dialog').evaluate(dialog => dialog.open), expanded, 'return preserves normal or expanded view');
           await returning.locator('#zoom-in').click();
@@ -911,9 +909,9 @@ async function main() {
       }
     });
 
-    await test('Back to this episode respects unknown settings and lowered episode limits', async () => {
+    await test('Back to this episode respects unknown settings and an earlier Viewing episode', async () => {
       const returning = await createPage();
-      await setCutoff(returning, 65);
+      await episode(returning, 65);
       await episode(returning, 60);
       await returning.locator('[data-map-extent="island"]').click();
       await returning.locator('#return-to-episode').click();
@@ -925,13 +923,13 @@ async function main() {
       assert.equal(await returning.locator('#return-to-episode').isDisabled(), true, 'an episode without a supported focus has no return destination');
       await episode(returning, 65);
       await returning.locator('[data-map-extent="world"]').click();
-      await setCutoff(returning, 1);
+      await episode(returning, 1);
       await returning.locator('#zoom-in').click();
       await returning.locator('#return-to-episode').click();
       assert.equal(await mapArea(returning), 'walls');
       assert.equal(await returning.locator('#episode-select').inputValue(), '1');
       assert.equal(await returning.locator('.map-marker.selected').getAttribute('data-location'), 'shiganshina');
-      assert.deepEqual(await returning.locator('#location-markers [data-location]').evaluateAll(markers => markers.map(marker => marker.dataset.location)), ['shiganshina'], 'a former mainland focus cannot survive a lowered limit');
+      assert.deepEqual(await returning.locator('#location-markers [data-location]').evaluateAll(markers => markers.map(marker => marker.dataset.location)), ['shiganshina'], 'a former mainland focus cannot survive viewing E1');
       assert.equal(await returning.locator('#location-markers [data-map-symbol]').count(), 0);
       const copy = await returning.locator('#return-to-episode').evaluate(element => [element.textContent, element.getAttribute('aria-label'), element.getAttribute('title')].join(' '));
       for (const location of data.locations.filter(location => location.firstEpisode > 1)) assert.ok(!copy.includes(location.name), 'the return action does not describe a later place');
@@ -966,6 +964,7 @@ async function main() {
 
     await test('Everyone fills one continuous gallery and each card opens readable details', async () => {
       const compact = await createPage();
+      await episode(compact, MAX);
       await view(compact, 'characters');
       const count = data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= MAX).length;
       assert.equal(await compact.locator('.character-card').count(), count);
@@ -1156,6 +1155,7 @@ async function main() {
 
     await test('whole character cards work by mouse, Enter and Space and return to the same filtered gallery', async () => {
       const gallery = await createPage();
+      await episode(gallery, MAX);
       await view(gallery, 'characters');
       await gallery.locator('#character-filter').fill('Levi');
       const matches = await gallery.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character));
@@ -1186,6 +1186,7 @@ async function main() {
     await test('the phone gallery starts higher, uses full-width search and keeps expansion beside the heading', async () => {
       for (const { width, height } of [{ width: 390, height: 844 }, { width: 320, height: 740 }]) {
         const phone = await createPage({ width, height });
+        await episode(phone, MAX);
         await view(phone, 'characters');
         const first = await phone.locator('.character-card').first().boundingBox();
         assert.ok(first.y < 330, `${width}px: first card starts at ${Math.round(first.y)}px`);
@@ -1224,6 +1225,7 @@ async function main() {
     await test('expanded gallery keeps filters, contains focus, restores the tab and respects episode limits', async () => {
       for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
         const gallery = await createPage(viewport);
+        await episode(gallery, MAX);
         await view(gallery, 'characters');
         const normalColumns = await gallery.locator('.character-grid').first().evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length);
         await gallery.locator('#expand-gallery').click();
@@ -1265,7 +1267,7 @@ async function main() {
         assert.equal(await gallery.locator('#character-detail-dialog').evaluate(dialog => dialog.open), false);
         assert.equal(await gallery.locator('#map-view').isVisible(), true);
         assert.equal(await gallery.locator('.map-marker.selected').getAttribute('data-location'), id);
-        await setCutoff(gallery, 1);
+        await episode(gallery, 1);
         await view(gallery, 'characters');
         await gallery.locator('#expand-gallery').click();
         assert.equal(await gallery.locator('.character-card').count(), data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= 1).length);
@@ -1280,6 +1282,7 @@ async function main() {
     await test('expanded map grows on desktop and phone, preserves exploration and restores focus', async () => {
       for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
         const expanded = await createPage(viewport);
+        await episode(expanded, MAX);
         await expanded.locator('[data-map-extent="walls"]').click();
         await expanded.locator('#zoom-in').click();
         const selected = await expanded.locator('.map-marker.selected').getAttribute('data-location');
@@ -1314,6 +1317,7 @@ async function main() {
     await test('expanded map keeps episode controls, search, layers and place details usable', async () => {
       for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
         const expanded = await createPage(viewport);
+        await episode(expanded, MAX);
         await expanded.locator('#expand-map').click();
         for (const id of ['episode-select', 'location-search', 'layer-groups', 'location-panel']) {
           assert.equal(await expanded.locator(`#${id}`).count(), 1);
@@ -1364,23 +1368,33 @@ async function main() {
       }
     });
 
-    await test('an expanded map applies a lowered cutoff from another tab immediately', async () => {
+    await test('an expanded map keeps its Viewing episode when another tab chooses an earlier episode', async () => {
       const expanded = await createPage();
+      await episode(expanded, 74);
       const other = await createPage(undefined, undefined, expanded.context());
       await expanded.locator('#expand-map').click();
       await expanded.locator('#show-changes').click();
-      await other.evaluate(key => localStorage.setItem(key, JSON.stringify({ cutoff: 1 })), storageKey);
-      await expanded.waitForFunction(() => document.querySelector('#episode-select').value === '1');
-      assert.equal(await expanded.locator('#episode-select option').count(), 1);
+      const markers = await expanded.locator('#location-markers [data-location]').evaluateAll(items => items.map(item => item.dataset.location));
+      const context = await expanded.locator('#map-area-note').innerText();
+      await episode(other, 1);
+      await expanded.waitForTimeout(100);
+      assert.equal(await expanded.locator('#episode-select').inputValue(), '74', 'the open tab keeps its own episode');
+      assert.equal(await other.locator('#episode-select').inputValue(), '1');
+      assert.equal(await expanded.locator('#episode-select option').count(), MAX);
       assert.equal(await expanded.locator('#expanded-map-dialog').evaluate(dialog => dialog.open), true);
+      assert.deepEqual(await expanded.locator('#location-markers [data-location]').evaluateAll(items => items.map(item => item.dataset.location)), markers);
+      assert.equal(await expanded.locator('#map-area-note').innerText(), context);
+      await episode(expanded, 1);
       assert.equal(await expanded.locator('#location-markers .map-marker').count(), data.locations.filter(location => location.firstEpisode <= 1).length);
-      const copy = await expanded.locator('#expanded-map-dialog').innerText();
-      for (const name of laterNames) assert.ok(!copy.includes(name), `later name ${name} leaked into the expanded map`);
+      const copy = await expanded.locator('#location-markers, #location-panel, #map-area-note, #map-scenes, #episode-changes-panel').allTextContents();
+      for (const name of laterNames) assert.ok(!copy.join(' ').includes(name), `later name ${name} leaked into the E1 map`);
+      assert.equal(await expanded.locator('#expanded-map-dialog').evaluate(dialog => dialog.open), true, 'selecting E1 keeps expansion open');
       await expanded.locator('#close-expanded-map').click();
     });
 
     await test('zoom reveals detail and the overview tracks the visible area and resets', async () => {
       const zoomed = await createPage();
+      await episode(zoomed, MAX);
       await zoomed.locator('[data-map-extent="walls"]').click();
       await zoomed.locator('#zoom-out').click();
       const minor = zoomed.locator('.map-marker.minor:not(.selected):not(.now):not(.changed)').first();
@@ -1407,6 +1421,7 @@ async function main() {
 
     await test('episode changes show recorded events, new places and status without inventing pins', async () => {
       const changed = await createPage();
+      await episode(changed, MAX);
       await changed.locator('#show-changes').click();
       const pinned = data.episodes.find(item => item.number === MAX).events.filter(event => event.locationId);
       for (const event of pinned) assert.equal(await changed.locator(`[data-change-event="${event.id}"]`).count(), 1);
@@ -1440,6 +1455,7 @@ async function main() {
       const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
       contexts.push(ctx);
       const phone = await createPage(undefined, undefined, ctx);
+      await episode(phone, MAX);
       await phone.locator('#expand-map').tap();
       assert.equal(await phone.locator('#place-details').isVisible(), false);
       await phone.locator('#place-peek').tap();
@@ -1619,15 +1635,15 @@ async function main() {
     });
 
     if (data.seasons.some(season => season.season === 4)) {
-      await test('Season 4 is available through the ceiling and stays hidden below episode 60', async () => {
+      await test('Season 4 stays selectable while its content remains hidden when viewing E59', async () => {
         const bounded = await createPage();
         const season = data.seasons.find(item => item.season === 4);
         assert.equal(season.first, 60);
         const fourth = bounded.locator('#episode-select optgroup').last();
         assert.deepEqual(await fourth.locator('option').evaluateAll(options => options.map(option => Number(option.value))), Array.from({ length: MAX - 59 }, (_, index) => index + 60));
-        await setCutoff(bounded, 59);
-        assert.equal(await bounded.locator('#episode-select option').count(), 59);
-        assert.equal(await bounded.locator('#episode-select optgroup').count(), 3);
+        await episode(bounded, 59);
+        assert.equal(await bounded.locator('#episode-select option').count(), MAX);
+        assert.equal(await bounded.locator('#episode-select optgroup').count(), data.seasons.length);
         assert.deepEqual(await bounded.locator('#location-markers [data-location]').evaluateAll(items => items.map(item => item.dataset.location)), (await expectedMapLocations(bounded, 59)).map(location => location.id));
         await view(bounded, 'characters');
         assert.deepEqual((await bounded.locator('.character-card').evaluateAll(items => items.map(item => item.dataset.character))).sort(), data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= 59).map(character => character.id).sort());
@@ -1641,7 +1657,6 @@ async function main() {
           assert.equal(await bounded.locator(`[data-open-character="${character.id}"]`).count(), 0, `${character.id} is searchable before introduction`);
         }
         await bounded.locator('#location-search').fill('');
-        await setCutoff(bounded, MAX);
         await episode(bounded, MAX);
         await view(bounded, 'recap');
         assert.equal(await bounded.locator('.recap-intro h2').innerText(), data.episodeTitles[MAX - 1].title);
@@ -1691,30 +1706,35 @@ async function main() {
         await assertNoHorizontalOverflow(cast, 'Season 4 gallery');
       });
 
-      await test('another tab lowering the episode limit refreshes or closes open character details safely', async () => {
+      await test('another tab choosing an earlier episode leaves open character details and the expanded gallery unchanged', async () => {
         const drawer = await createPage();
+        await episode(drawer, MAX);
         const other = await createPage(undefined, undefined, drawer.context());
         await view(drawer, 'characters');
         await characterDetails(drawer, 'eren');
-        await other.evaluate(key => localStorage.setItem(key, JSON.stringify({ cutoff: 13, edition: window.ATLAS_DATA.maxEpisode })), storageKey);
-        await drawer.waitForFunction(() => document.querySelector('#episode-select').value === '13');
-        if (await drawer.locator('#character-detail-dialog').evaluate(dialog => dialog.open)) {
-          assert.equal(await drawer.locator('#character-detail-body .character-description').innerText(), at(data.characters.find(character => character.id === 'eren').role, 13).text);
-          assert.ok((await drawer.locator('#character-detail-body .note-episode').allTextContents()).map(noteEpisodeNumber).every(number => number <= 13));
-          await closeCharacterDetails(drawer);
-        }
-        await setCutoff(drawer, MAX);
-        await episode(drawer, MAX);
+        const erenRole = await drawer.locator('#character-detail-body .character-description').innerText();
+        const erenNotes = await drawer.locator('#character-detail-body .note-episode').allTextContents();
+        await episode(other, 13);
+        await drawer.waitForTimeout(100);
+        assert.equal(await drawer.locator('#episode-select').inputValue(), String(MAX));
+        assert.equal(await drawer.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true);
+        assert.equal(await drawer.locator('#character-detail-body .character-description').innerText(), erenRole);
+        assert.deepEqual(await drawer.locator('#character-detail-body .note-episode').allTextContents(), erenNotes);
+        await closeCharacterDetails(drawer);
         await drawer.locator('#expand-gallery').click();
         const introduced = data.characters.find(character => character.type !== 'group' && character.firstEpisode >= 60);
         await characterDetails(drawer, introduced.id);
-        await other.evaluate(key => localStorage.setItem(key, JSON.stringify({ cutoff: 59, edition: window.ATLAS_DATA.maxEpisode })), storageKey);
-        await drawer.waitForFunction(() => document.querySelector('#episode-select').value === '59');
-        assert.equal(await drawer.locator('#character-detail-dialog').evaluate(dialog => dialog.open), false, 'a character no longer introduced must close');
-        assert.equal(await drawer.locator(`#character-${introduced.id}`).count(), 0);
-        assert.equal(await drawer.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), true, 'the underlying expanded gallery remains available');
-        assert.equal(await drawer.evaluate(() => Boolean(document.activeElement.closest('#expanded-gallery-dialog'))), true, 'focus stays in the surviving modal');
+        await episode(other, 59);
+        await drawer.waitForTimeout(100);
+        assert.equal(await drawer.locator('#episode-select').inputValue(), String(MAX));
+        assert.equal(await drawer.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true, 'the other tab cannot close current character details');
+        assert.equal(await drawer.locator(`#character-${introduced.id}`).count(), 1);
+        assert.equal(await drawer.locator('#expanded-gallery-dialog').evaluate(dialog => dialog.open), true);
+        assert.equal(await drawer.evaluate(() => Boolean(document.activeElement.closest('#character-detail-dialog'))), true, 'focus stays in the active modal');
+        await closeCharacterDetails(drawer);
         await drawer.locator('#close-expanded-gallery').click();
+        await episode(drawer, 59);
+        assert.equal(await drawer.locator(`#character-${introduced.id}`).count(), 0, 'this tab still applies its own selected content boundary');
       });
 
       await test('an unpinned Season 4 event can be found without inventing a map pin', async () => {
@@ -1742,6 +1762,7 @@ async function main() {
 
       await test('the map marks former wall boundaries from episode 80 and restores earlier walls', async () => {
         const historical = await createPage();
+        await episode(historical, MAX);
         await historical.locator('[data-map-extent="walls"]').click();
         await historical.locator('#map-legend summary').click();
         for (const number of [79, 80, 79]) {
@@ -1887,7 +1908,7 @@ async function main() {
         assert.equal(await legacy.locator('[data-view="notes"], #notes-view, #location-note, #save-note, #note-count').count(), 0);
         assert.ok(!(await legacy.locator('body').innerText()).includes('Private legacy text'));
       }
-      await setCutoff(legacy, 13);
+      await episode(legacy, 13);
       await legacy.locator('button[data-map-style="parchment"]').click();
       await legacy.reload({ waitUntil: 'load' });
       assert.deepEqual(await legacy.evaluate(key => JSON.parse(localStorage.getItem(key)).notes, storageKey), { '47:shiganshina': 'Private legacy text <b>kept</b>' });
@@ -1980,7 +2001,7 @@ async function main() {
       await episode(page, MAX);
     });
 
-    await test('another tab synchronizes the cutoff without erasing legacy data', async () => {
+    await test('tabs keep independent Viewing episodes and preserve legacy notes during separate saves', async () => {
       const shared = await browser.newContext({ viewport: { width: 1440, height: 1040 } });
       contexts.push(shared);
       const a = await createPage(undefined, undefined, shared);
@@ -1990,68 +2011,79 @@ async function main() {
         saved.notes = { '47:shiganshina': 'Kept from an older tab' };
         localStorage.setItem(key, JSON.stringify(saved));
       }, storageKey);
+      await episode(a, 13);
       await view(b, 'recap');
-      await setCutoff(a, 13);
-      await b.waitForFunction(() => document.querySelector('#episode-select').value === '13');
-      assert.equal(await b.locator('#recap-view').isVisible(), true, 'the other tab keeps its own view');
-      await view(b, 'map');
-      await setLayer(b, 'walls', false);
-      assert.deepEqual(await b.evaluate(key => JSON.parse(localStorage.getItem(key)).notes, storageKey), { '47:shiganshina': 'Kept from an older tab' });
+      await episode(b, 74);
+      await a.waitForTimeout(100);
+      assert.equal(await a.locator('#episode-select').inputValue(), '13');
+      assert.equal(await b.locator('#episode-select').inputValue(), '74');
+      assert.equal(await b.locator('#recap-view').isVisible(), true, 'each tab keeps its own view');
+      assert.equal(await b.locator('#episode-select option').count(), MAX);
+      await view(a, 'map');
+      await setLayer(a, 'walls', false);
+      assert.equal(await b.locator('#episode-select').inputValue(), '74', 'a layer save in one tab cannot move the other episode');
+      assert.deepEqual(await a.evaluate(key => JSON.parse(localStorage.getItem(key)).notes, storageKey), { '47:shiganshina': 'Kept from an older tab' });
+      await b.reload({ waitUntil: 'load' });
+      assert.equal(await b.locator('#episode-select').inputValue(), '13', 'a reopened tab restores the most recently saved viewing episode');
+      assert.equal(await b.locator('#layer-walls').isChecked(), false, 'saved layer preferences remain available to reopened tabs');
     });
 
-    await test('lowering the cutoff clamps the view and persists the limit', async () => {
+    await test('selecting an earlier Viewing episode clears later places and persists without restricting available choices', async () => {
+      await episode(page, MAX);
       await chooseLocation(page, 'Utgard', 'utgard');
-      await setCutoff(page, 13);
+      await episode(page, 13);
       assert.equal(await page.locator('#episode-select').inputValue(), '13');
-      assert.equal(await page.locator('#episode-select option').count(), 13);
-      assert.equal(await page.locator('#location-panel h2').innerText(), 'Shiganshina');
+      assert.equal(await page.locator('#episode-select option').count(), MAX);
+      assert.equal(await page.locator('#location-panel h2').innerText(), data.locations.find(location => location.id === 'trost').name);
       assert.equal(await page.locator('[data-location="utgard"]').count(), 0);
       await page.reload({ waitUntil: 'load' });
       assert.equal(await page.locator('#episode-select').inputValue(), '13');
       const state = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
-      assert.equal(state.cutoff, 13);
-      await page.locator('#settings-button').click();
-      await page.locator('#cutoff-input').fill(String(MAX + 1));
-      assert.ok((await page.locator('#cutoff-hint').innerText()).toLowerCase().includes(`stops at ${episodeLabel(MAX).toLowerCase()}`));
-      await page.locator('#settings-form [type="submit"]').click();
-      assert.equal(await page.locator('#settings-dialog').evaluate(dialog => dialog.open), true, `Episode ${MAX + 1} must not be accepted`);
-      await page.locator('#cutoff-input').fill(String(MAX));
-      await page.locator('#settings-form [type="submit"]').click();
+      assert.equal(state.viewing, 13);
+      assert.equal(Object.hasOwn(state, 'cutoff'), false);
+      assert.equal(Object.hasOwn(state, 'edition'), false);
+      assert.equal(await page.locator('#episode-select option').count(), MAX);
+      assert.equal(await page.locator(`#episode-select option[value="${MAX + 1}"]`).count(), 0, 'only actual catalog entries can be selected');
       await episode(page, MAX);
     });
 
-    await test('a viewer caught up with an older edition follows the ceiling up; others keep their limit', async () => {
+    await test('saved Viewing episodes survive old edition metadata and legacy cutoff only supplies a missing viewing episode', async () => {
       const open = saved => createPage(undefined, `if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify(saved))}); }`);
       const cases = [
-        // [saved state, expected cutoff, expect the "spoiler limit followed" toast]
-        [{ cutoff: 47, viewing: 40 }, MAX, MAX > 47],   // saved before `edition` existed: the episode-47 edition
-        [{ cutoff: 47, edition: 47, viewing: 47 }, MAX, MAX > 47],
-        ...(MAX > 59 ? [
-          [{ cutoff: 59, edition: 59, viewing: 59 }, MAX, true],
-          [{ cutoff: 58, edition: 59, viewing: 58 }, 58, false]
-        ] : []),
-        ...(MAX > 87 ? [
-          [{ cutoff: 87, edition: 87, viewing: 87 }, MAX, true],
-          [{ cutoff: 87, edition: 87, viewing: 74 }, MAX, true],
-          [{ cutoff: 74, edition: 87, viewing: 73 }, 74, false],
-          [{ cutoff: 87, edition: MAX, viewing: 87 }, 87, false]
-        ] : []),
-        [{ cutoff: 13, viewing: 13 }, 13, false],
-        [{ cutoff: 46, edition: 47, viewing: 46 }, 46, false],
-        [{ cutoff: MAX, edition: MAX, viewing: MAX }, MAX, false]
+        [{ cutoff: 47, viewing: 40 }, 40],
+        [{ cutoff: 47, edition: 47, viewing: 47 }, 47],
+        [{ cutoff: 59, edition: 59, viewing: 59 }, 59],
+        [{ cutoff: 58, edition: 59, viewing: 58 }, 58],
+        [{ cutoff: 87, edition: 87, viewing: 87 }, 87],
+        [{ cutoff: 87, edition: 87, viewing: 74 }, 74],
+        [{ cutoff: 74, edition: 87, viewing: 73 }, 73],
+        [{ cutoff: 13, viewing: 74 }, 74],
+        [{ cutoff: MAX, edition: MAX, viewing: MAX }, MAX],
+        [{ cutoff: 47 }, 47],
+        [{ cutoff: 13, edition: 47 }, 13],
+        [{ viewing: 88 }, 88],
+        [{ viewing: MAX }, MAX],
+        [{ viewing: 0, cutoff: 47 }, 1],
+        [{ viewing: MAX + 12, cutoff: 13 }, MAX],
+        [{ viewing: 'not an episode', cutoff: 47 }, 1],
+        [{ cutoff: 0 }, 1],
+        [{ cutoff: MAX + 12 }, MAX],
+        [{ edition: 47 }, 1],
+        [{}, 1]
       ];
-      for (const [saved, expected, followed] of cases) {
+      for (const [saved, expected] of cases) {
         const p = await open(saved);
         const label = JSON.stringify(saved);
-        assert.equal(await p.locator('#episode-select option').count(), expected, label);
-        assert.equal(await p.locator('#episode-select').inputValue(), String(Math.min(saved.viewing, expected)), `${label}: the viewing episode stays put`);
-        assert.equal(await p.locator('#toast').evaluate(el => el.classList.contains('visible')), followed, `${label}: toast`);
-        if (followed) assert.ok((await p.locator('#toast').innerText()).toLowerCase().includes(episodeLabel(MAX).toLowerCase()), 'the toast identifies the new special ceiling');
+        assert.equal(await p.locator('#episode-select option').count(), MAX, `${label}: every choice is available`);
+        assert.equal(await p.locator('#episode-select').inputValue(), String(expected), `${label}: the saved viewing episode wins`);
+        assert.equal(await p.locator('#toast').evaluate(el => el.classList.contains('visible')), false, `${label}: no automatic edition-advance notice`);
         const stored = await p.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
-        assert.deepEqual([stored.cutoff, stored.edition], [expected, MAX], `${label}: saved`);
-        await p.locator('#settings-button').click();
-        assert.equal(await p.locator('#cutoff-input').inputValue(), String(expected), `${label}: settings reflect the migrated limit`);
-        await p.keyboard.press('Escape');
+        assert.equal(stored.viewing, expected, `${label}: saved`);
+        assert.equal(Object.hasOwn(stored, 'cutoff'), false, `${label}: retired cutoff is removed from new saves`);
+        assert.equal(Object.hasOwn(stored, 'edition'), false, `${label}: retired edition is removed from new saves`);
+        assert.equal(await p.locator('#settings-button, #settings-dialog').count(), 0);
+        await p.reload({ waitUntil: 'load' });
+        assert.equal(await p.locator('#episode-select').inputValue(), String(expected), `${label}: the migrated viewing episode survives reload`);
         await p.close();
       }
     });
@@ -2185,7 +2217,7 @@ async function main() {
 
     await test('unreadable saved data is kept aside and the atlas starts fresh', async () => {
       const malformed = await createPage(undefined, () => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('scout-atlas:v1', '{invalid-json'); } });
-      assert.equal(await malformed.locator('#episode-select').inputValue(), String(MAX));
+      assert.equal(await malformed.locator('#episode-select').inputValue(), '1');
       await episode(malformed, 13);
       assert.equal(await malformed.evaluate(key => JSON.parse(localStorage.getItem(key)).viewing, storageKey), 13);
       const copies = await malformed.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('scout-atlas:v1:unreadable:')).map(key => localStorage.getItem(key)));
@@ -2196,11 +2228,9 @@ async function main() {
       const denied = await createPage(undefined, () => {
         Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new DOMException('Storage denied for regression test', 'SecurityError'); } });
       });
-      await episode(denied, 1);
-      assert.equal(await denied.locator('#episode-select').inputValue(), '1');
+      assert.equal(await denied.locator('#episode-select').inputValue(), '1', 'storage failures still start at E1');
       await view(denied, 'recap');
       assert.equal(await denied.locator('#recap-view').isVisible(), true);
-      await setCutoff(denied, 13);
       await view(denied, 'map');
       await episode(denied, 13);
       await denied.locator('#zoom-in').click();
@@ -2228,6 +2258,7 @@ async function main() {
 
       await test('every visible person and Titan has a real portrait and all bundled versions decode', async () => {
         const illustrated = await createPage();
+        await episode(illustrated, MAX);
         await view(illustrated, 'characters');
         const cast = data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= MAX);
         assert.equal(data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= 87).length, 56, 'the 87-episode cast retains its 56 people and Titans');
@@ -2344,9 +2375,11 @@ async function main() {
             levi: [{ from: 14, file: 'missing-framed-for-test.png', crop: [0, 0, 100, 100], sourceSize: [100, 100] }],
             historia: [{ from: 4, file: '../outside.png', crop: [0, 0, 100, 100], sourceSize: [100, 100] }]
           }), set: () => {} });
+
         } : () => {
           Object.defineProperty(window, 'ATLAS_PORTRAITS', { configurable: true, get: () => ({ levi: 'missing-for-test.png', historia: '../outside.png' }), set: () => {} });
         });
+        await episode(listed, MAX);
         await view(listed, 'characters');
         await listed.waitForFunction(() => !document.querySelector('#character-levi [data-portrait]'));
         assert.equal(await listed.locator('#character-levi svg.avatar:not(.image-portrait)').count(), 1);
@@ -2356,6 +2389,7 @@ async function main() {
 
     await test('phone layout fits, keeps every tab reachable, and fills the map', async () => {
       const mobile = await createPage({ width: 390, height: 844 });
+      await episode(mobile, MAX);
       await mobile.locator('[data-map-extent="walls"]').click();
       await assertNoHorizontalOverflow(mobile, 'mobile map');
       const tabs = await mobile.locator('.primary-nav .nav-item').evaluateAll(items => items.map(item => item.getBoundingClientRect().right));
@@ -2374,7 +2408,7 @@ async function main() {
       });
       assert.ok(fit > 0.8, `map fills only ${Math.round(fit * 100)}% of its stage`);
       for (const name of ['recap', 'characters']) { await view(mobile, name); await assertNoHorizontalOverflow(mobile, `mobile ${name}`); }
-      await setCutoff(mobile, 1);
+      await episode(mobile, 1);
       assert.equal(await mobile.locator('#episode-select').inputValue(), '1');
       await assertNoHorizontalOverflow(mobile, 'mobile episode 1');
     });

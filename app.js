@@ -45,19 +45,14 @@
     }
   } catch { /* Exploration also works when browser storage is unavailable. */ }
 
-  // `edition` is the atlas's ceiling when this browser last saved. Content extensions are explicitly
-  // authorized by the viewer, so a viewer at the old ceiling follows it up. Saves from before the
-  // field existed come from the episode-47 edition.
-  const LEGACY_EDITION = 47;
-  const savedEdition = Number.isInteger(stored.edition) ? stored.edition : LEGACY_EDITION;
-  const extended = stored.cutoff !== undefined && MAX_EPISODE > savedEdition && Math.trunc(Number(stored.cutoff)) >= savedEdition;
-  const cutoff = extended ? MAX_EPISODE : episodeNumber(stored.cutoff ?? MAX_EPISODE);
+  // Viewing is the only content boundary. Older saves without it use their former limit;
+  // a first visit starts at E1, and adding content never advances a saved viewing episode.
+  const viewing = episodeNumber(stored.viewing ?? stored.cutoff ?? 1);
   const state = {
-    cutoff,
-    viewing: Math.min(cutoff, episodeNumber(stored.viewing ?? cutoff)),
+    viewing,
     // A first visit opens where the current episode happens; later visits keep the last place.
     selected: typeof stored.selected === 'string' ? stored.selected
-      : data.episodes.find(entry => entry.number === Math.min(cutoff, episodeNumber(stored.viewing ?? cutoff)))?.events.find(event => event.locationId)?.locationId || 'shiganshina',
+      : data.episodes.find(entry => entry.number === viewing)?.events.find(event => event.locationId)?.locationId || 'shiganshina',
     view: 'map',
     mapStyle: isMapStyle(stored.mapStyle) ? stored.mapStyle : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'parchment' : 'night'),
     layers: { locations: true, groups: true, territory: true, walls: true, ...(stored.layers && typeof stored.layers === 'object' ? stored.layers : {}) },
@@ -77,7 +72,7 @@
     try {
       let current = {};
       try { current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch { current = {}; }
-      const saved = { cutoff: state.cutoff, edition: MAX_EPISODE, viewing: state.viewing, selected: state.selected, mapExtent: state.mapExtent, mapStyle: state.mapStyle, layers: state.layers };
+      const saved = { viewing: state.viewing, selected: state.selected, mapExtent: state.mapExtent, mapStyle: state.mapStyle, layers: state.layers };
       // Preserve legacy notes without exposing a removed feature or erasing existing user data.
       if (Object.prototype.hasOwnProperty.call(current, 'notes')) saved.notes = current.notes;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
@@ -239,13 +234,11 @@
     document.documentElement.dataset.mapStyle = state.mapStyle;
     $$('button[data-map-style]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mapStyle === state.mapStyle)));
   }
-  const milestones = () => data.episodes.map(episode => episode.number).filter(number => number <= state.cutoff);
+  const milestones = () => data.episodes.map(episode => episode.number);
   function updateHeader() {
     $('#about-ceiling').textContent = `Its story content ends at ${episodeLabel(MAX_EPISODE).toLowerCase()} (${seasonText(MAX_EPISODE).toLowerCase()}).`;
-    $('#edition-hint').textContent = `Leave the limit at ${MAX_EPISODE} (${episodeCode(MAX_EPISODE)}) to browse every episode included in this atlas.`;
-    $('#cutoff-input').max = String(MAX_EPISODE);
-    const groups = data.seasons.filter(season => season.first <= state.cutoff).map(season => {
-      const last = Math.min(state.cutoff, season.last ?? state.cutoff);
+    const groups = data.seasons.filter(season => season.first <= MAX_EPISODE).map(season => {
+      const last = Math.min(MAX_EPISODE, season.last ?? MAX_EPISODE);
       const options = [];
       for (let number = season.first; number <= last; number += 1) {
         options.push(`<option value="${number}" ${number === state.viewing ? 'selected' : ''}>${episodeCode(number)}  ${escapeHTML(titleOfEpisode(number))}</option>`);
@@ -922,7 +915,7 @@
     showCharacterDetails(id);
   }
   function setEpisode(number, { follow = false } = {}) {
-    state.viewing = Math.min(state.cutoff, episodeNumber(number));
+    state.viewing = episodeNumber(number);
     state.activeEvent = null;
     state.panelExpanded = !window.matchMedia('(max-width: 760px)').matches;
     // Follow the story: a milestone episode selects the place where it happens.
@@ -1429,25 +1422,6 @@
   for (const name of ['locations', 'groups', 'territory', 'walls']) {
     $(`#layer-${name}`).addEventListener('change', event => { state.layers[name] = event.target.checked; syncLayers(); persist(); });
   }
-  function cutoffHint() {
-    const value = Math.trunc(Number($('#cutoff-input').value));
-    if (!value || value < 1) { $('#cutoff-hint').textContent = ''; return; }
-    if (value > MAX_EPISODE) { $('#cutoff-hint').textContent = `This edition stops at ${episodeLabel(MAX_EPISODE).toLowerCase()}.`; return; }
-    $('#cutoff-hint').textContent = `${episodeLabel(value)} is ${seasonText(value).toLowerCase()}, “${titleOfEpisode(value)}”.`;
-  }
-  function showSettings() { $('#cutoff-input').value = state.cutoff; cutoffHint(); $('#settings-dialog').showModal(); }
-  $('#cutoff-input').addEventListener('input', cutoffHint);
-  $('#settings-button').addEventListener('click', showSettings);
-  $('#settings-form').addEventListener('submit', event => {
-    event.preventDefault();
-    if (!$('#settings-form').reportValidity()) return;
-    state.cutoff = episodeNumber($('#cutoff-input').value);
-    state.viewing = Math.min(state.viewing, state.cutoff);
-    state.activeEvent = null;
-    render();
-    $('#settings-dialog').close();
-    toast(`Spoiler limit set to ${episodeLabel(state.cutoff).toLowerCase()}.`);
-  });
   $('#about-button').addEventListener('click', () => $('#about-dialog').showModal());
   $('#map-guide').addEventListener('click', () => $('#about-dialog').showModal());
   $$('.close-dialog').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
@@ -1513,21 +1487,9 @@
     if (!event.target.closest('.search-wrap')) $('#search-results').hidden = true;
   });
 
-  // Another tab saved: take its spoiler limit, keep this tab's own view.
-  window.addEventListener('storage', event => {
-    if (event.key !== STORAGE_KEY || event.newValue === null) return;
-    let incoming;
-    try { incoming = JSON.parse(event.newValue) || {}; } catch { return; }
-    state.cutoff = episodeNumber(incoming.cutoff ?? state.cutoff);
-    state.viewing = Math.min(state.viewing, state.cutoff);
-    render({ save: false });
-    if (state.view === 'map') applyCamera();
-  });
-
   applyMapStyle();
   render();
   applyCamera();
   $('#map-legend').addEventListener('toggle', scheduleLayout);
   if (unreadableCopy) toast('Saved data could not be read. A copy was kept in this browser and the atlas started fresh.');
-  else if (extended) toast(`The atlas now reaches ${episodeLabel(MAX_EPISODE).toLowerCase()}, and your spoiler limit followed.`);
 })();

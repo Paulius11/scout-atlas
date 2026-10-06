@@ -154,9 +154,6 @@ main { flex: 1; min-width: 0; padding: 0 32px 20px; max-width: 2000px; }
 .select-wrap select { height: 38px; padding: 0 12px; width: clamp(180px, 22vw, 320px); min-width: 0; max-width: none; background: transparent; border: 0; color: var(--text); font-size: 14.5px; cursor: pointer; }
 .select-wrap select:focus-visible { outline-offset: -3px; }
 .select-wrap option, .select-wrap optgroup { background: #1f2d25; color: var(--text); }
-.settings-button { display: grid; place-items: center; flex-shrink: 0; width: 40px; height: 40px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--muted); }
-.settings-button:hover { color: var(--text); background: var(--surface); }
-.settings-button .icon { width: 19px; height: 19px; }
 
 /* ---------- Map view ---------- */
 .map-view { border: 1px solid rgba(224, 189, 135, .22); border-radius: 14px; overflow: hidden; background: var(--surface); box-shadow: 0 18px 60px rgba(0, 0, 0, .2); }
@@ -701,13 +698,6 @@ dialog h2 { margin: 10px 0 10px; font-size: 29px; line-height: 1.2; }
 dialog p { font-size: 14.5px; line-height: 1.7; color: var(--text-2); }
 dialog p strong { color: var(--text); font-weight: 600; }
 dialog label { display: block; margin-top: 18px; font-size: 14px; color: var(--text-2); }
-#settings-dialog { --text: var(--reading-ink); --text-2: var(--reading-body); --muted: var(--reading-muted); --line: var(--reading-line); --line-strong: var(--reading-line); --brass: var(--reading-accent); --accent: var(--reading-accent); background: var(--reading-bg); }
-#settings-dialog .icon-button:hover { color: var(--text); }
-#settings-dialog .optional-label { margin-left: 6px; font-size: 12px; color: var(--muted); }
-#cutoff-input { width: 100%; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--reading-wash); font-size: 18px; }
-.input-hint { margin: 8px 0 0; font-size: 13.5px; }
-#settings-form .primary-button { width: 100%; margin-top: 20px; border-color: var(--reading-ink); background: var(--reading-ink); color: var(--reading-bg); }
-#settings-form .primary-button:hover { border-color: var(--reading-body); background: var(--reading-body); }
 .guide-list { margin: 16px 0; padding: 4px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .guide-list strong { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
 #about-dialog > .primary-button { width: 100%; margin-top: 16px; }
@@ -768,12 +758,11 @@ dialog label { display: block; margin-top: 18px; font-size: 14px; color: var(--t
   #mobile-gallery-action .expand-gallery { justify-content: center; width: 40px; min-height: 40px; padding: 8px; border-color: var(--line-strong); color: var(--accent); }
   #mobile-gallery-action .expand-gallery-label { display: none; }
   #mobile-gallery-action .icon { width: 18px; height: 18px; }
-  .page-heading .heading-controls { display: grid; grid-template-columns: minmax(0, 1fr) 32px; align-items: center; gap: 4px 8px; width: 100%; }
+  .page-heading .heading-controls { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 4px; width: 100%; }
   .page-heading .episode-control { display: contents; }
   .page-heading .episode-control > label { grid-column: 1; grid-row: 1; margin: 0; font-size: 12px; }
   .page-heading .stepper { grid-column: 1 / -1; grid-row: 2; min-height: 42px; }
   .page-heading .step-button { width: 42px; }
-  .page-heading .settings-button { grid-column: 2; grid-row: 1; width: 32px; height: 32px; }
   .select-wrap { flex: 1; min-width: 0; }
   .select-wrap select { width: 100%; min-width: 0; max-width: none; }
   .page-heading .select-wrap select { height: 42px; }
