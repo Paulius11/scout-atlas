@@ -1449,7 +1449,6 @@
   for (const name of ['locations', 'groups', 'territory', 'walls']) {
     $(`#layer-${name}`).addEventListener('change', event => { state.layers[name] = event.target.checked; syncLayers(); persist(); });
   }
-  $('#about-button').addEventListener('click', () => $('#about-dialog').showModal());
   $('#map-guide').addEventListener('click', () => $('#about-dialog').showModal());
   $$('.close-dialog').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
   $$('dialog').forEach(dialog => dialog.addEventListener('click', event => {

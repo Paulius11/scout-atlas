@@ -129,9 +129,6 @@ svg { display: block; }
 .layer-toggle input:checked + .switch { background: #62764f; border-color: #62764f; }
 .layer-toggle input:checked + .switch::after { transform: translateX(14px); background: #dbe5c8; }
 .layer-toggle input:focus-visible + .switch { outline: 2px solid var(--brass); outline-offset: 3px; }
-.sidebar-bottom { margin-top: auto; border-top: 1px solid var(--line); padding-top: 16px; }
-.about-button { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--text-2); }
-.unofficial { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 
 /* ---------- Page heading ---------- */
 main { flex: 1; min-width: 0; padding: 0 32px 20px; max-width: 2000px; }
@@ -182,9 +179,11 @@ main { flex: 1; min-width: 0; padding: 0 32px 20px; max-width: 2000px; }
 .search-empty { padding: 10px; margin: 0; font-size: 13.5px; color: var(--muted); }
 
 .map-style-switch { display: flex; flex-shrink: 0; gap: 2px; padding: 3px; border: 1px solid var(--line-strong); border-radius: 8px; background: rgba(0, 0, 0, .16); }
-.map-toolbar > .map-style-switch { align-self: flex-end; min-height: 40px; }
-.map-style-switch button { min-height: 30px; padding: 4px 10px; border-radius: 5px; font-size: 12px; color: var(--muted); transition: background .18s, color .18s; }
+.sidebar > .map-style-switch { align-self: flex-start; margin-top: auto; }
+.map-style-switch button { display: grid; place-items: center; width: 44px; height: 44px; padding: 10px; border-radius: 5px; color: var(--text-2); transition: background .18s, color .18s; }
+.map-style-switch .icon { width: 20px; height: 20px; }
 .map-style-switch button[aria-pressed="true"] { background: #ddc69b; color: #30291e; box-shadow: 0 1px 4px rgba(0, 0, 0, .15); }
+.map-style-switch button[aria-pressed="true"]:hover { color: #30291e; }
 .map-style-switch button:focus-visible { outline-offset: -2px; }
 
 .map-navigation { display: flex; flex: 1 1 100%; align-items: center; gap: 8px; min-width: 0; }
@@ -750,11 +749,12 @@ dialog label { display: block; margin-top: 18px; font-size: 14px; color: var(--t
 }
 @media (max-width: 760px) {
   .app-shell { display: block; }
-  .sidebar { position: static; width: 100%; height: auto; overflow: visible; flex-direction: column; gap: 0; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sidebar { position: static; width: 100%; height: auto; overflow: visible; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sidebar > .map-style-switch { align-self: center; margin-top: 0; }
   .brand-emblem { width: 30px; height: 30px; }
   .brand-text strong { font-size: 19px; }
   .brand-text span { display: none; }
-  .layer-section, .sidebar-bottom { display: none; }
+  .layer-section { display: none; }
   html { scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
   body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
   .primary-nav { position: fixed; z-index: 25; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); background: #14231d; border-top: 1px solid var(--line-strong); box-shadow: 0 -8px 24px rgba(0, 0, 0, .18); }
@@ -791,7 +791,6 @@ dialog label { display: block; margin-top: 18px; font-size: 14px; color: var(--t
   .map-extent-switch button { padding: 5px 6px; font-size: 12.5px; }
   .map-title { font-size: 16px; }
   #map-title-text { flex: 1; min-width: 0; }
-  .map-style-switch button { padding-left: 8px; padding-right: 8px; }
   .search-wrap { flex: 1 1 100%; min-width: 0; }
   .map-stage { aspect-ratio: 960 / 880; }
   .compass-rose { display: none; }
