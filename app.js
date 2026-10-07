@@ -233,6 +233,7 @@
   /* ---------- Header, views and controls ---------- */
   function applyMapStyle() {
     document.documentElement.dataset.mapStyle = state.mapStyle;
+    $('meta[name="theme-color"]').content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
     $$('button[data-map-style]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mapStyle === state.mapStyle)));
   }
   const milestones = () => data.episodes.map(episode => episode.number);

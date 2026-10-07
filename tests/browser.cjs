@@ -1676,11 +1676,27 @@ async function main() {
       await setLayer(styled, 'groups', false);
       const camera = await styled.locator('#map-camera').getAttribute('transform');
       const saved = await styled.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
+      const themeSnapshot = () => styled.evaluate(() => ({
+        colorScheme: getComputedStyle(document.documentElement).colorScheme,
+        themeColor: document.querySelector('meta[name="theme-color"]').content,
+        surfaces: Object.fromEntries(['body', '.sidebar', '.map-toolbar'].map(selector => {
+          const style = getComputedStyle(document.querySelector(selector));
+          return [selector, { color: style.color, backgroundColor: style.backgroundColor, backgroundImage: style.backgroundImage }];
+        }))
+      }));
+      let previousTheme = await themeSnapshot();
       for (const style of ['night', 'parchment', 'night']) {
         await styled.locator(`button[data-map-style="${style}"]`).focus();
         await styled.keyboard.press('Enter');
         assert.equal(await styled.locator('html').getAttribute('data-map-style'), style);
         assert.equal(await styled.locator(`button[data-map-style="${style}"]`).getAttribute('aria-pressed'), 'true');
+        const theme = await themeSnapshot();
+        assert.equal(theme.colorScheme, style === 'night' ? 'dark' : 'light', 'native controls follow the selected theme');
+        assert.notEqual(theme.themeColor, previousTheme.themeColor, 'browser chrome follows the selected theme');
+        for (const [selector, paint] of Object.entries(theme.surfaces)) {
+          assert.notDeepEqual(paint, previousTheme.surfaces[selector], `${selector} changes with the selected site theme`);
+        }
+        previousTheme = theme;
         assert.equal(await styled.locator('#map-camera').getAttribute('transform'), camera, 'changing style moved the camera');
         assert.equal(await styled.locator('#episode-select').inputValue(), '13');
         assert.equal(await styled.locator('.map-marker.selected').getAttribute('data-location'), 'shiganshina');
@@ -1693,6 +1709,7 @@ async function main() {
       assert.equal(await styled.locator('#episode-select').inputValue(), '13');
       assert.equal(await styled.locator('.map-marker.selected').getAttribute('data-location'), 'shiganshina');
       assert.equal(await styled.locator('#layer-groups').isChecked(), false);
+      assert.deepEqual(await themeSnapshot(), previousTheme, 'the complete site theme survives reload');
     });
 
     await test('both map styles remain reachable and work by touch on a phone', async () => {
