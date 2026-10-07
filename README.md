@@ -38,6 +38,14 @@ Every Titan is a mystery and every map is a promise to come back alive. Choose y
 — *Hange Zoë, Squad Leader, Survey Corps*
 *(Approved by nobody. Levi says the margins are filthy.)*
 
+### Countersigned
+
+> **Armin Arlert, 104th Training Corps:** I grew up reading a forbidden book about the outside world: oceans, fire water, fields of ice. This atlas is the closest thing to it I have held. It even admits when a distance is only a guess, which that book never did.
+
+> **Captain Levi:** It's clean. No clutter, no network, nothing loaded from strangers. Keep it that way. And wipe your fingerprints off the screen.
+
+> **Commander Erwin Smith:** A soldier who knows only what he has seen makes fewer mistakes than one who learns too much too soon. Set your viewing episode, and advance.
+
 ---
 
 ## Edition notes
