@@ -80,11 +80,26 @@ check('the complete edition contains 87 regular episodes and exactly two long Fi
     const title = d.episodeTitles.find(entry => entry.number === number);
     if (episode?.special !== special || title?.special !== special || episode?.displayCode !== code || title?.displayCode !== code) bad(`${code}: missing its unique long-special metadata`);
     if (!episode?.events.length || !/^https:\/\//.test(episode?.officialSourceUrl || '')) bad(`${code}: needs a sourced recap and official reference`);
-    if (episode?.mapFocus?.area !== 'world' || episode?.mapFocus?.locationId !== 'marley'
+    if (episode?.mapFocus?.area !== 'world' || episode?.mapFocus?.locationId !== 'fort-salta'
       || typeof episode.mapFocus.note !== 'string' || !episode.mapFocus.note.trim()) bad(`${code}: the mainland needs broad context with an explained geographical limit`);
   }
-  if (d.locations.some(location => location.firstEpisode >= 88)) bad('named finale settings must not acquire unsupported map coordinates');
+  if (d.locations.some(location => location.firstEpisode >= 88 && location.id !== 'fort-salta')) bad('other named finale settings must not acquire unsupported map coordinates');
   if (d.seasons.find(season => season.season === 4)?.last !== 89) bad('the Final Season must include both long specials');
+});
+check('Fort Salta is an approximate finale area rather than an exact battlefield or character position', bad => {
+  const fort = place['fort-salta'];
+  if (!fort || fort.firstEpisode !== 88 || locationArea(fort) !== 'world' || fort.mapAccuracy !== 'approximate'
+    || fort.regionId !== 'marley') bad('the area must be revealed in Special 1 within mainland Marley');
+  if (!fort?.area || ![fort.area.rx, fort.area.ry].every(value => Number.isFinite(value) && value > 0)) bad('the unknown location needs an area rather than a precise point');
+  if (!/southern.*Marley|south.*Marley/i.test(`${fort?.geography || ''} ${fort?.geographyNote || ''}`)
+    || !/exact.*(?:unknown|not established|unverified|unpin)|(?:unknown|unverified).*position/i.test(fort?.geographyNote || '')) bad('the broad mainland context and unknown exact position must be explicit');
+  if (!/^https:\/\//.test(fort?.sourceUrl || '')) bad('the geographical context needs a reference');
+  if (events.some(event => event.locationId === 'fort-salta') || positions.some(position => position.locationId === 'fort-salta')) bad('an illustrative area must not convert uncertain events or character observations into exact positions');
+  for (const number of [88, 89]) {
+    const scenes = events.filter(event => event.episode === number && event.mapScene?.relatedLocationId === 'fort-salta');
+    if (scenes.length !== 1 || scenes[0]?.mapScene?.mapArea !== 'world') bad(`Special ${number - 87}: expected one current battle scene in World`);
+    if (scenes[0]?.locationId !== null) bad(`Special ${number - 87}: the source event must retain its unpinned location`);
+  }
 });
 check('Final Chapters character observations retain their episode boundary and source', bad => {
   d.characters.forEach(character => {
@@ -162,8 +177,8 @@ check('every versioned field has a value from the first episode', bad => {
     list.forEach((v, i) => { if (i && v.from <= list[i - 1].from) bad(`${c.id}.${field} not ascending`); });
   }));
 });
-check('every place has an event', bad => {
-  d.locations.filter(l => !events.some(e => e.locationId === l.id)).forEach(l => bad(l.id));
+check('every place has a recorded event or related episode scene', bad => {
+  d.locations.filter(l => !events.some(e => e.locationId === l.id || e.mapScene?.relatedLocationId === l.id)).forEach(l => bad(l.id));
 });
 check('https sourceUrl on every record', bad => {
   [...d.episodes, ...events, ...d.locations, ...d.characters, ...positions]
@@ -175,7 +190,7 @@ check('known kinds, types and factions', bad => {
   d.locations.filter(l => !KINDS.includes(l.kind)).forEach(l => bad(`${l.id}: ${l.kind}`));
   d.characters.filter(c => !['person', 'titan', 'group'].includes(c.type)).forEach(c => bad(`${c.id}: ${c.type}`));
   d.characters.forEach(c => (c.faction || []).filter(f => !FACTIONS.includes(f.key)).forEach(f => bad(`${c.id}: ${f.key}`)));
-  d.locations.filter(l => l.label && !['left', 'right', 'below'].includes(l.label.side)).forEach(l => bad(`${l.id} label side`));
+  d.locations.filter(l => l.label && !['left', 'right', 'below', 'above', 'farAbove'].includes(l.label.side)).forEach(l => bad(`${l.id} label side`));
 });
 check('event settings and explanations are nonempty text', bad => {
   events.forEach(event => ['placeName', 'connection', 'geographyNote'].forEach(field => {
@@ -198,7 +213,7 @@ check('episode character explanations only describe visible recorded participant
     });
   });
 });
-check('forest scene references keep their setting separate from established map coordinates', bad => {
+check('episode scene references keep their setting separate from established map coordinates', bad => {
   const scenes = events.filter(event => event.mapScene !== undefined);
   if (scenes.filter(event => event.episode <= 67).length) bad('later forest scenes appear before the return to the island');
   for (const number of [68, 72, 73, 74]) {
@@ -212,13 +227,28 @@ check('forest scene references keep their setting separate from established map 
     }
     const location = place[scene.relatedLocationId];
     if (!location || location.firstEpisode > event.episode) bad(`${event.id}: its related map place is not known`);
-    if (scene.relatedLocationId !== 'giant-forest' || scene.mapArea !== 'island') bad(`${event.id}: wrong forest scene context`);
+    if (scene.relatedLocationId === 'giant-forest') {
+      if (scene.mapArea !== 'island') bad(`${event.id}: wrong forest scene context`);
+      if (![null, 'ragako'].includes(event.locationId)) bad(`${event.id}: a forest scene must not reuse the expedition forest pin`);
+    } else if (scene.relatedLocationId === 'fort-salta') {
+      if (scene.mapArea !== 'world' || ![88, 89].includes(event.episode) || event.locationId !== null) bad(`${event.id}: wrong approximate finale scene context`);
+    } else bad(`${event.id}: unsupported related scene setting`);
     ['name', 'geography'].forEach(field => {
       if (typeof scene[field] !== 'string' || !scene[field].trim()) bad(`${event.id}: missing ${field}`);
     });
     if (['x', 'y', 'locationId', 'worldPosition'].some(field => Object.hasOwn(scene, field))) bad(`${event.id}: scene metadata must not invent a map point`);
-    if (![null, 'ragako'].includes(event.locationId)) bad(`${event.id}: a forest scene must not reuse the expedition forest pin`);
-    if (!event.people?.some(id => person[id]?.type === 'person' && person[id].firstEpisode <= event.episode)) bad(`${event.id}: scene has no visible individual`);
+    if (scene.description !== undefined && (typeof scene.description !== 'string' || !scene.description.trim())) bad(`${event.id}: the scene description must be nonempty text`);
+    const individuals = Array.isArray(scene.people) ? scene.people : event.people || [];
+    if (!individuals.some(id => person[id]?.type === 'person' && person[id].firstEpisode <= event.episode)) bad(`${event.id}: scene has no visible individual`);
+    if (scene.people !== undefined) {
+      if (!Array.isArray(scene.people) || new Set(scene.people).size !== scene.people.length) bad(`${event.id}: scene participants must be a unique list`);
+      else {
+        const participants = new Set(events.filter(item => item.episode === event.episode).flatMap(item => item.people || []));
+        scene.people.forEach(id => {
+          if (!person[id] || person[id].type === 'group' || person[id].firstEpisode > event.episode || !participants.has(id)) bad(`${event.id}: ${id} is not a visible individual in this recorded episode`);
+        });
+      }
+    }
   });
 });
 check('places fit their declared map area', bad => {

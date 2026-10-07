@@ -113,11 +113,12 @@
     && event.mapScene && getLocation(event.mapScene.relatedLocationId));
   function sceneCard(event, { panel = false } = {}) {
     const scene = event.mapScene;
-    const individuals = (event.people || []).filter(id => getCharacter(id)?.type !== 'group');
-    return `<article class="${panel ? 'related-scene' : 'map-scene-card'}" data-scene-event="${escapeHTML(event.id)}">
+    const individuals = (scene.people || event.people || []).filter(id => getCharacter(id)?.type !== 'group');
+    return `<article class="${panel ? 'related-scene' : `map-scene-card${individuals.length > 4 ? ' scene-wide' : ''}`}" data-scene-event="${escapeHTML(event.id)}">
       <p class="scene-kicker">This episode · ${episodeCode(event.episode)}</p><h3>${escapeHTML(scene.name)}</h3>
       ${panel ? `<p class="scene-summary">${escapeHTML(event.summary)}</p>` : ''}
       ${peopleList(individuals, { compact: true })}
+      ${scene.description ? `<p class="scene-summary">${escapeHTML(scene.description)}</p>` : ''}
       <p class="scene-geography">${escapeHTML(scene.geography)}</p>
       <button type="button" class="card-link" data-open-event="${escapeHTML(event.id)}">${escapeHTML(event.title)} ${icon('next')}</button>
     </article>`;
@@ -273,7 +274,7 @@
   /* ---------- Map ---------- */
   // District outlines grow out of their wall and appear only once the district is known.
   const WALLS = { 'Wall Maria': { width: 60, depth: 27, bulge: 25, start: -11 }, 'Wall Rose': { width: 44, depth: 21, bulge: 20, start: -1 }, 'Wall Sina': { width: 32, depth: 20, bulge: 17, start: -2 } };
-  const SIDES = { right: [14, 4, 'start'], left: [-14, 4, 'end'], below: [0, 28, 'middle'], above: [0, -34, 'middle'], farRight: [36, 4, 'start'], farLeft: [-36, 4, 'end'], farAbove: [0, -52, 'middle'], farBelow: [0, 47, 'middle'], fartherBelow: [0, 72, 'middle'] };
+  const SIDES = { right: [14, 4, 'start'], left: [-14, 4, 'end'], below: [0, 28, 'middle'], above: [0, -34, 'middle'], farRight: [36, 4, 'start'], farLeft: [-36, 4, 'end'], farAbove: [0, -52, 'middle'], farBelow: [0, 47, 'middle'], fartherBelow: [0, 72, 'middle'], fartherAbove: [0, -80, 'middle'] };
   const PLACE_SYMBOLS = {
     hospital: '<path d="M-4 0H4M0-4V4"/>',
     festival: '<path d="M-3 5V-5M-3-5H4L2-2H-3"/>',
@@ -428,8 +429,8 @@
     $('#wall-status-note').hidden = regional || !statusOf('walls:all');
   }
   function renderAreas() {
-    $('#area-art').innerHTML = locationsOnMap().filter(location => location.area && state.mapExtent !== 'world').map(location =>
-      `<ellipse class="place-area${location.id === state.selected ? ' selected' : ''}" data-area="${escapeHTML(location.id)}" cx="${pointOnMap(location).x}" cy="${pointOnMap(location).y}" rx="${Number(location.area.rx)}" ry="${Number(location.area.ry)}"/>`).join('');
+    $('#area-art').innerHTML = locationsOnMap().filter(location => location.area).map(location =>
+      `<ellipse class="place-area${location.id === state.selected ? ' selected' : ''}" data-area="${escapeHTML(location.id)}"${mapAreaOf(location) === 'world' ? ` data-open-place="${escapeHTML(location.id)}"` : ''} cx="${pointOnMap(location).x}" cy="${pointOnMap(location).y}" rx="${Number(location.area.rx)}" ry="${Number(location.area.ry)}"><title>${escapeHTML(`${location.name} · ${location.geographyNote || location.geography}`)}</title></ellipse>`).join('');
   }
   function renderDistrictArt() {
     $('#district-art').innerHTML = visibleLocations().map(location => {
@@ -452,8 +453,8 @@
       const [labelX, labelY, anchor] = SIDES[side];
       const fresh = location.firstEpisode === state.viewing && state.viewing > 1;
       const now = visibleEvents().some(event => event.locationId === location.id && event.episode === state.viewing);
-      // Areas say "approximate" with their dashed outline, so they need no caption of their own.
-      const caption = selected ? 'Exploring' : now ? 'This episode' : fresh ? 'New in this episode' : location.area ? '' : KIND_LABEL[location.kind] || 'Place';
+      // Wall-area outlines convey approximation; regional labels keep an explicit uncertainty caption.
+      const caption = location.mapCaption || (selected ? 'Exploring' : now ? 'This episode' : fresh ? 'New in this episode' : location.area ? '' : KIND_LABEL[location.kind] || 'Place');
       const episodes = [...new Set(visibleEvents().filter(event => event.locationId === location.id).map(event => event.episode))];
       const here = state.mapExtent === 'world' ? [] : peopleAt(location.id);
       const shown = here.slice(0, 3);
@@ -464,14 +465,16 @@
       const more = here.length > 3 ? `<text class="people-more" transform="translate(${chipOffset(base, 3).join(' ')})" y="4" text-anchor="middle">+${here.length - 3}</text>` : '';
       const peopleText = here.map(({ character, position }) => `${nameOf(character)}, last recorded in ${episodeLabel(position.episode).toLowerCase()}`).join('; ');
       const label = location.mapLabel || location.name;
-      const primary = ['district', 'capital', 'island', 'country', 'city', 'site'].includes(location.kind);
+      const regionalArea = Boolean(location.area && mapAreaOf(location) === 'world');
+      const primary = regionalArea || ['district', 'capital', 'island', 'country', 'city', 'site'].includes(location.kind);
       const rank = selected ? 0 : now ? 1 : here.length ? 2 : primary ? 3 : 4;
       const change = changes.find(item => item.locationId === location.id);
-      const classes = ['map-marker', `kind-${location.kind}`, !primary && 'minor', selected && 'selected', fresh && 'fresh', now && 'now', change && 'changed', location.area && 'is-area', location.mapAccuracy === 'approximate' && 'approximate-position', shownBefore && !shownBefore.has(location.id) && 'enter'].filter(Boolean).join(' ');
+      const classes = ['map-marker', `kind-${location.kind}`, !primary && 'minor', selected && 'selected', fresh && 'fresh', now && 'now', change && 'changed', location.area && 'is-area', regionalArea && 'is-region', location.mapAccuracy === 'approximate' && 'approximate-position', shownBefore && !shownBefore.has(location.id) && 'enter'].filter(Boolean).join(' ');
       const point = pointOnMap(location);
       const symbol = Object.hasOwn(PLACE_SYMBOLS, location.mapSymbol) ? PLACE_SYMBOLS[location.mapSymbol] : null;
-      return `<g class="${escapeHTML(classes)}" data-location="${escapeHTML(location.id)}" data-side="${side}" data-rank="${rank}" data-caption="${escapeHTML(caption)}" data-change="${escapeHTML(change?.title || '')}" data-episodes="${episodes.join(', ')}" transform="translate(${Number(point.x)} ${Number(point.y)})" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escapeHTML(`Explore ${location.name}${location.mapAccuracy === 'approximate' ? '. Approximate map position' : ''}${peopleText ? `. Last recorded here: ${peopleText}` : ''}`)}">
-        <g class="pin"><g class="pin-mark"><title>${escapeHTML(`${location.name} — ${location.subtitle}`)}</title><circle class="marker-hit" r="20"/><circle class="marker-pulse" r="16"/><circle class="marker-ring" r="7.5"/>${symbol ? `<g class="marker-symbol" data-map-symbol="${escapeHTML(location.mapSymbol)}" aria-hidden="true">${symbol}</g>` : '<circle class="marker-center" r="2.5"/>'}</g>
+      const accuracyLabel = regionalArea ? '. Approximate area. Exact position unknown' : location.mapAccuracy === 'approximate' ? '. Approximate map position' : '';
+      return `<g class="${escapeHTML(classes)}" data-location="${escapeHTML(location.id)}" data-side="${side}" data-rank="${rank}" data-caption="${escapeHTML(caption)}" data-change="${escapeHTML(change?.title || '')}" data-episodes="${episodes.join(', ')}" transform="translate(${Number(point.x)} ${Number(point.y)})" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escapeHTML(`Explore ${location.name}${accuracyLabel}${peopleText ? `. Last recorded here: ${peopleText}` : ''}`)}">
+        <g class="pin"><g class="pin-mark"><title>${escapeHTML(`${location.name} — ${location.subtitle}`)}</title><circle class="marker-hit" r="20"/>${regionalArea ? '' : `<circle class="marker-pulse" r="16"/><circle class="marker-ring" r="7.5"/>${symbol ? `<g class="marker-symbol" data-map-symbol="${escapeHTML(location.mapSymbol)}" aria-hidden="true">${symbol}</g>` : '<circle class="marker-center" r="2.5"/>'}`}</g>
           ${here.length ? `<g class="pin-people">${chips}${more}</g>` : ''}
           <path class="label-leader"/>
           <text class="marker-label" x="${labelX}" y="${labelY}" text-anchor="${anchor}">${escapeHTML(label)}</text>
@@ -481,7 +484,13 @@
     }).join('');
     $('#location-markers').classList.toggle('has-now', Boolean($('#location-markers .map-marker.now')));
     shownBefore = new Set([...visibleLocations().map(location => location.id), ...visibleLocations().flatMap(location => peopleAt(location.id).map(({ character }) => `${character.id}@${location.id}`))]);
-    $('#overview-places').innerHTML = locationsOnMap().map(location => `<circle cx="${pointOnMap(location).x}" cy="${pointOnMap(location).y}" r="${location.id === state.selected ? 22 : 12}" class="${location.id === state.selected ? 'selected' : ''}"/>`).join('');
+    $('#overview-places').innerHTML = locationsOnMap().map(location => {
+      const point = pointOnMap(location);
+      const selected = location.id === state.selected ? 'selected' : '';
+      return location.area && mapAreaOf(location) === 'world'
+        ? `<ellipse data-overview-area="${escapeHTML(location.id)}" cx="${point.x}" cy="${point.y}" rx="${Number(location.area.rx)}" ry="${Number(location.area.ry)}" class="${selected}"/>`
+        : `<circle cx="${point.x}" cy="${point.y}" r="${location.id === state.selected ? 22 : 12}" class="${selected}"/>`;
+    }).join('');
   }
   function syncLayers() {
     $('#location-markers').classList.toggle('hide-places', !state.layers.locations);
@@ -509,12 +518,15 @@
     });
     const leader = $('.label-leader', marker);
     const endpoint = { farRight: [28, 0], farLeft: [-28, 0], farAbove: [0, -36], farBelow: [0, 30], fartherBelow: [0, 56] }[side];
-    leader.setAttribute('d', endpoint ? `M0 0L${endpoint.join(' ')}` : '');
+    leader.setAttribute('d', endpoint && !marker.classList.contains('is-region') ? `M0 0L${endpoint.join(' ')}` : '');
   }
   let layoutFrame = 0;
   const scheduleLayout = () => { cancelAnimationFrame(layoutFrame); layoutFrame = requestAnimationFrame(layoutLabels); };
   function layoutChips(markers) {
-    const pins = markers.map(marker => ({ owner: marker, rect: inflate($('.marker-ring', marker).getBoundingClientRect(), 2) }));
+    const pins = markers.flatMap(marker => {
+      const ring = $('.marker-ring', marker);
+      return ring ? [{ owner: marker, rect: inflate(ring.getBoundingClientRect(), 2) }] : [];
+    });
     const taken = [];
     for (const marker of markers) {
       const chips = $$('.pin-people > *', marker);
@@ -541,10 +553,13 @@
     requestAnimationFrame(positionCard);
     markers.forEach(marker => marker.classList.remove('label-hidden', 'caption-hidden'));
     // A label may touch its own pin but never any portrait, its own included.
-    const obstacles = markers.flatMap(marker => [
-      { owner: marker, rect: inflate($('.marker-ring', marker).getBoundingClientRect(), 2) },
-      ...$$('.map-person, .people-more', marker).map(shape => ({ owner: null, chipsOf: marker, rect: inflate(shape.getBoundingClientRect(), 2) }))
-    ]);
+    const obstacles = markers.flatMap(marker => {
+      const ring = $('.marker-ring', marker);
+      return [
+        ...(ring ? [{ owner: marker, rect: inflate(ring.getBoundingClientRect(), 2) }] : []),
+        ...$$('.map-person, .people-more', marker).map(shape => ({ owner: null, chipsOf: marker, rect: inflate(shape.getBoundingClientRect(), 2) }))
+      ];
+    });
     // The overlays drawn on top of the map count as occupied too.
     for (const overlay of $$('.map-stage > .zoom-controls, .map-stage > .map-legend, .map-stage > .compass-rose, .map-stage > .map-overview, .map-stage > .map-extent-switch, .map-stage > .map-scale, .map-stage > .map-episode-return')) {
       const rect = overlay.getBoundingClientRect();
@@ -558,7 +573,7 @@
       const episodeCaption = numbers.length === 1 ? episodeLabel(numbers[0])
         : `Episodes ${numbers.map(number => episodeCatalog.get(number)?.special ? episodeCode(number) : number).join(', ')}`;
       const change = marker.dataset.change;
-      $('.marker-caption', marker).textContent = state.changesOnly && change ? (change.length > 34 ? `${change.slice(0, 31)}…` : change) : zoomed && eps ? episodeCaption : marker.dataset.caption;
+      $('.marker-caption', marker).textContent = getLocation(marker.dataset.location)?.mapCaption || (state.changesOnly && change ? (change.length > 34 ? `${change.slice(0, 31)}…` : change) : zoomed && eps ? episodeCaption : marker.dataset.caption);
     }
     // Labels must stay inside the map.
     const stage = inflate($('#map-stage').getBoundingClientRect(), -4);
@@ -570,12 +585,14 @@
       const caption = $('.marker-caption', marker);
       if (getComputedStyle(label).display === 'none') continue;
       const preferred = marker.dataset.side;
-      const sides = [preferred, ...Object.keys(SIDES).filter(side => side !== preferred)];
+      const regionalArea = marker.classList.contains('is-region');
+      const sides = [...new Set([preferred, ...(regionalArea ? ['farAbove', 'fartherAbove'] : []), ...Object.keys(SIDES).filter(side => side !== preferred && (regionalArea || side !== 'fartherAbove'))])];
+      const persistentCaption = Boolean(getLocation(marker.dataset.location)?.mapCaption);
       // Strict first; then a label may touch its own portraits rather than disappear.
       const blockedBy = loose => rect => outside(rect) || placed.some(other => overlaps(other, rect))
         || obstacles.some(other => other.owner !== marker && !(loose && other.chipsOf === marker) && overlaps(other.rect, rect));
       let done = false;
-      for (const [loose, withCaption] of [[false, true], [false, false], [true, true], [true, false]]) {
+      for (const [loose, withCaption] of persistentCaption ? [[false, true], [true, true]] : [[false, true], [false, false], [true, true], [true, false]]) {
         marker.classList.toggle('caption-hidden', !withCaption);
         for (const side of sides) {
           placeLabel(marker, side);
@@ -586,12 +603,13 @@
       }
       if (!done) {
         if (marker.classList.contains('selected')) {
-          // Keep the selected name; its secondary caption may yield in a crowded area.
-          marker.classList.add('caption-hidden');
-          const inside = sides.find(side => { placeLabel(marker, side); return !blockedBy(false)(label.getBoundingClientRect()); })
-            || sides.find(side => { placeLabel(marker, side); return !outside(label.getBoundingClientRect()); }) || preferred;
+          // Keep the selected name and any caption that communicates regional uncertainty.
+          marker.classList.toggle('caption-hidden', !persistentCaption);
+          const rects = () => [label, ...(persistentCaption ? [caption] : [])].map(text => text.getBoundingClientRect());
+          const inside = sides.find(side => { placeLabel(marker, side); return !rects().some(blockedBy(false)); })
+            || sides.find(side => { placeLabel(marker, side); return !rects().some(outside); }) || preferred;
           placeLabel(marker, inside);
-          placed.push(label.getBoundingClientRect());
+          placed.push(...rects());
         } else { placeLabel(marker, preferred); marker.classList.add('label-hidden'); }
       }
     }
@@ -1050,7 +1068,7 @@
   // Mouse and pen drag the map. Touch scrolls the page with one finger and moves the map with two.
   let drag = null;
   map.addEventListener('pointerdown', event => {
-    if (event.pointerType === 'touch' || event.button !== 0 || event.target.closest('.map-marker')) return;
+    if (event.pointerType === 'touch' || event.button !== 0 || event.target.closest('.map-marker, [data-open-place]')) return;
     const point = mapPoint(event.clientX, event.clientY);
     drag = { id: event.pointerId, x: point.x, y: point.y, panX: state.panX, panY: state.panY, startX: event.clientX, startY: event.clientY, moved: false };
     map.setPointerCapture(event.pointerId);

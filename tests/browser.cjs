@@ -44,8 +44,9 @@ const placeSymbols = { 'liberio-hospital': 'hospital', 'liberio-festival': 'fest
 const episodeParticipants = number => [...new Set(data.episodes.find(episode => episode.number === number).events.flatMap(event => event.people || []))]
   .filter(id => data.characters.some(character => character.id === id && character.type !== 'group' && character.firstEpisode <= number));
 const forestSceneEvent = number => data.episodes.find(episode => episode.number === number).events.find(event => event.mapScene);
-const sceneParticipants = (event, number) => [...new Set(event.people || [])]
+const sceneParticipants = (event, number) => [...new Set(event.mapScene?.people || event.people || [])]
   .filter(id => data.characters.some(character => character.id === id && character.type !== 'group' && character.firstEpisode <= number));
+const battleSceneEvent = number => data.episodes.find(episode => episode.number === number).events.find(event => event.mapScene?.relatedLocationId === 'fort-salta');
 async function mapArea(page) { return page.locator('#map-stage').getAttribute('data-extent'); }
 async function expectedMapLocations(page, number) { return mappedLocations(number, await mapArea(page)); }
 // Everything the atlas introduces after episode 1: none of it may show while viewing episode 1.
@@ -339,9 +340,9 @@ async function main() {
         assert.ok(entry.mapFocus, 'each long special has deliberate geographical context');
         await episode(map, number);
         assert.equal(await mapArea(map), entry.mapFocus.area);
-        assert.ok((await map.locator('#map-area-note').innerText()).includes(entry.mapFocus.note), 'the broad context explains the unlocated finale settings');
+        assert.ok((await map.locator('#map-area-note').innerText()).includes(entry.mapFocus.note), 'the approximate mainland context explains the unknown exact finale position');
         if (entry.mapFocus.locationId) assert.equal(await map.locator('.map-marker.selected').getAttribute('data-location'), entry.mapFocus.locationId);
-        assert.equal(await map.locator('#location-markers [data-location]').count(), mappedLocations(number, entry.mapFocus.area).length, 'the special does not add improvised map points');
+        assert.equal(await map.locator('#location-markers [data-location]').count(), mappedLocations(number, entry.mapFocus.area).length, 'the special uses only declared, uncertainty-labelled map settings');
         const locations = mappedLocations(number, entry.mapFocus.area);
         for (const location of locations) {
           const point = entry.mapFocus.area === 'world' && location.worldPosition ? location.worldPosition
@@ -358,6 +359,142 @@ async function main() {
         await map.locator('#return-to-episode').click();
         assert.equal(await mapArea(map), entry.mapFocus.area, 'return restores the special context');
         assert.equal(await map.locator('#episode-select').inputValue(), String(number));
+      }
+    });
+
+    await test('Fort Salta appears only in the Final Chapters as a dashed approximate mainland area', async () => {
+      const battle = await createPage();
+      await episode(battle, 87);
+      await battle.locator('[data-map-extent="world"]').click();
+      assert.equal(await battle.locator('[data-location="fort-salta"], [data-area="fort-salta"], [data-search-location="fort-salta"]').count(), 0, 'no finale area is introduced before Special 1');
+      assert.equal(await battle.locator('#overview-places [data-overview-area="fort-salta"]').count(), 0, 'the miniature overview retains the same episode boundary');
+      assert.equal(await battle.locator('#map-scenes .map-scene-card:visible').count(), 0);
+      await battle.locator('#location-search').fill('Fort Salta');
+      assert.equal(await battle.locator('[data-search-location="fort-salta"]').count(), 0, 'search keeps the same episode boundary');
+      await battle.locator('#location-search').fill('');
+      for (const number of [88, 89]) {
+        await episode(battle, number);
+        assert.equal(await mapArea(battle), 'world', 'selecting either special opens the mainland overview');
+        assert.equal(await battle.locator('.map-marker.selected').getAttribute('data-location'), 'fort-salta', 'the episode selects its approximate battle context');
+        const area = battle.locator('#area-art .place-area[data-area="fort-salta"]');
+        assert.equal(await area.count(), 1, 'a broad area is rendered rather than only a precise point');
+        assert.ok(Number(await area.getAttribute('rx')) > 0 && Number(await area.getAttribute('ry')) > 0);
+        assert.notEqual(await area.evaluate(element => getComputedStyle(element).strokeDasharray), 'none', 'the outline visibly conveys uncertainty');
+        await battle.locator('#location-markers [data-location="marley"]').click();
+        assert.equal(await battle.locator('.map-marker.selected').getAttribute('data-location'), 'marley', 'exploration can select another mainland place');
+        await area.scrollIntoViewIfNeeded();
+        const areaClick = await area.evaluate(element => {
+          const point = new DOMPoint(element.cx.baseVal.value + element.rx.baseVal.value * .6, element.cy.baseVal.value).matrixTransform(element.getScreenCTM());
+          const target = document.elementFromPoint(point.x, point.y);
+          return { x: point.x, y: point.y, areaId: target?.getAttribute('data-area') };
+        });
+        assert.equal(areaClick.areaId, 'fort-salta', 'the click hits the painted ellipse away from the transparent marker centre');
+        await battle.mouse.click(areaClick.x, areaClick.y);
+        assert.equal(await battle.locator('.map-marker.selected').getAttribute('data-location'), 'fort-salta', 'clicking the approximate area opens its battle context');
+        assert.equal(await battle.locator('[data-location="fort-salta"] .marker-ring, [data-location="fort-salta"] .marker-center').count(), 0, 'the region label does not imply an exact fort pin');
+        assert.match(await battle.locator('[data-location="fort-salta"] .marker-caption').textContent(), /exact position unknown/i);
+        assert.match(await battle.locator('#place-geography-note').innerText(), /exact.*(?:unknown|not established|unverified|unpin)|(?:unknown|unverified).*position/i);
+        assert.match(await battle.locator('#location-panel').innerText(), /southern.*Marley|south.*Marley/i);
+        assert.equal(await battle.locator('[data-location="fort-salta"] [data-person]').count(), 0, 'scene appearances do not become character coordinates');
+        assert.equal(await battle.locator('#map-scenes .map-scene-card').getAttribute('data-scene-event'), battleSceneEvent(number).id);
+        await battle.locator('[data-map-extent="island"]').click();
+        assert.equal(await battle.locator('[data-location="fort-salta"], [data-area="fort-salta"]').count(), 0, 'the mainland setting is absent from the island map');
+        assert.equal(await battle.locator('#map-scenes .map-scene-card:visible').count(), 0);
+        await battle.locator('#return-to-episode').click();
+        assert.equal(await mapArea(battle), 'world');
+        assert.equal(await battle.locator('.map-marker.selected').getAttribute('data-location'), 'fort-salta');
+        assert.equal(await battle.locator('#episode-select').inputValue(), String(number), 'returning to the battle keeps the selected special');
+        await battle.locator('#zoom-in').click();
+        assert.match(await battle.locator('[data-location="fort-salta"] .marker-caption').textContent(), /exact position unknown/i, 'zoom retains the uncertainty label');
+        const overviewArea = battle.locator('#overview-places ellipse[data-overview-area="fort-salta"]');
+        assert.equal(await overviewArea.isVisible(), true, 'the miniature overview also represents the fort as an area');
+        assert.notEqual(await overviewArea.evaluate(element => getComputedStyle(element).strokeDasharray), 'none', 'the miniature outline keeps the geographical uncertainty visible');
+        assert.equal(await battle.locator('#overview-places circle.selected').count(), 0, 'the selected fort has no precise-looking point in the miniature overview');
+        await battle.locator('#return-to-episode').click();
+        await setLayer(battle, 'locations', false);
+        assert.equal(await area.isVisible(), false, 'the area follows the Locations layer');
+        await setLayer(battle, 'locations', true);
+        assert.equal(await area.isVisible(), true);
+      }
+      await episode(battle, 87);
+      assert.equal(await battle.locator('[data-location="fort-salta"], [data-area="fort-salta"]').count(), 0, 'going back removes the future area');
+      assert.equal(await battle.locator('#overview-places [data-overview-area="fort-salta"]').count(), 0, 'going back also removes the future area from the miniature overview');
+      assert.equal(await battle.locator('#map-scenes .map-scene-card:visible').count(), 0, 'the future battle cast does not remain on an earlier map');
+    });
+
+    await test('Fort Salta scene portraits and source recap describe the physical battle without changing recorded positions', async () => {
+      const battle = await createPage();
+      for (const number of [88, 89]) {
+        await episode(battle, number);
+        const event = battleSceneEvent(number);
+        const card = battle.locator('#map-scenes .map-scene-card');
+        const expected = sceneParticipants(event, number);
+        assert.ok(expected.includes('levi') && expected.includes('reiner'), 'the fighting alliance is represented');
+        if (number === 89) assert.ok(['falco', 'annie', 'gabi', 'zeke'].every(id => expected.includes(id)), 'Special 2 includes later physical battle participants');
+        for (const id of ['historia', 'hange', 'erwin', 'sasha', 'pixis', 'keith', 'xaver', 'grisha', 'kruger', 'bertholdt', 'ymir', 'porco', 'marcel']) assert.ok(!expected.includes(id), `${id} is not assigned to the physical battle scene`);
+        assert.deepEqual((await card.locator('[data-open-character]').evaluateAll(buttons => buttons.map(button => button.dataset.openCharacter))).sort(), expected.sort());
+        for (const id of expected) {
+          const person = card.locator(`[data-open-character="${id}"]`);
+          assert.equal(await person.locator('[data-portrait]').count(), 1, 'each participant has a recognizable portrait');
+          assert.ok((await person.innerText()).includes(at(data.characters.find(character => character.id === id).name, number).text));
+        }
+        const related = battle.locator('#location-panel .related-scene');
+        assert.equal(await related.getAttribute('data-scene-event'), event.id, 'the selected area explains the same episode scene');
+        assert.ok((await related.innerText()).includes(event.mapScene.geography));
+        assert.deepEqual((await related.locator('[data-open-character]').evaluateAll(buttons => buttons.map(button => button.dataset.openCharacter))).sort(), expected.sort());
+        for (const id of ['levi', 'reiner']) {
+          await card.locator(`[data-open-character="${id}"]`).click();
+          assert.equal(await battle.locator('#character-detail-dialog').evaluate(dialog => dialog.open), true);
+          assert.equal(await battle.locator('#character-detail-title').innerText(), at(data.characters.find(character => character.id === id).name, number).text);
+          assert.equal(await battle.locator('#character-detail-body [data-open-place]').count(), 0, 'the scene does not overwrite the uncertain final recorded position');
+          await closeCharacterDetails(battle);
+          await view(battle, 'map');
+        }
+        await card.locator('[data-open-event]').click();
+        assert.equal(await battle.locator('#recap-view').isVisible(), true, 'an unpinned event opens its source recap');
+        assert.equal(await battle.locator(`#recap-${event.id}`).evaluate(element => element === document.activeElement), true);
+        assert.equal(await battle.locator('#episode-select').inputValue(), String(number));
+        await view(battle, 'map');
+        await setLayer(battle, 'groups', false);
+        assert.equal(await battle.locator('#map-scenes .map-scene-card:visible').count(), 0, 'People controls the episode scene');
+        await setLayer(battle, 'groups', true);
+        assert.equal(await card.isVisible(), true);
+      }
+    });
+
+    await test('Fort Salta scene remains readable and interactive on phones and in the expanded map', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }, { width: 320, height: 740 }]) {
+        const battle = await createPage(viewport);
+        for (const number of [88, 89]) {
+          await episode(battle, number);
+          for (const expanded of [false, true]) {
+            if (expanded) await battle.locator('#expand-map').click();
+            const card = battle.locator('#map-scenes .map-scene-card');
+            assert.equal(await card.isVisible(), true);
+            assert.equal(await battle.locator('[data-location="fort-salta"] .marker-caption').isVisible(), true, `${viewport.width}px: the unknown-position caption stays visible`);
+            assert.equal(await card.getAttribute('data-scene-event'), battleSceneEvent(number).id);
+            const stage = await battle.locator('#map-stage').boundingBox();
+            const box = await card.boundingBox();
+            const scope = await battle.locator(expanded ? '#expanded-map-dialog' : '#map-view').boundingBox();
+            if (expanded && viewport.width === 390) assert.ok(stage.height >= 250, 'the expanded phone view leaves at least 250px of usable map height');
+            assert.ok(box.x >= scope.x - 1 && box.x + box.width <= scope.x + scope.width + 1, `${viewport.width}px: the scene stays within the map view`);
+            // The expanded scene is a scrolling strip. Measure its visible viewport,
+            // not the offscreen portion of the card clipped by overflow-y:auto.
+            const visibleScene = expanded ? await battle.locator('#map-scenes').boundingBox() : box;
+            assert.equal(overlap({ left: visibleScene.x, right: visibleScene.x + visibleScene.width, top: visibleScene.y, bottom: visibleScene.y + visibleScene.height },
+              { left: stage.x, right: stage.x + stage.width, top: stage.y, bottom: stage.y + stage.height }), false, `${viewport.width}px Special ${number - 87} expanded=${expanded}: the scene stays separate from map controls`);
+            for (const control of await card.locator('[data-open-character], [data-open-event]').all()) {
+              const readable = await control.evaluate(element => {
+                const rect = element.getBoundingClientRect();
+                return element.scrollWidth <= element.clientWidth + 1 && rect.width >= 24 && rect.height >= 24;
+              });
+              assert.equal(readable, true, 'portrait and source labels stay readable and reachable');
+              await control.click({ trial: true });
+            }
+            await assertNoHorizontalOverflow(battle, `${viewport.width}px Special ${number - 87} expanded=${expanded}`);
+            if (expanded) await battle.locator('#close-expanded-map').click();
+          }
+        }
       }
     });
 
@@ -1800,7 +1937,7 @@ async function main() {
         await episode(page, n);
         const bad = await page.locator('#location-markers').evaluate(root => {
           const centre = el => { const r = el.getBoundingClientRect(); return [(r.left + r.right) / 2, (r.top + r.bottom) / 2]; };
-          const rings = [...root.querySelectorAll('.map-marker')].filter(m => m.getBoundingClientRect().width > 0).map(m => [m.dataset.location, centre(m.querySelector('.marker-ring'))]);
+          const rings = [...root.querySelectorAll('.map-marker')].filter(m => m.querySelector('.marker-ring') && m.getBoundingClientRect().width > 0).map(m => [m.dataset.location, centre(m.querySelector('.marker-ring'))]);
           return [...root.querySelectorAll('.map-person')].filter(chip => chip.getBoundingClientRect().width > 0).flatMap(chip => {
             const own = chip.closest('.map-marker').dataset.location;
             const [x, y] = centre(chip);
