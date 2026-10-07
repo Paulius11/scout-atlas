@@ -1499,7 +1499,7 @@ async function main() {
         assert.equal(await expanded.locator('#episode-select').inputValue(), String(milestones.at(-2)));
         await expanded.locator('#close-expanded-map').click();
         assert.equal(await expanded.locator('#location-panel').evaluate(element => element.parentElement.classList.contains('atlas-body')), true);
-        assert.equal(await expanded.locator('#episode-select').evaluate(element => Boolean(element.closest('.page-heading'))), true);
+        assert.equal(await expanded.locator('#episode-select').evaluate(element => Boolean(element.closest('#map-episode-slot')) && Boolean(element.closest('.map-toolbar'))), true);
         assert.equal(await expanded.locator('#map-style-switch').evaluate(element => Boolean(element.closest('.map-toolbar'))), true);
         await assertNoHorizontalOverflow(expanded, 'restored map controls');
       }

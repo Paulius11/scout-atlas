@@ -60,27 +60,27 @@
     </aside>
 
     <main>
-      <header class="page-heading">
+      <header class="page-heading" hidden>
         <div class="heading-text">
-          <p class="page-kicker">A scout’s field guide</p>
           <div class="page-title-row"><h1 id="page-title">Find your bearings.</h1><div id="mobile-gallery-action"></div></div>
           <p id="page-description">The places, the people, and the pieces coming together.</p>
         </div>
-        <div class="heading-controls">
-          <div class="episode-control">
-            <label for="episode-select">Viewing episode</label>
-            <div class="stepper">
-              <button id="prev-milestone" class="step-button" aria-label="Previous episode"><svg class="icon" aria-hidden="true"><use href="#i-prev"/></svg></button>
-              <div class="select-wrap"><select id="episode-select"></select></div>
-              <button id="next-milestone" class="step-button" aria-label="Next episode"><svg class="icon" aria-hidden="true"><use href="#i-next"/></svg></button>
-            </div>
-          </div>
-        </div>
+        <div id="page-episode-slot" class="heading-controls"></div>
       </header>
 
       <section id="map-view" class="map-view" aria-label="Interactive atlas">
         <div class="map-toolbar">
-          <h2 class="map-title"><svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span id="map-title-text">The walled territory</span><span id="map-geography-badge" class="schematic-badge">Scaled walls</span></h2>
+          <h1 class="map-title"><svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span id="map-title-text">The walled territory</span><span id="map-geography-badge" class="schematic-badge">Scaled walls</span></h1>
+          <div id="map-episode-slot" class="map-episode-slot">
+            <div class="episode-control">
+              <label for="episode-select">Viewing episode</label>
+              <div class="stepper">
+                <button id="prev-milestone" class="step-button" aria-label="Previous episode"><svg class="icon" aria-hidden="true"><use href="#i-prev"/></svg></button>
+                <div class="select-wrap"><select id="episode-select"></select></div>
+                <button id="next-milestone" class="step-button" aria-label="Next episode"><svg class="icon" aria-hidden="true"><use href="#i-next"/></svg></button>
+              </div>
+            </div>
+          </div>
           <div id="map-style-switch" class="map-style-switch" role="group" aria-label="Map style">
             <button type="button" data-map-style="parchment" aria-pressed="false">Parchment</button>
             <button type="button" data-map-style="night" aria-pressed="false">Night</button>

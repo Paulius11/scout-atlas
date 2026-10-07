@@ -236,7 +236,15 @@
     $$('button[data-map-style]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mapStyle === state.mapStyle)));
   }
   const milestones = () => data.episodes.map(episode => episode.number);
+  function syncEpisodeControl() {
+    const control = $('.episode-control');
+    if ($('#expanded-episode-slot').contains(control)) return;
+    const slot = state.view === 'map' ? $('#map-episode-slot') : $('#page-episode-slot');
+    if (control.parentElement !== slot) slot.append(control);
+  }
   function updateHeader() {
+    $('.page-heading').hidden = state.view === 'map';
+    syncEpisodeControl();
     $('#about-ceiling').textContent = `Its story content ends at ${episodeLabel(MAX_EPISODE).toLowerCase()} (${seasonText(MAX_EPISODE).toLowerCase()}).`;
     const groups = data.seasons.filter(season => season.first <= MAX_EPISODE).map(season => {
       const last = Math.min(MAX_EPISODE, season.last ?? MAX_EPISODE);
@@ -1181,6 +1189,7 @@
   function restoreExpandedMap() {
     if (!$('#expanded-map-slot').contains(mapStage)) return;
     for (const { element, anchor } of mapHomes) anchor.after(element);
+    syncEpisodeControl();
     $('#map-options').open = false;
     $('#map-options-label').textContent = 'Layers';
     document.body.classList.remove('map-expanded');
