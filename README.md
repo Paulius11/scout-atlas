@@ -1,5 +1,47 @@
 # Scout Atlas
 
+> *Field report, Survey Corps Research Division. Filed by Squad Leader Hange Zoë.*
+> *Do not let Levi near this document with a mop.*
+
+**To whoever finds this report,**
+
+Listen. *Listen.* I have spent years pressing my face against things the rest of the Corps runs away from, and I can tell you the hardest part of an expedition is not the Titans. It is the **paperwork**. Where were we? Who was standing where? Which gate fell in which week? Commander Erwin wants answers, Levi wants the floor clean, and I want to know *everything*.
+
+So now we have an atlas. Someone else drew it; I am writing the report, which the Research Division considers the same thing.
+
+![Scout Atlas map viewing episode 8, Parchment theme](docs/screenshot-map.png)
+
+### What I observed
+
+- **The Walls, to scale.** Maria at 480 km, Rose at 380, Sina at 250. Perfect circles! *Perfect!* I have so many questions. The gaps are 100 and 130 km, and the distance bar under the map is honest about it.
+- **One dial controls the whole truth.** Pick your **Viewing episode** and the atlas shows only what you already know: places, faces, names, events. Anything later stays behind the wall. I tried to peek. It would not let me. Rude. Admirable, but rude.
+- **A face on the map means "last seen here."** Not live tracking. If nobody knows where someone went, they get no pin. We do not guess. Guessing is how you lose a squad.
+- **Confirmed, believed, approximate.** Every place says how sure we are, and a dashed ring means *roughly here*. That is more honesty than most officers' reports.
+- **The story so far.** A recap for every one of the 87 regular episodes and both final specials, newest first, with an episode trail along the bottom.
+- **The people.** A portrait gallery that only knows who *you* know. Filter by regiment, or see who mattered in this episode.
+- **Two palettes.** Parchment for daylight, Night for the long ride back. Your choice is remembered.
+- **No network, no account, no build step.** It does not even send a carrier pigeon. A Content-Security-Policy makes sure of it.
+
+![Scout Atlas character gallery viewing episode 8, Night theme](docs/screenshot-characters.png)
+
+### Deploying it in the field
+
+```bash
+git clone https://github.com/Paulius11/scout-atlas.git
+cd scout-atlas
+python3 -m http.server 8765 --bind 127.0.0.1
+# then open http://127.0.0.1:8765, or simply open index.html in a browser
+```
+
+Every Titan is a mystery and every map is a promise to come back alive. Choose your episode, keep the spoilers behind the wall, and dedicate your heart.
+
+— *Hange Zoë, Squad Leader, Survey Corps*
+*(Approved by nobody. Levi says the margins are filthy.)*
+
+---
+
+## Edition notes
+
 An interactive, local Attack on Titan map companion built with HTML, CSS, JavaScript, and SVG. No build step, account, external dependency, or API key is required, and the page makes no network requests (a Content-Security-Policy enforces it).
 
 **This edition covers the complete TV story: 87 regular episodes and both Final Chapters specials.** The user explicitly authorized the finale on 2026-10-05. The specials display as **SP1 / SP2** and use internal ordering 88 / 89 for visibility and saved viewing; they are not presented as ordinary E88 / E89.
@@ -92,6 +134,7 @@ Place cards contain only what is known at the entry where they first appear. `fi
 | `portraits/fetch_portraits.py` | Refreshes images and rebuilds the manifest; `--manifest-only` works offline |
 | `tests/data-lint.cjs` | Data checks, including the spoiler boundary |
 | `tests/browser.cjs` | Browser regression checks |
+| `docs/` | README screenshots (viewing episode 8) |
 
 `data.js` and `portraits/portraits.js` are classic scripts assigning globals, so the page works on both `file://` and HTTP. Both must load before `app.js`.
 
