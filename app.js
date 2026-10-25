@@ -64,7 +64,7 @@
     panelExpanded: !window.matchMedia('(max-width: 760px)').matches,
     // The trail opens on tall desktop windows and stays shut where the map needs the room, until the viewer chooses.
     trailOpen: typeof stored.trailOpen === 'boolean' ? stored.trailOpen
-      : !window.matchMedia('(max-width: 760px)').matches && window.innerHeight >= 860,
+      : !window.matchMedia('(max-width: 760px)').matches && window.innerHeight >= 1000,
     trailChosen: typeof stored.trailOpen === 'boolean',
     card: null,
     zoom: 1,
@@ -1532,7 +1532,7 @@
   for (const name of ['locations', 'groups', 'territory', 'walls']) {
     $(`#layer-${name}`).addEventListener('change', event => { state.layers[name] = event.target.checked; syncLayers(); persist(); });
   }
-  $('#map-guide').addEventListener('click', () => $('#about-dialog').showModal());
+  $$('[data-open-guide]').forEach(button => button.addEventListener('click', () => $('#about-dialog').showModal()));
   $$('.close-dialog').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
   $$('dialog').forEach(dialog => dialog.addEventListener('click', event => {
     if (event.target !== dialog) return;

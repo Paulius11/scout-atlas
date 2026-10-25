@@ -342,7 +342,7 @@ html[data-map-style="parchment"] .map-stage, html[data-map-style="parchment"] .m
   --carto-hover: rgba(105, 84, 46, .09);
 }
 
-.atlas-body { position: relative; display: flex; height: clamp(440px, calc(100vh - 380px), 1000px); }
+.atlas-body { position: relative; display: flex; }
 .map-stage { position: relative; flex: 1; min-width: 0; overflow: hidden; background: var(--map); isolation: isolate; }
 #atlas-map { width: 100%; height: 100%; cursor: grab; touch-action: pan-x pan-y; --pin-scale: 1.5; }
 #atlas-map:focus-visible { outline-offset: -3px; }
@@ -784,7 +784,6 @@ dialog label { display: block; margin-top: 18px; font-size: 14px; color: var(--t
   .heading-text p { display: none; }
   .heading-text .page-kicker { display: block; margin-bottom: 6px; }
   .heading-controls { flex-direction: row; align-items: flex-end; }
-  .atlas-body { height: clamp(340px, calc(100vh - 320px), 660px); }
   .sidebar { gap: 18px; padding-top: 20px; }
 }
 @media (max-width: 1200px) {
@@ -805,6 +804,30 @@ dialog label { display: block; margin-top: 18px; font-size: 14px; color: var(--t
   .schematic-badge, .search-wrap kbd { display: none; }
   .search-wrap { min-width: 190px; }
 }
+/* ---------- Desktop: the map takes the height the window has left ---------- */
+@media (min-width: 981px) {
+  /* A zero flex basis, so the drawing's own proportions never size its box; the page scrolls only when even
+     the 340 px minimum does not fit. */
+  main { display: flex; flex-direction: column; }
+  /* .map-view clips its corners, which would let it shrink below its contents; its minimum is its contents. */
+  .map-view { flex: 1 1 0; display: flex; flex-direction: column; min-height: min-content; }
+  .atlas-body { flex: 1 1 0; min-height: 340px; }
+  /* Two short rows: the title and the episode picker (its label beside it), then search, tools and areas. */
+  .map-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; padding: 10px 16px; }
+  .map-title { grid-column: 1; }
+  .map-episode-slot { grid-column: 2; min-width: 0; }
+  .map-navigation, .map-area-note { grid-column: 1 / -1; }
+  .map-navigation { flex-wrap: wrap; }
+  .map-episode-slot .episode-control { display: flex; align-items: center; gap: 10px; }
+  .map-episode-slot .episode-control > label { margin: 0; font-size: 13px; line-height: 1; white-space: nowrap; }
+  .map-episode-slot .stepper { width: clamp(300px, 28vw, 400px); }
+  .page-footer { display: none; }
+  .sidebar > .sidebar-guide { display: flex; }
+}
+.sidebar-guide { display: none; align-items: center; gap: 10px; margin-top: auto; padding: 8px 4px; font-size: 13px; line-height: 1.4; text-align: left; color: var(--accent); }
+.sidebar-guide .icon { width: 16px; height: 16px; color: var(--muted); }
+.sidebar-guide:hover { color: var(--text); }
+.sidebar > .sidebar-guide + .map-style-switch { margin-top: 0; }
 @media (max-width: 760px) {
   .app-shell { display: block; }
   .sidebar { position: static; width: 100%; height: auto; overflow: visible; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; border-right: 0; border-bottom: 1px solid var(--line); }

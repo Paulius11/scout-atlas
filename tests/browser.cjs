@@ -1446,9 +1446,9 @@ async function main() {
         await expanded.locator('#expand-map').click();
         await expanded.waitForFunction(() => document.querySelector('#expanded-map-dialog').open);
         const large = await expanded.locator('#map-stage').boundingBox();
-        // The compact Viewing episode header already gives the normal map more room.
+        // The inline map already takes the height the window has left, so full screen adds less than it once did.
         const minimumAreaGrowth = viewport.width < 761 ? 1.4 : 1.5;
-        const minimumScaleGrowth = viewport.width < 761 ? 1.25 : 1.2;
+        const minimumScaleGrowth = viewport.width < 761 ? 1.25 : 1.1;
         assert.ok(large.width * large.height > normal.width * normal.height * minimumAreaGrowth,
           `${viewport.width}px: expanded map area grew by ${(large.width * large.height / (normal.width * normal.height)).toFixed(3)}; it should exceed ${minimumAreaGrowth}`);
         const largeScale = await expanded.locator('#atlas-map').evaluate(element => element.getScreenCTM().a);
@@ -2357,8 +2357,10 @@ async function main() {
     });
 
     await test('the mouse wheel scrolls the page; Ctrl+wheel zooms the map', async () => {
-      // A short window, so the page is taller than the screen and the wheel has somewhere to go.
+      // A short window with the trail open, so the page is taller than the screen and the wheel has somewhere to go.
       const laptop = await createPage({ width: 1366, height: 480 });
+      await openTrail(laptop);
+      assert.ok(await laptop.evaluate(() => document.documentElement.scrollHeight > innerHeight), 'the page has something to scroll');
       const box = await laptop.locator('#map-stage').boundingBox();
       await laptop.mouse.move(box.x + box.width / 2, box.y + 100);
       await laptop.mouse.wheel(0, 300);
@@ -2735,6 +2737,60 @@ async function main() {
       const kept = await createPage({ width: 1440, height: 1040 }, `if (!localStorage.getItem(${JSON.stringify(storageKey)})) localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify({ viewing: 12, trailOpen: false }))})`);
       assert.equal(await kept.locator('#trail-toggle').getAttribute('aria-expanded'), 'false');
       assert.equal(await kept.locator('#timeline-track .timeline-event').count(), 0);
+    });
+
+    await test('desktop map fills the window: no page scroll, a two-row toolbar, the areas beside the tools', async () => {
+      for (const [width, height] of [[1280, 720], [1366, 657], [1440, 900], [1920, 1080]]) {
+        // E87 has the area switch and a map note; the two specials add a scene card above the map, which takes its own room.
+        for (const number of [1, 87]) {
+          const desk = await createPage({ width, height });
+          await episode(desk, number);
+          const label = `${width}x${height} E${number}`;
+          const stage = await desk.locator('#map-stage').boundingBox();
+          // The toolbar and the trail take about 160 px closed and 260 open; the map takes the rest, less the page's margins.
+          const trailOpen = height >= 1000;
+          assert.ok(stage.height >= height - (trailOpen ? 350 : 250), `${label}: the map is only ${Math.round(stage.height)}px tall`);
+          assert.ok(await desk.evaluate(() => document.documentElement.scrollHeight <= innerHeight), `${label}: the page scrolls although the map was sized to fit`);
+          const toolbar = await desk.locator('.map-toolbar').boundingBox();
+          assert.ok(toolbar.height <= 125, `${label}: the toolbar is ${Math.round(toolbar.height)}px tall`);
+          const nav = await desk.locator('.map-navigation').boundingBox();
+          if (await desk.locator('#map-extent-switch').isVisible()) {
+            const areas = await desk.locator('#map-extent-switch').boundingBox();
+            assert.ok(areas.y >= nav.y - 1 && areas.y + areas.height <= nav.y + nav.height + 1, `${label}: the area switch shares the tools row`);
+          }
+          const search = await desk.locator('.search-wrap').boundingBox();
+          assert.ok(search.width >= 220, `${label}: search keeps ${Math.round(search.width)}px`);
+          assert.equal(await desk.locator('#trail-toggle').getAttribute('aria-expanded'), String(trailOpen), `${label}: the trail starts open only from 1000px of height`);
+          await assertNoHorizontalOverflow(desk, label);
+        }
+      }
+    });
+
+    await test('desktop windows too short for the map scroll instead of clipping the trail', async () => {
+      const short = await createPage({ width: 1366, height: 420 });
+      await openTrail(short);
+      const view = await short.locator('#map-view').boundingBox();
+      const trail = await short.locator('#episode-trail').boundingBox();
+      const stage = await short.locator('#map-stage').boundingBox();
+      assert.ok(stage.height >= 339, `the map keeps its ${Math.round(stage.height)}px minimum`);
+      assert.ok(trail.y + trail.height <= view.y + view.height + 1, 'the trail is inside the map view, not clipped by it');
+      assert.ok(await short.evaluate(() => document.documentElement.scrollHeight > innerHeight), 'the page scrolls');
+      await short.locator('#trail-toggle').scrollIntoViewIfNeeded();
+      assert.equal(await short.locator('#trail-toggle').isVisible(), true);
+    });
+
+    await test('the guide link sits in the desktop sidebar and in the phone footer', async () => {
+      for (const [viewport, home] of [[{ width: 1440, height: 900 }, '.sidebar'], [{ width: 390, height: 844 }, '.page-footer']]) {
+        const guide = await createPage(viewport);
+        const link = guide.locator(`${home} [data-open-guide]`);
+        assert.equal(await link.isVisible(), true, `${viewport.width}px: the link is in ${home}`);
+        const other = guide.locator(`${home === '.sidebar' ? '.page-footer' : '.sidebar'} [data-open-guide]`);
+        assert.equal(await other.isVisible(), false, `${viewport.width}px: the other copy stays hidden`);
+        await link.click();
+        assert.equal(await guide.locator('#about-dialog').evaluate(dialog => dialog.open), true, `${viewport.width}px: it opens the guide`);
+        await guide.locator('#about-dialog .primary-button').click();
+        assert.equal(await guide.locator('#about-dialog').evaluate(dialog => dialog.open), false);
+      }
     });
 
     await test('phone layout fits, keeps every tab reachable, and fills the map', async () => {

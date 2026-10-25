@@ -58,6 +58,8 @@
         <label class="layer-toggle"><span><svg class="icon" aria-hidden="true"><use href="#i-wall"/></svg>Wall names</span><input id="layer-walls" type="checkbox" checked><span class="switch" aria-hidden="true"></span></label>
       </section>
 
+      <button type="button" class="sidebar-guide" data-open-guide><svg class="icon" aria-hidden="true"><use href="#i-compass"/></svg>How to read this map</button>
+
       <div id="map-style-switch" class="map-style-switch" role="group" aria-label="Site theme">
         <button type="button" data-map-style="parchment" aria-label="Parchment theme" title="Parchment theme" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-sun"/></svg></button>
         <button type="button" data-map-style="night" aria-label="Night theme" title="Night theme" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg></button>
@@ -181,7 +183,7 @@
 
       <section id="recap-view" class="secondary-view" hidden aria-label="The story so far"></section>
       <section id="characters-view" class="secondary-view" hidden aria-label="Characters"></section>
-      <footer class="page-footer"><button id="map-guide">How to read this map</button></footer>
+      <footer class="page-footer"><button id="map-guide" data-open-guide>How to read this map</button></footer>
     </main>
   </div>
 
