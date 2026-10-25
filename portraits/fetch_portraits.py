@@ -11,9 +11,11 @@ Spoiler boundary: each season's art is shown only from that season's first episo
 still only from its own episode, so a later design or scene never appears early. Add a source here only
 once the viewer has reached it. Only the ids below are fetched; nothing else on these sites is read.
 
-Legacy square images use their existing crop recipes. Additional sources are downloaded unchanged;
-their crop/sourceSize metadata frames faces in the browser. The additional-sources.json catalog
-records provenance and the first safe viewing episode, so refreshing never drops the supporting cast.
+Legacy square images use their existing crop recipes. Additional sources are downloaded, cut to the
+recorded face square and saved as small WebP files, so the browser never fetches the large originals
+(a wide 1400 x 700 still would otherwise be sent for a 56 px avatar). The additional-sources.json
+catalog records provenance, the crop recipe (crop/sourceSize refer to the original) and the first safe
+viewing episode, so refreshing never drops the supporting cast.
 """
 import argparse
 import io
@@ -26,6 +28,7 @@ from PIL import Image
 
 HERE = pathlib.Path(__file__).resolve().parent
 SIZE = 160  # px; the largest avatar is 54 px, so this is sharp at 2x and 3x
+WEBP_QUALITY = 82
 # atlas id -> file key on the official site
 SEASON_2 = {  # https://shingeki.tv/season2/character/img/thumb_<key>.jpg, 240x260, head and shoulders
     'eren': 'eren', 'mikasa': 'mikasa', 'armin': 'armin', 'jean': 'jean', 'annie': 'annie', 'sasha': 'sasha',
@@ -75,6 +78,24 @@ def save(atlas_id, image, box, name):
     flat.crop(box).resize((SIZE, SIZE), Image.LANCZOS).convert('RGB').save(HERE / name, quality=86, optimize=True)
 
 
+def bake(image, crop, path):
+    """Cut the recorded face out of an original and save it as a small square WebP.
+
+    crop is [left, top, width, height] on the original. Any transparency is kept, so the regiment
+    colour still shows through behind a cut-out; a picture that is smaller than SIZE is not enlarged.
+    """
+    left, top, width, height = crop
+    side = min(width, height)
+    left += (width - side) // 2
+    top += (height - side) // 2
+    face = image.convert('RGBA').crop((left, top, left + side, top + side))
+    if side > SIZE:
+        face = face.resize((SIZE, SIZE), Image.LANCZOS)
+    if face.getchannel('A').getextrema()[0] == 255:
+        face = face.convert('RGB')
+    face.save(path, 'WEBP', quality=WEBP_QUALITY, method=6)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--manifest-only', action='store_true', help='use local images without downloading or editing them')
@@ -98,9 +119,11 @@ def main():
             raise ValueError(f'Unsafe portrait file name: {name}')
         if not args.manifest_only:
             original = fetch(source['sourceUrl'], source.get('sourcePageUrl'))
-            Image.open(io.BytesIO(original)).verify()
-            (HERE / name).write_bytes(original)
-        version = {key: source[key] for key in ('from', 'file', 'crop', 'sourceSize') if key in source}
+            image = Image.open(io.BytesIO(original))
+            if list(image.size) != source['sourceSize']:
+                raise ValueError(f'{name}: the original is now {list(image.size)}, the recorded crop is for {source["sourceSize"]}')
+            bake(image, source['crop'], HERE / name)
+        version = {key: source[key] for key in ('from', 'file') if key in source}
         versions = manifest.setdefault(source['id'], [])
         versions[:] = [entry for entry in versions if entry['from'] != version['from']]
         versions.append(version)
@@ -117,7 +140,8 @@ def main():
     (HERE / 'portraits.js').write_text(
         '/* Portraits, written by fetch_portraits.py. Each id maps to a file name, or to a list of\n'
         ' * { from, file, crop?, sourceSize? } versions: the latest `from` at or before the viewing episode\n'
-        ' * is shown. Source frames are applied in SVG; later designs never appear early. Missing files get a drawn\n'
+        ' * is shown. The bundled files are already square faces; an optional source frame (crop on a larger\n'
+        ' * picture) is applied in SVG. Later designs never appear early. Missing files get a drawn\n'
         ' * silhouette. Add your own images the same way; use pictures from episodes already watched.\n'
         ' */\n'
         f'window.ATLAS_PORTRAITS = {{\n{body}\n}};\n', encoding='utf-8')

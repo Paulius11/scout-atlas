@@ -6,6 +6,8 @@
 //   ATLAS_URL=http://127.0.0.1:8765 node tests/browser.cjs  (a running local server)
 //   CHROME=/path/to/chrome node tests/browser.cjs           (another Chrome build)
 //   ATLAS_TEST_FILTER='recognizable|Back to this episode' node tests/browser.cjs
+// Running several copies at once? Point them at a server with ATLAS_URL. Headless Chromium can lose file://
+// localStorage across a reload when many browsers share a machine, which fails the reload checks at random.
 
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -68,9 +70,18 @@ async function test(name, run) {
     console.log(`FAIL ${name}\n     ${String(error.message).split('\n').slice(0, 14).join('\n     ')}`);
   }
 }
+const readText = (page, selector) => page.locator(selector)
+  .evaluateAll(elements => elements.map(element => element.textContent + ' ' + [...element.querySelectorAll('[aria-label],[title]')].map(e => `${e.getAttribute('aria-label') || ''} ${e.getAttribute('title') || ''}`).join(' ')).join('\n'));
+// Story and People are built only while they are shown, so open each to read what the viewer sees there.
 async function readUi(page) {
-  return page.locator('#location-markers, #location-panel, #recap-view, #characters-view, #timeline-track')
-    .evaluateAll(elements => elements.map(element => element.textContent + ' ' + [...element.querySelectorAll('[aria-label],[title]')].map(e => `${e.getAttribute('aria-label') || ''} ${e.getAttribute('title') || ''}`).join(' ')).join('\n'));
+  const parts = [await readText(page, '#location-markers, #location-panel, #timeline-track')];
+  const home = await page.locator('.primary-nav .nav-item.active').getAttribute('data-view');
+  for (const name of ['recap', 'characters']) {
+    await view(page, name);
+    parts.push(await readText(page, `#${name}-view`));
+  }
+  await view(page, home);
+  return parts.join('\n');
 }
 async function assertNoHorizontalOverflow(page, label) {
   const size = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
@@ -87,6 +98,10 @@ async function setLayer(page, name, checked) {
   await page.locator('#map-options').evaluate(element => { element.open = false; });
 }
 async function view(page, name) { await page.locator(`.primary-nav [data-view="${name}"]`).click(); }
+// The Episode trail starts open only on tall desktop windows; checks that use it open it first.
+async function openTrail(page) {
+  if (await page.locator('#trail-toggle').getAttribute('aria-expanded') === 'false') await page.locator('#trail-toggle').click();
+}
 async function episode(page, number) { await page.locator('#episode-select').selectOption(String(number)); }
 async function characterDetails(page, id) {
   await page.locator(`#character-${id} .character-card-button`).click();
@@ -117,6 +132,7 @@ async function main() {
     if (init) await ctx.addInitScript(init);
     const page = await ctx.newPage();
     page.setDefaultTimeout(5000);
+    page.setDefaultNavigationTimeout(15000); // a page can load slowly when several copies of this run share a machine
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => { if (/Content Security Policy|Refused to/.test(message.text())) errors.push(message.text()); });
     page.on('request', request => { if (!request.url().startsWith(new URL('.', url).href)) foreign.push(request.url()); });
@@ -234,6 +250,7 @@ async function main() {
         assert.deepEqual(specials, [{ number: 88, code: 'SP1' }, { number: 89, code: 'SP2' }], 'the two long specials are separate from the seven television recuts');
         assert.equal(await complete.locator('#episode-select optgroup[label="Season 4"] option').count(), 30, 'the Final Season includes28regular episodes and both specials');
         await episode(complete, 87);
+        await openTrail(complete);
         for (const number of [88, 89]) {
           await complete.locator('#next-milestone').click();
           assert.equal(await complete.locator('#episode-select').inputValue(), String(number), 'stepping follows the two special entries');
@@ -313,8 +330,8 @@ async function main() {
           const card = cast.locator(`#character-${id}`);
           assert.equal(await card.locator('.character-name').innerText(), at(character.name, number).text, 'the displayed identity belongs to this special');
           assert.ok((await card.locator('.character-involvement').innerText()).trim(), 'each person has an episode-specific explanation');
-          const descriptionId = await card.locator('.character-card-button').getAttribute('aria-describedby');
-          assert.equal(descriptionId, await card.locator('.character-involvement').getAttribute('id'), 'the explanation describes the clickable card accessibly');
+          const described = (await card.locator('.character-card-button').getAttribute('aria-describedby')).split(/\s+/);
+          assert.ok(described.includes(await card.locator('.character-involvement').getAttribute('id')), 'the explanation describes the clickable card accessibly');
           const updates = (character.notes || []).filter(note => note.episode === number);
           if (!updates.length) continue;
           const body = await characterDetails(cast, id);
@@ -688,6 +705,7 @@ async function main() {
         for (const number of [70, 72]) {
           await episode(focused, 73);
           await focused.locator('[data-map-extent="world"]').click();
+          await openTrail(focused);
           await focused.locator(`#timeline-track [data-episode="${number}"]`).click();
           assert.equal(await mapArea(focused), 'island', `E${number} timeline navigation follows the current setting`);
           assert.equal(await focused.locator('.map-marker.selected').getAttribute('data-location'), 'paradis');
@@ -1359,6 +1377,201 @@ async function main() {
       }
     });
 
+    // People: recorded deaths, their order, and cards or a list.
+    const deaths = data.characters.filter(character => character.died !== undefined);
+    const diedBy = number => deaths.filter(character => character.died <= number && character.firstEpisode <= number)
+      .sort((a, b) => a.died - b.died || a.firstEpisode - b.firstEpisode).map(character => character.id);
+    const cardIds = page => page.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character));
+    const savedChoice = (page, key) => page.evaluate(([storage, name]) => JSON.parse(localStorage.getItem(storage) || '{}')[name], [storageKey, key]);
+    // Media-query changes reach the page on the frame after a resize.
+    const settled = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
+    await test('a death is marked from the episode the atlas records it and never before', async () => {
+      assert.ok(deaths.length >= 20, 'the data records its deaths');
+      const gallery = await createPage();
+      await view(gallery, 'characters');
+      const steps = [...new Set(deaths.flatMap(character => [character.died - 1, character.died]))].filter(number => number >= 1).sort((a, b) => a - b);
+      for (const number of steps) {
+        await episode(gallery, number);
+        const cards = await gallery.locator('.character-card').evaluateAll(items => items.map(card => {
+          const chip = card.querySelector('.fate-chip');
+          return {
+            id: card.dataset.character, fallen: card.classList.contains('fallen'), chip: chip?.textContent ?? null, title: chip?.title ?? null,
+            described: Boolean(chip) && (card.querySelector('.character-card-button').getAttribute('aria-describedby') || '').split(/\s+/).includes(chip.id),
+            dimmed: getComputedStyle(card.querySelector('.avatar')).filter !== 'none'
+          };
+        }));
+        const expected = diedBy(number).sort();
+        assert.deepEqual(cards.filter(card => card.fallen).map(card => card.id).sort(), expected, `E${number}: exactly the deaths recorded so far are marked`);
+        for (const card of cards) {
+          if (!card.fallen) { assert.deepEqual([card.chip, card.dimmed], [null, false], `E${number}: ${card.id} carries no mark`); continue; }
+          const died = deaths.find(character => character.id === card.id).died;
+          assert.equal(card.chip, `Died · ${episodeCode(died)}`, `${card.id} names the episode that records it`);
+          assert.equal(card.title, `Recorded in ${episodeLabel(died).toLowerCase()}`);
+          assert.equal(card.described, true, `E${number}: ${card.id} announces its mark as the card's description`);
+          assert.equal(card.dimmed, true, `E${number}: ${card.id} has a dimmed portrait`);
+        }
+        assert.equal(await gallery.locator('[data-faction-filter="died"] span').innerText(), String(expected.length), `E${number}: the Died count agrees`);
+      }
+      // The details agree with the card, and an earlier episode says nothing.
+      await episode(gallery, 55);
+      assert.equal(await (await characterDetails(gallery, 'erwin')).locator('.fate-chip').innerText(), `Died · ${episodeCode(55)}`);
+      await closeCharacterDetails(gallery);
+      await episode(gallery, 54);
+      assert.equal(await (await characterDetails(gallery, 'erwin')).locator('.fate-chip').count(), 0, 'the day before, nothing is said');
+      await closeCharacterDetails(gallery);
+    });
+
+    await test('the Died filter lists the recorded deaths in the order they happened, and says what it leaves out', async () => {
+      const gallery = await createPage();
+      await episode(gallery, MAX);
+      await view(gallery, 'characters');
+      await gallery.locator('[data-faction-filter="died"]').click();
+      assert.equal(await gallery.locator('[data-faction-filter="died"]').getAttribute('aria-pressed'), 'true');
+      assert.deepEqual(await cardIds(gallery), diedBy(MAX), 'the order of death, then of appearance');
+      assert.match(await gallery.locator('.episode-cast-note').innerText(), new RegExp(`up to ${episodeCode(MAX)}.*no recorded death, which does not mean they lived`, 'i'));
+      assert.equal(await gallery.locator('.character-section h2').count(), 0, 'one continuous list');
+      await gallery.locator('#character-filter').fill('Levi');
+      assert.equal(await gallery.locator('.character-card').count(), 0, 'someone without a recorded death is not listed');
+      assert.match(await gallery.locator('.search-empty').innerText(), /No recorded death/);
+      await gallery.locator('#character-filter').fill('Erwin');
+      assert.deepEqual(await cardIds(gallery), ['erwin']);
+      await gallery.locator('#character-filter').fill('');
+      // Stepping back keeps the filter, drops what has not happened yet, and the note follows the episode.
+      await episode(gallery, 55);
+      assert.equal(await gallery.locator('[data-faction-filter="died"]').getAttribute('aria-pressed'), 'true');
+      assert.deepEqual(await cardIds(gallery), diedBy(55));
+      assert.match(await gallery.locator('.episode-cast-note').innerText(), new RegExp(`up to ${episodeCode(55)}`));
+      assert.ok(!(await gallery.locator('.episode-cast-note').innerText()).includes(episodeCode(MAX)), 'the note names only the episode being viewed');
+      await episode(gallery, 1);
+      assert.deepEqual(await cardIds(gallery), diedBy(1));
+      assert.equal(await gallery.locator('[data-faction-filter="died"] span').innerText(), String(diedBy(1).length));
+    });
+
+    await test('People sort by story order or A–Z, in the expanded gallery too, and the choice is remembered', async () => {
+      const sorted = await createPage();
+      await episode(sorted, MAX);
+      await view(sorted, 'characters');
+      const names = () => sorted.locator('.character-name').evaluateAll(items => items.map(item => item.textContent));
+      assert.equal(await sorted.locator('#character-sort').inputValue(), 'story');
+      assert.deepEqual((await sorted.locator('#character-sort option').allInnerTexts()), ['Sort: story order', 'Sort: A–Z']);
+      assert.equal(await sorted.locator('label[for="character-sort"]').innerText(), 'Sort characters');
+      // Story order is the order the people appear in, with anyone who is only another identity of a listed person last.
+      const visible = data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= MAX);
+      const another = character => Boolean(character.revealedAs && character.revealedAs.episode <= MAX && data.characters.some(other => other.id === character.revealedAs.id && other.firstEpisode <= MAX));
+      assert.deepEqual(await cardIds(sorted), visible.slice().sort((a, b) => another(a) - another(b) || a.firstEpisode - b.firstEpisode).map(character => character.id));
+      assert.equal(await savedChoice(sorted, 'characterSort'), undefined, 'the default is not stored');
+      await sorted.locator('#character-sort').selectOption('name');
+      const alphabetical = new Intl.Collator('en', { sensitivity: 'base' });
+      const inOrder = await names();
+      assert.deepEqual(inOrder, inOrder.slice().sort(alphabetical.compare), 'A–Z');
+      assert.equal(inOrder.length, visible.length, 'sorting never drops anyone');
+      assert.equal(await sorted.locator('#character-sort').evaluate(select => select === document.activeElement), true, 'focus stays on the control');
+      // It applies inside a faction and under the Died filter, where story order means the order of death.
+      await sorted.locator('[data-faction-filter="died"]').click();
+      const fallenNames = await names();
+      assert.deepEqual(fallenNames, fallenNames.slice().sort(alphabetical.compare));
+      await sorted.locator('#character-sort').selectOption('story');
+      assert.deepEqual(await cardIds(sorted), diedBy(MAX));
+      await sorted.locator('#character-sort').selectOption('name');
+      await sorted.locator('[data-faction-filter="all"]').click();
+      // Remembered across a reload, and also set from the expanded gallery.
+      await sorted.reload({ waitUntil: 'load' });
+      assert.equal(await sorted.locator('#character-sort').inputValue(), 'name', 'the choice survives a reload');
+      assert.equal(await savedChoice(sorted, 'characterSort'), 'name');
+      await sorted.locator('#expand-gallery').click();
+      assert.equal(await sorted.locator('#expanded-gallery-slot #character-sort').isVisible(), true);
+      await sorted.locator('#expanded-gallery-slot #character-sort').selectOption('story');
+      await sorted.keyboard.press('Escape');
+      assert.equal(await sorted.locator('#character-sort').inputValue(), 'story');
+      assert.equal(await savedChoice(sorted, 'characterSort'), undefined, 'going back to the default stores nothing');
+    });
+
+    await test('People start as a list on a phone and as cards on a wide window; a chosen layout is kept and wins', async () => {
+      const phone = await createPage({ width: 390, height: 844 });
+      await episode(phone, MAX);
+      await view(phone, 'characters');
+      const isList = page => page.locator('.character-grid').evaluate(grid => grid.classList.contains('is-list'));
+      const pressed = page => page.locator('[data-character-layout][aria-pressed="true"]').evaluateAll(buttons => buttons.map(button => button.dataset.characterLayout));
+      assert.equal(await isList(phone), true, 'a phone starts with the list');
+      assert.deepEqual(await pressed(phone), ['list']);
+      assert.equal(await savedChoice(phone, 'characterView'), undefined, 'a default is not remembered as a choice');
+      const rows = await phone.locator('.character-card-button').evaluateAll(buttons => buttons.map(button => Math.round(button.getBoundingClientRect().height)));
+      assert.ok(rows.every(height => height >= 44 && height <= 90), `list rows are touch targets, not cards: ${[...new Set(rows)].join(', ')}px`);
+      assert.equal(await phone.locator('.character-card:not(.fallen) .fate-chip').count(), 0);
+      // A role, a mark and a portrait on one short row.
+      const row = await phone.locator('#character-erwin').evaluate(card => {
+        const box = selector => card.querySelector(selector).getBoundingClientRect();
+        return { chipRight: box('.fate-chip').right, nameBottom: box('.character-name').bottom, chipTop: box('.fate-chip').top, roleTop: box('.character-role').top, card: card.getBoundingClientRect().right };
+      });
+      assert.ok(row.chipTop < row.roleTop && row.chipRight < row.card, 'the mark sits on the name line, inside the row');
+      const listHeight = await phone.evaluate(() => document.documentElement.scrollHeight);
+      const grid = phone.locator('.character-grid');
+      await phone.locator('[data-character-layout="grid"]').click();
+      assert.equal(await grid.evaluate(element => element.isConnected), true, 'switching changes a class; nothing is rebuilt');
+      assert.equal(await phone.locator('[data-character-layout="grid"]').evaluate(button => button === document.activeElement), true, 'focus stays on the control');
+      assert.equal(await isList(phone), false);
+      const cardsHeight = await phone.evaluate(() => document.documentElement.scrollHeight);
+      assert.ok(listHeight <= cardsHeight * .8, `the list is ${listHeight}px tall against ${cardsHeight}px of cards`);
+      assert.equal(await savedChoice(phone, 'characterView'), 'grid');
+      await phone.reload({ waitUntil: 'load' });
+      assert.equal(await isList(phone), false, 'a phone that chose cards keeps them after a reload');
+      await phone.locator('[data-character-layout="list"]').click();
+      await phone.setViewportSize({ width: 1440, height: 1040 });
+      await settled(phone);
+      assert.equal(await isList(phone), true, 'a chosen list is kept on a wide window');
+      await assertNoHorizontalOverflow(phone, 'list at 1440px');
+      // Nothing chosen: the window decides, in both directions, without rebuilding.
+      const roaming = await createPage({ width: 390, height: 844 });
+      await view(roaming, 'characters');
+      assert.equal(await isList(roaming), true);
+      await roaming.setViewportSize({ width: 1440, height: 1040 });
+      await settled(roaming);
+      assert.equal(await isList(roaming), false, 'the same visitor on a wide window gets the cards');
+      assert.deepEqual(await pressed(roaming), ['grid']);
+      await roaming.setViewportSize({ width: 390, height: 844 });
+      await settled(roaming);
+      assert.equal(await isList(roaming), true, 'and the list again on a phone');
+      const wide = await createPage();
+      await episode(wide, MAX);
+      await view(wide, 'characters');
+      assert.equal(await isList(wide), false, 'a wide window starts with the cards');
+      await wide.locator('[data-character-layout="list"]').click();
+      assert.equal(await isList(wide), true);
+      const columns = await wide.locator('.character-grid').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+      assert.ok(columns >= 2 && columns <= 4, `the list is a few columns of full-width rows, not a long strip: ${columns}`);
+      // The smallest phones, with every mark showing: names wrap, nothing spills sideways.
+      const small = await createPage({ width: 320, height: 740 });
+      await episode(small, MAX);
+      await view(small, 'characters');
+      await small.locator('[data-faction-filter="died"]').click();
+      assert.equal(await isList(small), true);
+      await assertNoHorizontalOverflow(small, '320px list of the fallen');
+      const spilled = await small.locator('.character-card').evaluateAll(cards => cards.filter(card => {
+        const outer = card.getBoundingClientRect();
+        return [...card.querySelectorAll('.character-name, .fate-chip, .character-role')].some(item => item.getBoundingClientRect().right > outer.right + 1);
+      }).map(card => card.dataset.character));
+      assert.deepEqual(spilled, [], 'names, marks and roles stay inside their rows');
+    });
+
+    await test('the People controls wrap rather than squeeze the search, from tablets to wide windows', async () => {
+      for (const width of [761, 768, 820, 1024, 1440]) {
+        const tablet = await createPage({ width, height: 1000 });
+        await episode(tablet, MAX);
+        await view(tablet, 'characters');
+        const boxes = await tablet.evaluate(() => Object.fromEntries(['#character-filter', '#character-sort', '.layout-switch', '#expand-gallery', '.gallery-actions']
+          .map(selector => { const { x, y, width, height } = document.querySelector(selector).getBoundingClientRect(); return [selector, { left: x, top: y, right: x + width, bottom: y + height }]; })));
+        const frame = boxes['.gallery-actions'];
+        assert.ok(boxes['#character-filter'].right - boxes['#character-filter'].left >= 200, `${width}px: the search keeps a usable width`);
+        const items = ['#character-filter', '#character-sort', '.layout-switch', '#expand-gallery'].map(selector => [selector, boxes[selector]]);
+        for (const [selector, box] of items) assert.ok(box.left >= frame.left - 1 && box.right <= frame.right + 1, `${width}px: ${selector} stays inside its row`);
+        for (const [index, [first, a]] of items.entries()) for (const [second, b] of items.slice(index + 1)) {
+          assert.ok(!overlap(a, b), `${width}px: ${first} and ${second} overlap`);
+        }
+        await assertNoHorizontalOverflow(tablet, `${width}px People controls`);
+      }
+    });
+
     await test('expanded gallery keeps filters, contains focus, restores the tab and respects episode limits', async () => {
       for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
         const gallery = await createPage(viewport);
@@ -1429,9 +1642,9 @@ async function main() {
         await expanded.locator('#expand-map').click();
         await expanded.waitForFunction(() => document.querySelector('#expanded-map-dialog').open);
         const large = await expanded.locator('#map-stage').boundingBox();
-        // The compact Viewing episode header already gives the normal map more room.
+        // The inline map already takes the height the window has left, so full screen adds less than it once did.
         const minimumAreaGrowth = viewport.width < 761 ? 1.4 : 1.5;
-        const minimumScaleGrowth = viewport.width < 761 ? 1.25 : 1.2;
+        const minimumScaleGrowth = viewport.width < 761 ? 1.25 : 1.1;
         assert.ok(large.width * large.height > normal.width * normal.height * minimumAreaGrowth,
           `${viewport.width}px: expanded map area grew by ${(large.width * large.height / (normal.width * normal.height)).toFixed(3)}; it should exceed ${minimumAreaGrowth}`);
         const largeScale = await expanded.locator('#atlas-map').evaluate(element => element.getScreenCTM().a);
@@ -1960,6 +2173,8 @@ async function main() {
     await test('every portrait sits nearer its own pin than any other', async () => {
       try { for (const n of milestones) {
         await episode(page, n);
+        // Portraits take their place in the frame after the render; measure the settled arrangement.
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         const bad = await page.locator('#location-markers').evaluate(root => {
           const centre = el => { const r = el.getBoundingClientRect(); return [(r.left + r.right) / 2, (r.top + r.bottom) / 2]; };
           const rings = [...root.querySelectorAll('.map-marker')].filter(m => m.querySelector('.marker-ring') && m.getBoundingClientRect().width > 0).map(m => [m.dataset.location, centre(m.querySelector('.marker-ring'))]);
@@ -2340,7 +2555,10 @@ async function main() {
     });
 
     await test('the mouse wheel scrolls the page; Ctrl+wheel zooms the map', async () => {
-      const laptop = await createPage({ width: 1366, height: 700 });
+      // A short window with the trail open, so the page is taller than the screen and the wheel has somewhere to go.
+      const laptop = await createPage({ width: 1366, height: 480 });
+      await openTrail(laptop);
+      assert.ok(await laptop.evaluate(() => document.documentElement.scrollHeight > innerHeight), 'the page has something to scroll');
       const box = await laptop.locator('#map-stage').boundingBox();
       await laptop.mouse.move(box.x + box.width / 2, box.y + 100);
       await laptop.mouse.wheel(0, 300);
@@ -2440,6 +2658,10 @@ async function main() {
           }));
           assert.ok(['img', 'image'].includes(actual.tag), `${character.id} uses an HTML or SVG image`);
           assert.equal(actual.source, `portraits/${version.file}`);
+          if (actual.tag === 'img') {
+            assert.equal(await portrait.getAttribute('loading'), 'lazy', `${character.id} loads its picture only as it scrolls near`);
+            assert.equal(await portrait.getAttribute('decoding'), 'async');
+          }
           if (version.crop) {
             assert.equal(actual.framed, true, `${character.id} uses its source framing`);
             assert.deepEqual(actual.viewBox.split(/\s+/).map(Number), version.crop, `${character.id} frame`);
@@ -2487,15 +2709,31 @@ async function main() {
       });
 
       await test('framed map portraits keep the same bounds as their marker disc', async () => {
-        const frameEpisodes = [...new Set(data.characters.flatMap(character => (character.positions || []).map(position => position.episode)))].filter(number =>
-          data.characters.some(character => {
-            const version = at(portraitVersions(character.id), number);
+        // The bundled pictures are already square faces, so give a few mapped people a source frame, as a
+        // hand-added picture would have, to keep the SVG framing path honest.
+        const frameable = data.characters.filter(character => character.type !== 'group'
+          && (character.positions || []).some(position => position.locationId)
+          && portraitVersions(character.id).length && portraitVersions(character.id).every(version => /\.jpg$/.test(version.file))).slice(0, 5);
+        assert.ok(frameable.length >= 3, 'enough mapped people have a bundled 160 px picture to frame');
+        const sizes = await page.evaluate(async files => Promise.all(files.map(async file => {
+          const image = new Image();
+          image.src = new URL(`portraits/${file}`, location.href).href;
+          await image.decode();
+          return [image.naturalWidth, image.naturalHeight];
+        })), frameable.flatMap(character => portraitVersions(character.id).map(version => version.file)));
+        assert.ok(sizes.every(([width, height]) => width === 160 && height === 160), 'the synthetic source frame matches the picture');
+        const framed = { ...portraits, ...Object.fromEntries(frameable.map(character => [character.id,
+          portraitVersions(character.id).map(version => ({ ...version, crop: [12, 12, 136, 136], sourceSize: [160, 160] }))])) };
+        const framedInit = `Object.defineProperty(window, 'ATLAS_PORTRAITS', { configurable: true, get: () => (${JSON.stringify(framed)}), set: () => {} });`;
+        const frameEpisodes = [...new Set(frameable.flatMap(character => (character.positions || []).map(position => position.episode)))].filter(number =>
+          frameable.some(character => {
+            const version = at(framed[character.id], number);
             const position = (character.positions || []).filter(position => position.episode <= number).sort((a, b) => b.episode - a.episode)[0];
             return version?.crop && position?.locationId;
           }));
         assert.ok(frameEpisodes.length > 0, 'a framed portrait has a recorded map position');
         for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
-          const mapped = await createPage(viewport);
+          const mapped = await createPage(viewport, framedInit);
           let count = 0;
           for (const number of frameEpisodes) {
             await episode(mapped, number);
@@ -2547,6 +2785,398 @@ async function main() {
         assert.equal(await listed.locator('#character-levi svg.avatar:not(.image-portrait)').count(), 1);
         assert.equal(await listed.locator('#character-historia [data-portrait]').count(), 0);
       }
+    });
+
+    await test('phone map: no control covers a pin at first framing, and the toolbar leaves the map high on the screen', async () => {
+      for (const [width, height] of [[360, 740], [390, 844], [412, 915], [430, 932], [320, 740]]) {
+        const phone = await createPage({ width, height });
+        for (const number of [1, 2, 4, 8, 13, 25, 31, 40, 50, 56]) {
+          await episode(phone, number);
+          const covered = await phone.evaluate(() => {
+            const hit = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
+            const overlays = ['.zoom-controls', '.map-legend', '.map-overview', '.map-episode-return']
+              .map(selector => document.querySelector(selector)).filter(element => element && !element.hidden && element.getBoundingClientRect().width)
+              .map(element => element.getBoundingClientRect());
+            return [...document.querySelectorAll('#location-markers .map-marker')].flatMap(marker => {
+              const ring = marker.querySelector('.marker-ring');
+              if (!ring || !overlays.some(box => hit(ring.getBoundingClientRect(), box))) return [];
+              return [marker.dataset.location + (marker.classList.contains('selected') ? '*' : '')];
+            });
+          });
+          // 320 px is the narrowest phone and the east edge is tight there; the place being explored is never covered.
+          assert.deepEqual(width === 320 ? covered.filter(id => id.endsWith('*')) : covered, [], `${width}px E${number}: a control covers a pin`);
+        }
+        if (width === 390) {
+          await episode(phone, 1);
+          const stage = await phone.locator('#map-stage').boundingBox();
+          assert.ok(stage.y <= 240, `the map starts ${Math.round(stage.y)}px down the screen`);
+          const toggle = await phone.locator('#trail-toggle').boundingBox();
+          const nav = await phone.locator('.primary-nav').boundingBox();
+          assert.ok(toggle.y + toggle.height <= nav.y, 'the whole map view, trail control included, fits above the tab bar');
+        }
+        await assertNoHorizontalOverflow(phone, `${width}px phone map`);
+      }
+    });
+
+    await test('phone controls are at least 44 px so a thumb can use them', async () => {
+      const phone = await createPage({ width: 390, height: 844 });
+      await episode(phone, 60);
+      const small = await phone.evaluate(() => [...document.querySelectorAll('#prev-milestone, #next-milestone, #episode-select, .map-navigation .search-wrap, #map-options > summary, #show-changes, #zoom-in, #zoom-out, #reset-map, #expand-map, #map-legend summary, .map-extent-switch button:not([hidden]), #place-peek, #trail-toggle')]
+        .map(element => ({ name: element.id || element.className || element.tagName, ...(({ width, height }) => ({ width, height }))(element.getBoundingClientRect()) }))
+        .filter(box => box.width < 43.5 || box.height < 43.5));
+      assert.deepEqual(small, [], 'controls under 44 px');
+    });
+
+    await test('phone sheet: opening the details keeps the chosen place in view, and closing puts the map back', async () => {
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+      contexts.push(ctx);
+      const phone = await createPage(undefined, undefined, ctx);
+      for (const number of [8, 25, 50, 70]) {
+        await episode(phone, number);
+        const home = await phone.locator('#map-camera').getAttribute('transform');
+        await phone.locator('#place-peek').tap();
+        assert.equal(await phone.locator('#place-details').isVisible(), true);
+        const open = await phone.evaluate(() => {
+          const ring = document.querySelector('#location-markers .map-marker.selected .marker-ring').getBoundingClientRect();
+          const sheet = document.querySelector('#location-panel').getBoundingClientRect();
+          const map = document.querySelector('#atlas-map').getBoundingClientRect();
+          return { pinTop: ring.top, pinBottom: ring.bottom, left: ring.left, right: ring.right, sheetTop: sheet.top, mapTop: map.top, mapLeft: map.left, mapRight: map.right };
+        });
+        assert.ok(open.pinBottom <= open.sheetTop && open.pinTop >= open.mapTop && open.left >= open.mapLeft && open.right <= open.mapRight,
+          `E${number}: the selected place is hidden: ${JSON.stringify(open)}`);
+        await phone.locator('#place-peek').tap();
+        assert.equal(await phone.locator('#map-camera').getAttribute('transform'), home, `E${number}: closing the sheet puts the map back`);
+      }
+      // A map the viewer moved while the sheet was open stays where they left it.
+      await episode(phone, 50);
+      await phone.locator('#place-peek').tap();
+      await phone.locator('#zoom-in').tap();
+      const home = 'translate(0 0) scale(1)';
+      await phone.locator('#place-peek').tap();
+      // The normal pan limits apply again once the sheet closes, but the viewer's zoom stays and the map is not snapped back.
+      const after = await phone.locator('#map-camera').getAttribute('transform');
+      assert.match(after, /scale\(1\.25\)/, 'closing the sheet must not undo the viewer\'s own zoom');
+      assert.notEqual(after, home);
+      await assertNoHorizontalOverflow(phone, 'phone sheet');
+    });
+
+    await test('one finger pans the expanded phone map; inline it leaves the map to the page and two fingers', async () => {
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+      contexts.push(ctx);
+      const phone = await createPage(undefined, undefined, ctx);
+      await episode(phone, 40);
+      const cdp = await ctx.newCDPSession(phone);
+      const drag = async (from, to, steps = 6) => {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
+        for (let step = 1; step <= steps; step++) {
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from.x + (to.x - from.x) * step / steps, y: from.y + (to.y - from.y) * step / steps }] });
+        }
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      };
+      const emptyGround = async () => { const box = await phone.locator('#atlas-map').boundingBox(); return { x: box.x + box.width * 0.3, y: box.y + box.height * 0.12 }; };
+      const camera = () => phone.locator('#map-camera').getAttribute('transform');
+      const inline = await camera();
+      let from = await emptyGround();
+      await drag(from, { x: from.x + 70, y: from.y + 50 });
+      assert.equal(await camera(), inline, 'inline, one finger does not move the map');
+      // A fresh page, so the one-time two-finger hint has not already been spent inline.
+      const expandedPhone = await createPage(undefined, undefined, ctx);
+      await episode(expandedPhone, 40);
+      await expandedPhone.locator('#expand-map').tap();
+      const expandedCdp = await ctx.newCDPSession(expandedPhone);
+      const expandedDrag = async (start, end, steps = 6) => {
+        await expandedCdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+        for (let step = 1; step <= steps; step++) {
+          await expandedCdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: start.x + (end.x - start.x) * step / steps, y: start.y + (end.y - start.y) * step / steps }] });
+        }
+        await expandedCdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      };
+      const expandedCamera = () => expandedPhone.locator('#map-camera').getAttribute('transform');
+      const expandedGround = async () => { const box = await expandedPhone.locator('#atlas-map').boundingBox(); return { x: box.x + box.width * 0.3, y: box.y + box.height * 0.12 }; };
+      const before = await expandedCamera();
+      from = await expandedGround();
+      await expandedDrag(from, { x: from.x + 70, y: from.y + 50 });
+      assert.notEqual(await expandedCamera(), before, 'expanded, one finger pans the map');
+      assert.equal(await expandedPhone.locator('#map-hint').evaluate(hint => hint.classList.contains('visible')), false, 'the two-finger hint does not appear where one finger works');
+      // A tap that does not move still selects a place, and a drag that starts on a pin pans without selecting it.
+      await expandedPhone.locator('[data-location="trost"]').tap();
+      assert.equal(await expandedPhone.locator('[data-location="trost"]').getAttribute('aria-pressed'), 'true');
+      await expandedPhone.locator('#reset-map').tap();
+      const afterTap = await expandedCamera();
+      const pin = await expandedPhone.locator('[data-location="stohess"] .marker-ring').boundingBox();
+      const finger = { x: pin.x + pin.width / 2, y: pin.y + pin.height / 2 };
+      assert.equal(await expandedPhone.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-location]')?.dataset.location, finger), 'stohess', 'the finger lands on the pin');
+      await expandedDrag(finger, { x: finger.x - 50, y: finger.y - 30 });
+      assert.notEqual(await expandedCamera(), afterTap, 'a drag that starts on a pin still pans');
+      assert.equal(await expandedPhone.locator('[data-location="trost"]').getAttribute('aria-pressed'), 'true', 'and does not select the pin it started on');
+      await cdp.detach();
+      await expandedCdp.detach();
+    });
+
+    await test('Episode trail: open by default only where there is room, collapsible, built only when open, remembered', async () => {
+      for (const [viewport, expectOpen] of [[{ width: 1440, height: 1040 }, true], [{ width: 1366, height: 657 }, false], [{ width: 390, height: 844 }, false]]) {
+        const trail = await createPage(viewport);
+        await episode(trail, 30);
+        const label = `${viewport.width}x${viewport.height}`;
+        assert.equal(await trail.locator('#trail-toggle').getAttribute('aria-expanded'), String(expectOpen), `${label}: default`);
+        assert.equal(await trail.locator('#timeline-track').isVisible(), expectOpen, `${label}: track visibility`);
+        assert.equal(await trail.locator('#timeline-track .timeline-event').count(), expectOpen ? 30 : 0, `${label}: a closed trail builds none of its 30 items`);
+        assert.equal(await trail.evaluate(key => JSON.parse(localStorage.getItem(key)).trailOpen, storageKey), undefined, `${label}: the default is not saved as a choice`);
+        await trail.locator('#trail-toggle').click();
+        assert.equal(await trail.locator('#trail-toggle').getAttribute('aria-expanded'), String(!expectOpen));
+        assert.equal(await trail.locator('#timeline-track .timeline-event').count(), expectOpen ? 0 : 30, `${label}: toggling builds or clears the items`);
+        if (!expectOpen) assert.equal(await trail.locator('.timeline-event.active').getAttribute('aria-current'), 'step', 'the open trail marks where the viewer is');
+        assert.equal(await trail.evaluate(key => JSON.parse(localStorage.getItem(key)).trailOpen, storageKey), !expectOpen, `${label}: the choice is saved`);
+        await episode(trail, 31);
+        assert.equal(await trail.locator('#timeline-track .timeline-event').count(), expectOpen ? 0 : 31, `${label}: stepping keeps the chosen state`);
+        await assertNoHorizontalOverflow(trail, `${label} trail`);
+      }
+      // A saved choice beats the default, so a tall window can keep it shut.
+      const kept = await createPage({ width: 1440, height: 1040 }, `if (!localStorage.getItem(${JSON.stringify(storageKey)})) localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify({ viewing: 12, trailOpen: false }))})`);
+      assert.equal(await kept.locator('#trail-toggle').getAttribute('aria-expanded'), 'false');
+      assert.equal(await kept.locator('#timeline-track .timeline-event').count(), 0);
+    });
+
+    await test('desktop map fills the window: no page scroll, a two-row toolbar, the areas beside the tools', async () => {
+      for (const [width, height] of [[1280, 720], [1366, 657], [1440, 900], [1920, 1080]]) {
+        // E87 has the area switch and a map note; the two specials add a scene card above the map, which takes its own room.
+        for (const number of [1, 87]) {
+          const desk = await createPage({ width, height });
+          await episode(desk, number);
+          const label = `${width}x${height} E${number}`;
+          const stage = await desk.locator('#map-stage').boundingBox();
+          // The toolbar and the trail take about 160 px closed and 260 open; the map takes the rest, less the page's margins.
+          const trailOpen = height >= 1000;
+          assert.ok(stage.height >= height - (trailOpen ? 350 : 250), `${label}: the map is only ${Math.round(stage.height)}px tall`);
+          assert.ok(await desk.evaluate(() => document.documentElement.scrollHeight <= innerHeight), `${label}: the page scrolls although the map was sized to fit`);
+          const toolbar = await desk.locator('.map-toolbar').boundingBox();
+          assert.ok(toolbar.height <= 125, `${label}: the toolbar is ${Math.round(toolbar.height)}px tall`);
+          const nav = await desk.locator('.map-navigation').boundingBox();
+          if (await desk.locator('#map-extent-switch').isVisible()) {
+            const areas = await desk.locator('#map-extent-switch').boundingBox();
+            assert.ok(areas.y >= nav.y - 1 && areas.y + areas.height <= nav.y + nav.height + 1, `${label}: the area switch shares the tools row`);
+          }
+          const search = await desk.locator('.search-wrap').boundingBox();
+          assert.ok(search.width >= 220, `${label}: search keeps ${Math.round(search.width)}px`);
+          assert.equal(await desk.locator('#trail-toggle').getAttribute('aria-expanded'), String(trailOpen), `${label}: the trail starts open only from 1000px of height`);
+          await assertNoHorizontalOverflow(desk, label);
+        }
+      }
+    });
+
+    await test('desktop windows too short for the map scroll instead of clipping the trail', async () => {
+      const short = await createPage({ width: 1366, height: 420 });
+      await openTrail(short);
+      const view = await short.locator('#map-view').boundingBox();
+      const trail = await short.locator('#episode-trail').boundingBox();
+      const stage = await short.locator('#map-stage').boundingBox();
+      assert.ok(stage.height >= 339, `the map keeps its ${Math.round(stage.height)}px minimum`);
+      assert.ok(trail.y + trail.height <= view.y + view.height + 1, 'the trail is inside the map view, not clipped by it');
+      assert.ok(await short.evaluate(() => document.documentElement.scrollHeight > innerHeight), 'the page scrolls');
+      await short.locator('#trail-toggle').scrollIntoViewIfNeeded();
+      assert.equal(await short.locator('#trail-toggle').isVisible(), true);
+    });
+
+    await test('the guide link sits in the desktop sidebar and in the phone footer', async () => {
+      for (const [viewport, home] of [[{ width: 1440, height: 900 }, '.sidebar'], [{ width: 390, height: 844 }, '.page-footer']]) {
+        const guide = await createPage(viewport);
+        const link = guide.locator(`${home} [data-open-guide]`);
+        assert.equal(await link.isVisible(), true, `${viewport.width}px: the link is in ${home}`);
+        const other = guide.locator(`${home === '.sidebar' ? '.page-footer' : '.sidebar'} [data-open-guide]`);
+        assert.equal(await other.isVisible(), false, `${viewport.width}px: the other copy stays hidden`);
+        await link.click();
+        assert.equal(await guide.locator('#about-dialog').evaluate(dialog => dialog.open), true, `${viewport.width}px: it opens the guide`);
+        await guide.locator('#about-dialog .primary-button').click();
+        assert.equal(await guide.locator('#about-dialog').evaluate(dialog => dialog.open), false);
+      }
+    });
+
+    await test('Story groups moments by season and episode: the newest two open, older ones one row each, every card kept', async () => {
+      for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+        const story = await createPage(viewport);
+        await episode(story, 87);
+        await view(story, 'recap');
+        const shown = data.episodes.filter(entry => entry.number <= 87 && entry.events.some(event => !event.locationId || data.locations.find(place => place.id === event.locationId)?.firstEpisode <= 87));
+        const label = `${viewport.width}px`;
+        assert.equal(await story.locator('.recap-grid').count(), 1, 'one recap list');
+        assert.deepEqual(await story.locator('.recap-season-title').evaluateAll(titles => titles.map(title => title.firstChild.textContent)), ['Season 4', 'Season 3', 'Season 2', 'Season 1'], `${label}: newest season first`);
+        assert.equal(await story.locator('details.recap-episode').count(), shown.length, `${label}: one row per episode`);
+        assert.deepEqual(await story.locator('details.recap-episode[open]').evaluateAll(rows => rows.map(row => Number(row.dataset.recapEpisode))), [87, 86], `${label}: the newest two are open`);
+        assert.equal(await story.locator('.recap-card').count(), data.episodes.filter(entry => entry.number <= 87).flatMap(entry => entry.events).filter(event => !event.locationId || data.locations.find(place => place.id === event.locationId)?.firstEpisode <= 87).length, `${label}: every moment is still on the page`);
+        assert.equal(await story.locator('.recap-lead').count(), 1, `${label}: one lead card`);
+        assert.equal(await story.locator('details.recap-episode:first-of-type .recap-lead').count(), 1, `${label}: the lead is in the newest episode`);
+        // Scannable: a row names its episode, what happened, and how many moments, without opening.
+        const row = story.locator('details.recap-episode[data-recap-episode="60"] > summary');
+        assert.match(await row.innerText(), new RegExp(`${episodeCode(60)}[\\s\\S]*${data.episodeTitles[59].title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*\\d+ moments?`));
+        assert.ok((await row.boundingBox()).height <= 100, `${label}: a collapsed row stays compact`);
+        // The page is a fraction of the 36 desktop and 104 phone screens the ungrouped list took.
+        const screens = await story.evaluate(() => document.documentElement.scrollHeight / innerHeight);
+        assert.ok(screens <= (viewport.width > 760 ? 12 : 16), `${label}: the Story is ${screens.toFixed(1)} screens long`);
+        await assertNoHorizontalOverflow(story, `${label} Story`);
+      }
+      // Early in the series there is little to fold, and no season to jump between.
+      const early = await createPage();
+      await episode(early, 10);
+      await view(early, 'recap');
+      assert.equal(await early.locator('[data-recap-jump]').count(), 0);
+      assert.equal(await early.locator('.recap-season').count(), 1);
+    });
+
+    await test('Story remembers the episodes you open or close, with Open all, Close older and season jumps', async () => {
+      const story = await createPage();
+      await episode(story, 40);
+      await view(story, 'recap');
+      const open = () => story.locator('details.recap-episode[open]').evaluateAll(rows => rows.map(row => Number(row.dataset.recapEpisode)));
+      assert.deepEqual(await open(), [40, 39]);
+      // The row is a real disclosure: Enter on it opens it.
+      await story.locator('details.recap-episode[data-recap-episode="38"] > summary').focus();
+      await story.keyboard.press('Enter');
+      await story.waitForFunction(() => document.querySelector('details.recap-episode[data-recap-episode="38"]').open);
+      assert.equal(await story.locator('#recap-' + data.episodes.find(entry => entry.number === 38).events[0].id).isVisible(), true, 'an opened episode shows its cards');
+      await story.locator('details.recap-episode[data-recap-episode="40"] > summary').click();
+      await story.waitForFunction(() => !document.querySelector('details.recap-episode[data-recap-episode="40"]').open);
+      assert.deepEqual(await open(), [39, 38]);
+      // Stepping on keeps what the viewer chose; the newest two follow the story.
+      await episode(story, 41);
+      assert.deepEqual(await open(), [41, 38], 'E38 stays open by choice, E40 stays closed by choice, E41 is new');
+      await story.locator('[data-recap-all="close"]').click();
+      assert.deepEqual(await open(), [41, 40], 'Close older returns to the newest two');
+      await story.locator('[data-recap-all="open"]').click();
+      assert.equal(await story.locator('details.recap-episode:not([open])').count(), 0, 'Open all opens every episode');
+      await episode(story, 42);
+      assert.equal(await story.locator('details.recap-episode:not([open])').count(), 0, 'and keeps them open');
+      await story.locator('[data-recap-all="close"]').click();
+      // A season chip scrolls to and focuses that season.
+      await story.locator('[data-recap-jump="1"]').click();
+      assert.equal(await story.locator('#recap-season-1').evaluate(section => section === document.activeElement), true);
+      const top = (await story.locator('#recap-season-1').boundingBox()).y;
+      assert.ok(top >= -2 && top < 200, `the season starts at the top of the screen (${Math.round(top)}px)`);
+    });
+
+    await test('an unpinned event in a collapsed episode opens its row and takes focus', async () => {
+      const story = await createPage();
+      await episode(story, 87);
+      const old = data.episodes.filter(entry => entry.number <= 30).flatMap(entry => entry.events.map(event => ({ ...event, episode: entry.number })))
+        .find(event => !event.locationId && event.title.length > 6 && !data.episodes.some(other => other.number > event.episode && other.events.some(item => item.title === event.title)));
+      assert.ok(old, 'an early unpinned event exists');
+      await view(story, 'recap');
+      assert.equal(await story.locator(`details.recap-episode[data-recap-episode="${old.episode}"]`).evaluate(row => row.open), false, 'its episode starts collapsed');
+      await view(story, 'map');
+      await story.locator('#location-search').fill(old.title);
+      await story.locator(`#search-results [data-open-event="${old.id}"]`).click();
+      assert.equal(await story.locator('#recap-view').isVisible(), true);
+      assert.equal(await story.locator(`details.recap-episode[data-recap-episode="${old.episode}"]`).evaluate(row => row.open), true, 'the episode opened');
+      assert.equal(await story.locator(`#recap-${old.id}`).evaluate(card => card === document.activeElement), true, 'the card has focus');
+      assert.equal(await story.locator(`#recap-${old.id}`).isVisible(), true);
+    });
+
+    await test('addresses: tabs, places and people are in the URL; Back and Forward walk through them; episodes add no entries', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
+        const nav = await createPage(viewport);
+        const label = `${viewport.width}px`;
+        const at = async () => nav.evaluate(() => ({ hash: location.hash, title: document.title, entries: history.length }));
+        const back = async hash => { await nav.goBack(); try { await nav.waitForFunction(expected => location.hash === expected, hash); } catch (error) { throw new Error(`Back never reached ${hash}; the address is ${await nav.evaluate(() => location.hash)}`); } };
+        assert.deepEqual((await at()).hash, '#/map/shiganshina', `${label}: a first visit starts at its place`);
+        assert.equal((await at()).title, 'Shiganshina · Scout Atlas');
+        const start = (await at()).entries;
+        // Stepping through the story is not navigation: the address follows, the history does not grow.
+        await episode(nav, 50);
+        for (let step = 0; step < 4; step++) await nav.locator('#next-milestone').click();
+        assert.equal((await at()).entries, start, `${label}: episodes add no history entries`);
+        assert.doesNotMatch(await nav.evaluate(() => location.href), /viewing|episode|cutoff|[?&]/i, `${label}: the episode is never in the address`);
+        // The story moved the place along with the episode, so this entry's address now names that place.
+        const home = (await at()).hash;
+        assert.match(home, /^#\/map\/[\w-]+$/);
+        await chooseLocation(nav, 'Trost', 'trost');
+        assert.equal((await at()).hash, '#/map/trost');
+        assert.equal((await at()).entries, start + 1, `${label}: choosing a place adds one entry`);
+        await view(nav, 'recap');
+        assert.deepEqual([(await at()).hash, (await at()).title], ['#/story', 'The story so far · Scout Atlas']);
+        await view(nav, 'characters');
+        assert.equal((await at()).hash, '#/people');
+        const before = (await at()).entries;
+        await nav.locator('#character-levi .character-card-button').click();
+        assert.deepEqual([(await at()).hash, (await at()).title, (await at()).entries], ['#/people/levi', 'Levi · Scout Atlas', before], `${label}: a person is part of the People page, not a page of their own`);
+        await nav.keyboard.press('Escape');
+        assert.equal((await at()).hash, '#/people', `${label}: closing a person returns the gallery's address`);
+        await nav.locator('#character-levi .character-card-button').click();
+        await back('#/story');
+        assert.equal(await nav.locator('#recap-view').isVisible(), true, `${label}: Back from a person leaves People for the page before it`);
+        assert.equal(await nav.locator('#character-detail-dialog').evaluate(dialog => dialog.open), false, `${label}: and closes the person`);
+        await back('#/map/trost');
+        assert.equal(await nav.locator('.map-marker.selected').getAttribute('data-location'), 'trost');
+        await back(home);
+        assert.equal(await nav.locator('.map-marker.selected').getAttribute('data-location'), home.replace('#/map/', ''));
+        assert.equal(await nav.locator('#episode-select').inputValue(), '54', `${label}: Back does not change the viewing episode`);
+        await nav.goForward();
+        await nav.waitForFunction(() => location.hash === '#/map/trost');
+        assert.equal(await nav.locator('.map-marker.selected').getAttribute('data-location'), 'trost', `${label}: Forward returns to the place`);
+        // Typing or following an address while the atlas is open moves it too.
+        await nav.evaluate(() => { location.hash = '#/story'; });
+        await nav.waitForFunction(() => document.querySelector('#recap-view') && !document.querySelector('#recap-view').hidden);
+        await assertNoHorizontalOverflow(nav, `${label} routes`);
+      }
+    });
+
+    await test('an address names the place, not the map area: Back keeps an area chosen by hand', async () => {
+      const hand = await createPage();
+      await episode(hand, 57);
+      await chooseLocation(hand, 'Liberio', 'liberio');
+      assert.equal(await mapArea(hand), 'liberio');
+      await hand.locator('[data-map-extent="world"]').click();
+      assert.equal(await hand.evaluate(() => location.hash), '#/map/liberio', 'switching the area is not a new place');
+      await view(hand, 'recap');
+      await hand.goBack();
+      await hand.waitForFunction(() => location.hash === '#/map/liberio');
+      assert.equal(await mapArea(hand), 'world', 'Back returns to the map as it was left');
+      assert.equal(await hand.locator('.map-marker.selected').getAttribute('data-location'), 'liberio');
+    });
+
+    await test('deep links open the right page, and anything the viewer has not reached is skipped without a trace', async () => {
+      const seed = viewing => `if (!localStorage.getItem(${JSON.stringify(storageKey)})) localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify({ viewing }))})`;
+      const open = async (hash, viewing) => {
+        const ctx = await browser.newContext({ viewport: { width: 1440, height: 1040 } });
+        contexts.push(ctx);
+        await ctx.addInitScript(seed(viewing));
+        const page = await ctx.newPage();
+        page.setDefaultTimeout(5000);
+        page.setDefaultNavigationTimeout(15000);
+        page.on('pageerror', error => errors.push(error.message));
+        await page.goto(url + hash, { waitUntil: 'load' });
+        await page.locator('#location-panel h2').waitFor({ state: 'attached' });
+        return page;
+      };
+      const state = page => page.evaluate(() => ({
+        hash: location.hash, title: document.title, view: document.querySelector('.primary-nav .active').dataset.view,
+        selected: document.querySelector('.map-marker.selected')?.dataset.location,
+        person: document.querySelector('#character-detail-dialog').open ? document.querySelector('#character-detail-title').textContent : null,
+        toast: document.querySelector('#toast.visible')?.textContent || null
+      }));
+      // Reached: each address opens its own page.
+      assert.deepEqual(await state(await open('#/people/levi', 50)), { hash: '#/people/levi', title: 'Levi · Scout Atlas', view: 'characters', person: 'Levi', selected: 'shiganshina', toast: null });
+      const place = await state(await open('#/map/stohess', 50));
+      assert.deepEqual([place.hash, place.selected, place.view, place.toast], ['#/map/stohess', 'stohess', 'map', null]);
+      const story = await state(await open('#/story', 50));
+      assert.deepEqual([story.hash, story.view, story.title], ['#/story', 'recap', 'The story so far · Scout Atlas']);
+      // Not reached: Stohess and Zeke come later than episode 1. The page opens as a first visit would, says so
+      // without naming anything, and keeps the hidden name out of the address, the title and the page.
+      const hidden = await open('#/map/stohess', 1);
+      const skippedPlace = await state(hidden);
+      assert.deepEqual([skippedPlace.hash, skippedPlace.selected, skippedPlace.title], ['#/map/shiganshina', 'shiganshina', 'Shiganshina · Scout Atlas']);
+      assert.match(skippedPlace.toast, /skipped/);
+      assert.doesNotMatch(skippedPlace.toast + skippedPlace.title + skippedPlace.hash, /stohess/i);
+      assert.ok(!(await readUi(hidden)).includes('Stohess'), 'the hidden place is not on the page');
+      const hiddenPerson = await open('#/people/zeke', 1);
+      const skippedPerson = await state(hiddenPerson);
+      assert.deepEqual([skippedPerson.hash, skippedPerson.view, skippedPerson.person], ['#/people', 'characters', null]);
+      assert.match(skippedPerson.toast, /skipped/);
+      assert.doesNotMatch(skippedPerson.toast + skippedPerson.title + skippedPerson.hash, /zeke/i);
+      assert.ok(!(await readUi(hiddenPerson)).includes('Zeke'), 'the hidden person is not on the page');
+      // Nonsense is ignored, and the address is tidied.
+      const nonsense = await state(await open('#/map/not-a-place', 1));
+      assert.deepEqual([nonsense.hash, nonsense.selected], ['#/map/shiganshina', 'shiganshina']);
+      const unknown = await state(await open('#/whatever', 1));
+      assert.deepEqual([unknown.hash, unknown.view], ['#/map/shiganshina', 'map']);
     });
 
     await test('phone layout fits, keeps every tab reachable, and fills the map', async () => {

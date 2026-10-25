@@ -53,7 +53,10 @@ Plain HTML, CSS, JavaScript and SVG. No build step or dependencies. A Content-Se
 ### How it works
 
 - **Viewing episode** filters everything: map, story, characters and search. New visitors start at episode 1.
-- Settings (episode, theme, layers, map area) stay in this browser's local storage under `scout-atlas:v1`. Nothing is synced.
+- **Addresses** follow where you are: `#/map/<place>`, `#/story` and `#/people/<person>`. Choosing a tab, a place or a person adds a history entry, so Back and Forward work; stepping through episodes does not. The viewing episode is never in an address, so a link cannot spoil anyone, and one that names a place or person you have not reached yet is skipped.
+- **People** can be filtered by group, by this episode, or by **Died** (the deaths the atlas records, which is not every death), sorted by story order or A–Z, and shown as cards or a list. Phones start with the list.
+- **Story** is grouped by season and episode. The newest two episodes are open; older ones fold into one row each.
+- Settings (episode, theme, layers, map area, People sort and layout, the episode trail) stay in this browser's local storage under `scout-atlas:v1`. Nothing is synced.
 - Wall radii follow the scale stated in episode 1. Other distances, terrain and local positions are approximate and labelled as such.
 - A portrait on the map marks the **last recorded** position, not live tracking.
 
@@ -80,18 +83,19 @@ Every item carries an episode threshold, and the app shows only items at or befo
   maxEpisode: 89,
   episodes: [{ number: 4, title: "…", events: [{ locationId: "trost", people: ["eren"], kind: "confirmed" }] }],
   locations: [{ id: "trost", name: "Trost", firstEpisode: 4, x: 600, y: 721.6667 }],
-  characters: [{ id: "eren", firstEpisode: 1, name: [{ from: 1, text: "Eren Yeager" }], positions: [] }],
+  characters: [{ id: "eren", firstEpisode: 1, died: 89, name: [{ from: 1, text: "Eren Yeager" }], positions: [] }],
   status: [{ target: "gate:trost", from: 4, state: "breached" }]
 }
 ```
 
 - `kind` is `confirmed`, `belief` or `approximate`.
 - Versioned fields such as `name`, `role` and `faction` use the latest entry at or before the viewing episode.
+- `died` is the episode from which a character is shown as dead. It adds no claim of its own: the lint requires that episode's role or a note to say so, rejects map positions after it, and requires it wherever a role says someone was killed. A character without `died` has no recorded death, which is not the same as being alive. The episode is where the atlas first records the death, which can be later than the death itself (Marcel's, learned from a memory).
 - The two final specials are ordered as 88 and 89 and shown as **SP1** and **SP2**.
 
 ### Portraits
 
-Official and fan-database art, kept for personal use. Each picture has its own episode threshold, and a silhouette appears before it. To refresh the images (needs Pillow and network access) or rebuild only the manifest:
+Official and fan-database art, kept for personal use. Each picture has its own episode threshold, and a silhouette appears before it. Avatars are shown at 22–88 px, so the files are small WebP squares (the script crops each recorded face and writes at most 160 px), and the gallery loads them as they scroll near; the lint fails any file over 48 KB or a bundle over 640 KB. To refresh the images (needs Pillow and network access) or rebuild only the manifest:
 
 ```bash
 python3 portraits/fetch_portraits.py

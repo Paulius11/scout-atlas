@@ -399,6 +399,25 @@ check('status records: known targets and states, visible in time, sourced', bad 
     if (!/^https:\/\//.test(item.sourceUrl || '')) bad(`${item.target} has no https source`);
   });
 });
+// `died` is the episode from which the atlas shows a character as dead. It is not a separate claim: the role or
+// a note written for that same episode has to say so, so the mark can never get ahead of the text beside it, and
+// a role that says someone was killed has to carry the mark.
+const DEATH_WORDS = /\b(?:killed|kills|dies|died|dead|murdered|eaten|devoured|executed|sacrifices)\b/i;
+check('deaths: marked from the episode whose text says so, and never placed on the map afterwards', bad => {
+  d.characters.forEach(c => {
+    if (c.died !== undefined) {
+      if (c.type !== 'person') bad(`${c.id}: only a person is marked as having died`);
+      if (!Number.isInteger(c.died) || c.died < c.firstEpisode || c.died > d.maxEpisode) bad(`${c.id}: died at E${c.died}, outside E${c.firstEpisode}–E${d.maxEpisode}`);
+      const stated = (c.role || []).some(v => v.from === c.died && DEATH_WORDS.test(v.text))
+        || (c.notes || []).some(note => note.episode === c.died && DEATH_WORDS.test(note.text));
+      if (!stated) bad(`${c.id}: no role or note at E${c.died} says they died`);
+      (c.positions || []).filter(position => position.episode > c.died).forEach(position => bad(`${c.id}: placed on the map at E${position.episode}, after dying at E${c.died}`));
+    }
+    (c.role || []).filter(v => /\b(?:killed|fallen)\b/i.test(v.text)).forEach(v => {
+      if (c.died === undefined || c.died > v.from) bad(`${c.id}: the role at E${v.from} says "${v.text}", but they are not marked as having died by then`);
+    });
+  });
+});
 check('the sea: at most one, and its desert within the ceiling', bad => {
   const seas = d.locations.filter(l => l.kind === 'sea');
   if (seas.length > 1) bad(`${seas.length} places of kind sea; the map draws one coast`);
@@ -436,6 +455,21 @@ check('portraits: known ids, safe file names, ordered versions', bad => {
       }
     });
   }
+});
+// Avatars are shown at 22-88 px, so the gallery should never download a full-size still. Bake large
+// sources with portraits/fetch_portraits.py (it crops the recorded face and writes a small WebP).
+check('portraits: bundled pictures stay small', bad => {
+  const MAX_FILE_KB = 48, MAX_TOTAL_KB = 640;
+  const files = [...new Set(Object.values(portraits).flatMap(entry => (Array.isArray(entry) ? entry : [{ file: entry }]).map(v => v.file)))];
+  let total = 0;
+  for (const file of files) {
+    const target = path.resolve(__dirname, '../portraits', file);
+    if (!fs.existsSync(target)) continue;
+    const kb = fs.statSync(target).size / 1024;
+    total += kb;
+    if (kb > MAX_FILE_KB) bad(`${file} is ${Math.round(kb)} KB; the limit is ${MAX_FILE_KB} KB`);
+  }
+  if (total > MAX_TOTAL_KB) bad(`the bundled portraits total ${Math.round(total)} KB; the limit is ${MAX_TOTAL_KB} KB`);
 });
 check('every person and Titan has a bundled portrait by the edition ceiling', bad => {
   for (const character of d.characters.filter(character => character.type !== 'group')) {

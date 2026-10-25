@@ -1,6 +1,6 @@
 /* Scout Atlas: curated anime milestones through episode 87 and both Final Chapters specials.
  * All coordinates and map geometry are schematic, not measured geography.
- * Every episode number here (firstEpisode, positions[].episode, from, revealedAs.episode)
+ * Every episode number here (firstEpisode, died, positions[].episode, from, revealedAs.episode)
  * is an OVERALL anime episode number through 87. Values 88/89 order SP1/SP2 within
  * this atlas; they are not the separately released episodic recuts numbered 88–94.
  * Nothing from an episode or special after maxEpisode is bundled.
@@ -737,7 +737,7 @@
     // revealedAs: from that episode on, the entry is known to be the named person.
     // firstEpisode is this edition's visibility threshold, not a claim about a first appearance.
     characters: [
-      { id: "eren", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Eren Yeager" }],
+      { id: "eren", type: "person", firstEpisode: 1, died: 89, name: [{ from: 1, text: "Eren Yeager" }],
         faction: [{ from: 1, key: "civilian" }, { from: 3, key: "cadet" }, { from: 16, key: "survey" },
           {"from": 71, "key": "yeagerist"}
         ],
@@ -923,7 +923,7 @@
           {"episode": 88, "locationId": null, "note": "Aboard the flying boat, then joins the battle near Fort Salta; neither route nor battle site has verified coordinates.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
           {"episode": 89, "locationId": null, "note": "Survives the final battle and appears in the later aftermath. The epilogue setting has no verified coordinates on this map.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: official(15) },
-      { id: "erwin", type: "person", firstEpisode: 14, name: [{ from: 14, text: "Erwin Smith" }],
+      { id: "erwin", type: "person", firstEpisode: 14, died: 55, name: [{ from: 14, text: "Erwin Smith" }],
         faction: [{ from: 14, key: "survey" }], role: [{ from: 14, text: "Commander of the Survey Corps" }],
         notes: [
           { episode: 16, text: "Leads the 57th expedition out through Karanes." },
@@ -934,7 +934,7 @@
           { episode: 53, text: "Leads the recruits in a charge to draw the Beast Titan’s fire." },
           { episode: 55, text: "Dies after Levi gives the drug to Armin." }
         ], sourceUrl: official(16) },
-      { id: "hange", type: "person", firstEpisode: 15, name: [{ from: 15, text: "Hange Zoë" }],
+      { id: "hange", type: "person", firstEpisode: 15, died: 88, name: [{ from: 15, text: "Hange Zoë" }],
         faction: [{ from: 15, key: "survey" }], role: [{ from: 15, text: "Survey Corps squad leader, studies Titans" },
           {"from": 66, "text": "Commander of the Survey Corps"},
           {"from": 83, "text": "Leads the combined group opposing the Rumbling"},
@@ -1002,7 +1002,7 @@
           {"episode": 88, "text": "Joins the alliance’s final flight after reflecting on killing former comrades.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
           {"episode": 89, "text": "Helps rescue Armin and returns to human form when Titan power ends; later travels as a peace ambassador.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: official(6) },
-      { id: "sasha", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Sasha Blouse" }],
+      { id: "sasha", type: "person", firstEpisode: 4, died: 67, name: [{ from: 4, text: "Sasha Blouse" }],
         faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }], role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" },
           {"from": 67, "text": "Killed during the return from Liberio"}
         ],
@@ -1083,7 +1083,7 @@
           {"episode": 88, "text": "Boards the flying boat and attacks the replica Beast Titan on the Founder.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
           {"episode": 89, "text": "Restrains the creature while his allies fight Eren. Loses Titan power and later joins the peace mission.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: sources.e31 },
-      { id: "bertholdt", type: "person", firstEpisode: 4, name: [{ from: 4, text: "Bertholdt Hoover" }],
+      { id: "bertholdt", type: "person", firstEpisode: 4, died: 55, name: [{ from: 4, text: "Bertholdt Hoover" }],
         faction: [{ from: 4, key: "cadet" }, { from: 16, key: "survey" }, { from: 31, key: "shifter" }],
         role: [{ from: 4, text: "104th Training Corps" }, { from: 16, text: "Survey Corps" }, { from: 31, text: "The Colossal Titan" }],
         notes: [
@@ -1119,14 +1119,14 @@
           {"episode": 88, "text": "Initially stays aboard Kiyomi’s ship, then learns of Falco’s idea that his Titan could fly.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_1"},
           {"episode": 89, "text": "Returns with Falco and Gabi to help rescue Armin. Loses Titan power, reunites with her father and later joins the peace mission.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: sources.s2 },
-      { id: "hannes", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Hannes" }],
+      { id: "hannes", type: "person", firstEpisode: 1, died: 37, name: [{ from: 1, text: "Hannes" }],
         faction: [{ from: 1, key: "garrison" }], role: [{ from: 1, text: "Garrison" }],
         notes: [
           { episode: 1, text: "A Garrison soldier in Shiganshina and a friend of Eren’s family." },
           { episode: 31, text: "Reports that no hole has been found in Wall Rose." },
           { episode: 37, text: "Killed fighting the smiling Titan during the rescue." }
         ], sourceUrl: official(1) },
-      { id: "pixis", type: "person", firstEpisode: 11, name: [{ from: 11, text: "Dot Pixis" }],
+      { id: "pixis", type: "person", firstEpisode: 11, died: 81, name: [{ from: 11, text: "Dot Pixis" }],
         faction: [{ from: 11, key: "garrison" }], role: [{ from: 11, text: "Garrison commander, southern territory" },
           {"from": 78, "text": "Turned into a Titan"},
           {"from": 81, "text": "Killed during the fighting in Shiganshina"}
@@ -1139,13 +1139,13 @@
           {"episode": 78, "text": "Transforms after drinking the wine, when Zeke screams.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"},
           {"episode": 81, "text": "Armin kills his Titan during the defense of Shiganshina.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Thaw_(Episode)"}
         ], sourceUrl: official(11) },
-      { id: "nick", type: "person", firstEpisode: 26, name: [{ from: 26, text: "Pastor Nick" }],
+      { id: "nick", type: "person", firstEpisode: 26, died: 38, name: [{ from: 26, text: "Pastor Nick" }],
         faction: [{ from: 26, key: "civilian" }], role: [{ from: 26, text: "Pastor of the Wall-worshipping church" }],
         notes: [
           { episode: 26, text: "Refuses to tell Hange anything about the Titan found inside the wall." },
           { episode: 38, text: "Murdered; Hange concludes the Central Military Police did it." }
         ], sourceUrl: sources.s2 },
-      { id: "kenny", type: "person", firstEpisode: 39, name: [{ from: 39, text: "Kenny" }],
+      { id: "kenny", type: "person", firstEpisode: 39, died: 47, name: [{ from: 39, text: "Kenny" }],
         faction: [{ from: 39, key: "central" }], role: [{ from: 39, text: "Hunts the Scouts for the Central Military Police" }],
         notes: [
           { episode: 39, text: "Ambushes Levi, who knows him from his past." },
@@ -1168,7 +1168,7 @@
           {"episode": 71, "text": "Finds Armin visiting Annie’s crystal.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Guides_(Episode)"},
           {"episode": 82, "text": "Helps Annie leave after the crystal has dissolved.", "sourceUrl": "https://attackontitan.fandom.com/wiki/Sunset_(Episode)"}
         ], sourceUrl: sources.s3 },
-      { id: "keith", type: "person", firstEpisode: 3, name: [{ from: 3, text: "Keith Shadis" }],
+      { id: "keith", type: "person", firstEpisode: 3, died: 86, name: [{ from: 3, text: "Keith Shadis" }],
         faction: [{ from: 3, key: "cadet" }],
         role: [{ from: 3, text: "Chief instructor, Training Corps" }, { from: 48, text: "Chief instructor, once Survey Corps commander" }],
         notes: [
@@ -1199,7 +1199,7 @@
           { episode: 57, text: "The last Eldian of royal blood on the mainland. Turned into a mindless Titan on Paradis, she becomes the smiling Titan." },
           { episode: 58, text: "Eren concludes that her royal blood is why touching her Titan let him command others." }
         ], sourceUrl: sources.s3summary },
-      { id: "zeke", type: "person", firstEpisode: 57, name: [{ from: 57, text: "Zeke" },
+      { id: "zeke", type: "person", firstEpisode: 57, died: 89, name: [{ from: 57, text: "Zeke" },
           {"from": 60, "text": "Zeke Yeager"}
         ],
         faction: [{ from: 57, key: "civilian" },
@@ -1231,7 +1231,7 @@
           { episode: 58, text: "Tells Grisha a Titan power leaves thirteen years to live, and sends him to take the Founding Titan." },
           {"episode": 89, "text": "Appears in Paths; his former Attack Titan helps the alliance in the final battle.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ], sourceUrl: sources.s3summary },
-      { id: "carla", type: "person", firstEpisode: 1, name: [{ from: 1, text: "Carla Yeager" }],
+      { id: "carla", type: "person", firstEpisode: 1, died: 1, name: [{ from: 1, text: "Carla Yeager" }],
         faction: [{ from: 1, key: "civilian" }], role: [{ from: 1, text: "Eren’s mother" }],
         notes: [{ episode: 1, text: "Killed by a Titan when the district is overrun." }], sourceUrl: official(2) },
       { id: "colossal", type: "titan", firstEpisode: 1, name: [{ from: 1, text: "Colossal Titan" }], revealedAs: { episode: 31, id: "bertholdt" },
@@ -1406,7 +1406,7 @@
           {"episode": 89, "locationId": null, "note": "Survives the battle near Fort Salta and appears in the later aftermath; no exact epilogue location is established.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ]
       },
-      { id: "colt", type: "person", firstEpisode: 60,
+      { id: "colt", type: "person", firstEpisode: 60, died: 78,
         name: [{"from": 60, "text": "Colt Grice"}],
         faction: [{"from": 60, "key": "marley"}],
         role: [{"from": 60, "text": "Warrior candidate; Falco’s older brother"}, {"from": 61, "text": "Chosen successor to the Beast Titan"}, {"from": 78, "text": "Killed protecting Falco"}],
@@ -1417,7 +1417,7 @@
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"
       },
-      { id: "magath", type: "person", firstEpisode: 60,
+      { id: "magath", type: "person", firstEpisode: 60, died: 86,
         name: [{"from": 60, "text": "Theo Magath"}],
         faction: [{"from": 60, "key": "marley"}],
         role: [{"from": 60, "text": "Marleyan officer commanding the Warrior unit"}, {"from": 70, "text": "General of the Marleyan military"}, {"from": 84, "text": "Works with the combined group against the Rumbling"}, {"from": 86, "text": "Killed destroying the pursuing cruiser"}],
@@ -1431,7 +1431,7 @@
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"
       },
-      { id: "udo", type: "person", firstEpisode: 60,
+      { id: "udo", type: "person", firstEpisode: 60, died: 65,
         name: [{"from": 60, "text": "Udo"}],
         faction: [{"from": 60, "key": "marley"}],
         role: [{"from": 60, "text": "Marleyan Warrior candidate"}, {"from": 65, "text": "Killed during the attack on Liberio"}],
@@ -1441,7 +1441,7 @@
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/The_Other_Side_of_the_Sea"
       },
-      { id: "zofia", type: "person", firstEpisode: 60,
+      { id: "zofia", type: "person", firstEpisode: 60, died: 65,
         name: [{"from": 60, "text": "Zofia"}],
         faction: [{"from": 60, "key": "marley"}],
         role: [{"from": 60, "text": "Marleyan Warrior candidate"}, {"from": 65, "text": "Killed during the attack on Liberio"}],
@@ -1475,7 +1475,7 @@
           {"episode": 89, "locationId": null, "note": "Travels toward Paradis with the peace ambassadors in the three-year epilogue; the voyage is unpinned.", "sourceUrl": "https://attackontitan.fandom.com/wiki/THE_FINAL_CHAPTERS_Special_2"}
         ]
       },
-      { id: "porco", type: "person", firstEpisode: 61,
+      { id: "porco", type: "person", firstEpisode: 61, died: 78,
         name: [{"from": 61, "text": "Porco Galliard"}],
         faction: [{"from": 61, "key": "shifter"}],
         role: [{"from": 61, "text": "Marleyan Warrior; the Jaw Titan"}, {"from": 78, "text": "Killed after passing the Jaw Titan’s power to Falco"}],
@@ -1487,7 +1487,7 @@
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/Midnight_Train_(Episode)"
       },
-      { id: "willy", type: "person", firstEpisode: 63,
+      { id: "willy", type: "person", firstEpisode: 63, died: 65,
         name: [{"from": 63, "text": "Willy Tybur"}],
         faction: [{"from": 63, "key": "civilian"}],
         role: [{"from": 63, "text": "Head of the Tybur family"}, {"from": 65, "text": "Killed during the attack on Liberio"}],
@@ -1498,7 +1498,7 @@
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/From_One_Hand_to_Another_(Episode)"
       },
-      { id: "tybur-sister", type: "person", firstEpisode: 65,
+      { id: "tybur-sister", type: "person", firstEpisode: 65, died: 66,
         name: [{"from": 65, "text": "Willy Tybur’s sister"}],
         faction: [{"from": 65, "key": "shifter"}],
         role: [{"from": 65, "text": "The War Hammer Titan"}, {"from": 66, "text": "Killed after losing the War Hammer Titan’s power"}],
@@ -1572,7 +1572,7 @@
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/Brave_Volunteers_(Episode)"
       },
-      { id: "floch", type: "person", firstEpisode: 49,
+      { id: "floch", type: "person", firstEpisode: 49, died: 88,
         name: [{"from": 49, "text": "Floch"}],
         faction: [{"from": 49, "key": "survey"}, {"from": 71, "key": "yeagerist"}],
         role: [{"from": 49, "text": "Survey Corps recruit"}, {"from": 71, "text": "Leader among Eren’s supporters"},
@@ -1638,7 +1638,7 @@
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/Two_Brothers_(Episode)"
       },
-      { id: "marcel", type: "person", firstEpisode: 62,
+      { id: "marcel", type: "person", firstEpisode: 62, died: 62,
         name: [{"from": 62, "text": "Marcel Galliard"}],
         faction: [{"from": 62, "key": "shifter"}],
         role: [{"from": 62, "text": "Earlier Warrior; Porco’s brother"}],
@@ -1649,7 +1649,7 @@
         ],
         sourceUrl: "https://attackontitan.fandom.com/wiki/The_Door_of_Hope_(Episode)"
       },
-      { id: "ramzi", type: "person", firstEpisode: 87,
+      { id: "ramzi", type: "person", firstEpisode: 87, died: 88,
         name: [{"from": 87, "text": "Ramzi"}],
         faction: [{"from": 87, "key": "civilian"}],
         role: [{"from": 87, "text": "Young refugee on the Marleyan mainland"},

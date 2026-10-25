@@ -60,8 +60,16 @@
     focusCharacter: null,
     characterFilter: '',
     characterFaction: 'all',
+    // How People is ordered and laid out. Cards or a list is null until the viewer chooses, so a phone gets
+    // the list and a wide window the cards without that being remembered as a choice.
+    characterSort: stored.characterSort === 'name' ? 'name' : 'story',
+    characterView: stored.characterView === 'grid' || stored.characterView === 'list' ? stored.characterView : null,
     changesOnly: false,
     panelExpanded: !window.matchMedia('(max-width: 760px)').matches,
+    // The trail opens on tall desktop windows and stays shut where the map needs the room, until the viewer chooses.
+    trailOpen: typeof stored.trailOpen === 'boolean' ? stored.trailOpen
+      : !window.matchMedia('(max-width: 760px)').matches && window.innerHeight >= 1000,
+    trailChosen: typeof stored.trailOpen === 'boolean',
     card: null,
     zoom: 1,
     mapExtent: 'walls',
@@ -73,6 +81,9 @@
       let current = {};
       try { current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch { current = {}; }
       const saved = { viewing: state.viewing, selected: state.selected, mapExtent: state.mapExtent, mapStyle: state.mapStyle, layers: state.layers };
+      if (state.trailChosen) saved.trailOpen = state.trailOpen;
+      if (state.characterSort !== 'story') saved.characterSort = state.characterSort;
+      if (state.characterView) saved.characterView = state.characterView;
       // Preserve legacy notes without exposing a removed feature or erasing existing user data.
       if (Object.prototype.hasOwnProperty.call(current, 'notes')) saved.notes = current.notes;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
@@ -103,6 +114,13 @@
   const roleOf = character => at(character.role, state.viewing)?.text || '';
   const factionOf = character => at(character.faction, state.viewing)?.key || 'civilian';
   const revealOf = character => (character.revealedAs && character.revealedAs.episode <= state.viewing ? getCharacter(character.revealedAs.id) : undefined);
+  // A death shows from the episode the atlas first records it (data.js `died`). Nobody else is marked, so no mark
+  // means "no death recorded", never "alive".
+  const fateOf = character => (character.died !== undefined && character.died <= state.viewing ? { episode: character.died } : null);
+  const fateChip = (character, id = '') => {
+    const fate = fateOf(character);
+    return fate ? `<span class="fate-chip"${id ? ` id="${escapeHTML(id)}"` : ''} title="Recorded in ${episodeLabel(fate.episode).toLowerCase()}">Died · ${episodeCode(fate.episode)}</span>` : '';
+  };
   const lastPosition = character => (character.positions || []).filter(position => position.episode <= state.viewing).sort((a, b) => b.episode - a.episode)[0] || null;
   const peopleAt = locationId => visibleCharacters().flatMap(character => {
     const position = lastPosition(character);
@@ -210,7 +228,8 @@
     const classes = `avatar avatar-${size} faction-${factionOf(character)} type-${character.type}`;
     const frame = src && portraitFrame(character.id);
     if (frame) return `<svg class="${classes} image-portrait" viewBox="${frame.crop.join(' ')}" aria-hidden="true">${framedPortrait(character.id, src, frame)}</svg>`;
-    if (src) return `<img class="${classes}" src="${escapeHTML(src)}" alt="" data-portrait="${escapeHTML(`${character.id}/${src.slice(10)}`)}">`;
+    // Faces further down the gallery are fetched as they scroll near; the bundled files are small squares.
+    if (src) return `<img class="${classes}" src="${escapeHTML(src)}" alt="" loading="lazy" decoding="async" data-portrait="${escapeHTML(`${character.id}/${src.slice(10)}`)}">`;
     return `<svg class="${classes}" viewBox="0 0 40 40" aria-hidden="true"><circle class="avatar-disc" cx="20" cy="20" r="18"/><g clip-path="url(#avatar-glyph-clip)">${GLYPHS[character.type] || GLYPHS.person}</g></svg>`;
   }
   function mapAvatar(character, x, y, entering = false) {
@@ -247,16 +266,20 @@
     $('.page-heading').hidden = state.view === 'map';
     syncEpisodeControl();
     $('#about-ceiling').textContent = `Its story content ends at ${episodeLabel(MAX_EPISODE).toLowerCase()} (${seasonText(MAX_EPISODE).toLowerCase()}).`;
-    const groups = data.seasons.filter(season => season.first <= MAX_EPISODE).map(season => {
-      const last = Math.min(MAX_EPISODE, season.last ?? MAX_EPISODE);
-      const options = [];
-      for (let number = season.first; number <= last; number += 1) {
-        options.push(`<option value="${number}" ${number === state.viewing ? 'selected' : ''}>${episodeCode(number)}  ${escapeHTML(titleOfEpisode(number))}</option>`);
-      }
-      return `<optgroup label="Season ${season.season}">${options.join('')}</optgroup>`;
-    });
-    $('#episode-select').innerHTML = groups.join('');
-    $('#episode-select').title = titleOfEpisode(state.viewing);
+    // Every episode stays a choice, so the list is built once; only the selection follows the viewer.
+    const select = $('#episode-select');
+    if (!select.options.length) {
+      select.innerHTML = data.seasons.filter(season => season.first <= MAX_EPISODE).map(season => {
+        const last = Math.min(MAX_EPISODE, season.last ?? MAX_EPISODE);
+        const options = [];
+        for (let number = season.first; number <= last; number += 1) {
+          options.push(`<option value="${number}">${episodeCode(number)}  ${escapeHTML(titleOfEpisode(number))}</option>`);
+        }
+        return `<optgroup label="Season ${season.season}">${options.join('')}</optgroup>`;
+      }).join('');
+    }
+    select.value = String(state.viewing);
+    select.title = titleOfEpisode(state.viewing);
     $('#expanded-map-episode').textContent = `${episodeLabel(state.viewing)} · ${titleOfEpisode(state.viewing)}`;
     $('#expanded-gallery-episode').textContent = `${episodeLabel(state.viewing)} · ${titleOfEpisode(state.viewing)}`;
     const numbers = milestones();
@@ -766,19 +789,61 @@
     $('#map-panel-toggle').setAttribute('aria-expanded', String(state.panelExpanded));
     $('#map-panel-toggle').textContent = state.panelExpanded ? 'Hide details' : 'Place details';
     $('#map-stage').classList.toggle('has-sheet', phone);
+    $('#map-stage').classList.toggle('sheet-open', phone && state.panelExpanded);
     $('#map-stage').style.setProperty('--sheet-height', `${phone ? panel.offsetHeight : 0}px`);
     $('#map-stage').style.setProperty('--sheet-peek-height', `${phone ? peek?.offsetHeight || 90 : 0}px`);
   }
+  // On a phone the open sheet covers most of the map. Pan so the chosen place stays in the part that still
+  // shows, and put the map back when the sheet closes if the viewer has not moved it since.
+  const phoneQuery = window.matchMedia('(max-width: 760px)');
+  const isPhone = () => phoneQuery.matches;
+  let sheetPan = null;
+  function revealSelected() {
+    const ring = $('#location-markers .map-marker.selected .marker-ring');
+    const ctm = map.getScreenCTM();
+    if (!ring || !ctm || !(ctm.a > 0)) return;
+    const area = map.getBoundingClientRect();
+    const shown = { top: area.top, bottom: Math.min(area.bottom, $('#location-panel').getBoundingClientRect().top) };
+    const pin = ring.getBoundingClientRect();
+    const x = pin.left + pin.width / 2;
+    const y = pin.top + pin.height / 2;
+    // The pin and its name beneath it stay inside the visible band, clear of the zoom column.
+    const comfort = { top: shown.top + 40, bottom: shown.bottom - 48, left: area.left + 28, right: area.right - 64 };
+    const dy = y < comfort.top || y > comfort.bottom ? (shown.top + shown.bottom) / 2 - y : 0;
+    const dx = x < comfort.left || x > comfort.right ? (comfort.left + comfort.right) / 2 - x : 0;
+    if (!dx && !dy) return;
+    sheetPan = { from: { x: state.panX, y: state.panY, zoom: state.zoom }, to: null };
+    state.panX += dx / ctm.a;
+    state.panY += dy / ctm.a;
+  }
   function setPanelExpanded(expanded) {
+    const changed = expanded !== state.panelExpanded;
     state.panelExpanded = expanded;
     syncPanel();
+    if (changed && isPhone()) {
+      if (expanded) { sheetPan = null; revealSelected(); }
+      else {
+        const home = sheetPan;
+        sheetPan = null;
+        const unmoved = home?.to && home.from.zoom === state.zoom && Math.abs(state.panX - home.to.x) < 0.5 && Math.abs(state.panY - home.to.y) < 0.5;
+        if (unmoved) { state.panX = home.from.x; state.panY = home.from.y; }
+      }
+    }
     applyCamera();
+    if (sheetPan) sheetPan.to = { x: state.panX, y: state.panY };
   }
 
   /* ---------- Timeline, recap, characters ---------- */
   function renderTimeline() {
     const episodes = visibleEpisodes();
     $('#timeline-count').textContent = `${episodes.length} of ${data.episodes.length} milestones`;
+    const toggle = $('#trail-toggle');
+    toggle.setAttribute('aria-expanded', String(state.trailOpen));
+    toggle.textContent = state.trailOpen ? 'Hide' : 'Show';
+    $('#episode-trail').classList.toggle('collapsed', !state.trailOpen);
+    $('#timeline-track').hidden = !state.trailOpen;
+    // A collapsed trail is not built at all; it is drawn when it is opened.
+    if (!state.trailOpen) { $('#timeline-track').replaceChildren(); return; }
     $('#timeline-track').innerHTML = episodes.map(episode => {
       const places = [...new Set(episode.events.map(event => event.locationId).filter(Boolean))].map(getLocation).filter(Boolean);
       const settings = [...new Set(episode.events.map(event => event.placeName).filter(Boolean))];
@@ -792,14 +857,68 @@
     const track = $('#timeline-track');
     if (active && state.view === 'map') track.scrollLeft += active.getBoundingClientRect().left - track.getBoundingClientRect().left - track.clientWidth / 2 + active.clientWidth / 2;
   }
+  // The Story tab groups moments by episode under season headings. The newest two episodes are open; older
+  // ones are a single scannable row until the viewer opens them, and what they open or close is remembered while
+  // they step through episodes.
+  const RECENT_EPISODES = 2;
+  const recapOpen = new Set();
+  const recapShut = new Set();
+  const recapIsOpen = (number, recent) => recapOpen.has(number) || (recent && !recapShut.has(number));
+  function recapCard(event, location, lead) {
+    return `<article id="recap-${escapeHTML(event.id)}" tabindex="-1" class="recap-card${lead ? ' recap-lead' : ''}">${lead ? '<p class="recap-label">Latest recorded moment</p>' : ''}<p class="recap-meta">${episodeLabel(event.episode)}${location || event.placeName ? `, ${escapeHTML(location?.name || event.placeName)}` : ''}</p><h3>${escapeHTML(event.title)}</h3><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}${knowledgeBadge(event.kind)}${peopleList(event.people, { compact: true })}${location ? `<button class="card-link" data-open-event="${escapeHTML(event.id)}">Find it on the map</button>` : '<p class="unpinned">Not pinned on the map</p>'}</article>`;
+  }
   function renderRecap() {
     const currentEpisode = data.episodes.find(episode => episode.number === state.viewing);
-    const events = visibleEvents().slice().reverse();
-    $('#recap-view').innerHTML = `<div class="recap-intro">${icon('shield')}<div><p class="panel-kicker">Briefing, ${episodeLabel(state.viewing).toLowerCase()}</p><h2>${escapeHTML(titleOfEpisode(state.viewing))}</h2><p>${escapeHTML(currentEpisode?.description || `No new milestone is mapped for ${episodeLabel(state.viewing).toLowerCase()}. Below are the selected events established by this point.`)}</p><p class="coverage-note">A selective recap, newest first. Some events happen in places the atlas cannot pin.</p></div></div><div class="recap-grid">${events.map((event, index) => {
+    // Newest first, as before; events at a place the viewer has not met yet stay out.
+    const groups = [];
+    for (const event of visibleEvents().slice().reverse()) {
       const location = event.locationId ? getLocation(event.locationId) : null;
-      if (event.locationId && !location) return '';
-      return `<article id="recap-${escapeHTML(event.id)}" tabindex="-1" class="recap-card${index === 0 ? ' recap-lead' : ''}">${index === 0 ? '<p class="recap-label">Latest recorded moment</p>' : ''}<p class="recap-meta">${episodeLabel(event.episode)}${location || event.placeName ? `, ${escapeHTML(location?.name || event.placeName)}` : ''}</p><h3>${escapeHTML(event.title)}</h3><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}${knowledgeBadge(event.kind)}${peopleList(event.people, { compact: true })}${location ? `<button class="card-link" data-open-event="${escapeHTML(event.id)}">Find it on the map</button>` : '<p class="unpinned">Not pinned on the map</p>'}</article>`;
-    }).join('')}</div>`;
+      if (event.locationId && !location) continue;
+      if (groups.at(-1)?.number !== event.episode) groups.push({ number: event.episode, cards: [] });
+      groups.at(-1).cards.push({ event, location });
+    }
+    const seasons = [];
+    for (const group of groups) {
+      const season = seasonOf(group.number)?.season ?? 0;
+      if (seasons.at(-1)?.season !== season) seasons.push({ season, groups: [] });
+      seasons.at(-1).groups.push(group);
+    }
+    let lead = true;
+    const body = seasons.map(({ season, groups: inSeason }) => {
+      const moments = inSeason.reduce((sum, group) => sum + group.cards.length, 0);
+      const episodes = inSeason.map(group => {
+        const recent = groups.indexOf(group) < RECENT_EPISODES;
+        const open = recapIsOpen(group.number, recent);
+        const teaser = group.cards.slice(0, 2).map(({ event }) => event.title).join(' · ');
+        const cards = group.cards.map(({ event, location }) => { const html = recapCard(event, location, lead); lead = false; return html; }).join('');
+        return `<details class="recap-episode" data-recap-episode="${group.number}" data-recent="${recent}" data-rendered-open="${open}"${open ? ' open' : ''}><summary><span class="recap-ep-code">${episodeCode(group.number)}</span><span class="recap-ep-main"><strong class="recap-ep-title">${escapeHTML(titleOfEpisode(group.number))}</strong><span class="recap-ep-teaser">${escapeHTML(teaser)}</span></span><span class="recap-ep-count">${group.cards.length} ${group.cards.length === 1 ? 'moment' : 'moments'}</span></summary><div class="recap-cards">${cards}</div></details>`;
+      }).join('');
+      return `<section class="recap-season" id="recap-season-${season}" aria-labelledby="recap-season-${season}-title" tabindex="-1"><h2 class="recap-season-title" id="recap-season-${season}-title">Season ${season}<span>${moments} ${moments === 1 ? 'moment' : 'moments'}</span></h2>${episodes}</section>`;
+    }).join('');
+    const jump = seasons.length > 1 ? `<nav class="recap-jump" aria-label="Jump to a season">${seasons.map(({ season }) => `<button type="button" class="filter-chip" data-recap-jump="${season}">Season ${season}</button>`).join('')}</nav>` : '';
+    const bulk = groups.length > RECENT_EPISODES ? '<div class="recap-bulk"><button type="button" class="card-link" data-recap-all="open">Open all</button><button type="button" class="card-link" data-recap-all="close">Close older</button></div>' : '';
+    $('#recap-view').innerHTML = `<div class="recap-intro">${icon('shield')}<div><p class="panel-kicker">Briefing, ${episodeLabel(state.viewing).toLowerCase()}</p><h2>${escapeHTML(titleOfEpisode(state.viewing))}</h2><p>${escapeHTML(currentEpisode?.description || `No new milestone is mapped for ${episodeLabel(state.viewing).toLowerCase()}. Below are the selected events established by this point.`)}</p><p class="coverage-note">A selective recap, newest first, one row per episode. Some events happen in places the atlas cannot pin.</p></div></div>${jump || bulk ? `<div class="recap-tools">${jump}${bulk}</div>` : ''}<div class="recap-grid">${body}</div>`;
+  }
+  // Opening or closing an episode by hand is remembered; the opens and closes render() applies are not.
+  $('#recap-view').addEventListener('toggle', event => {
+    const details = event.target.closest?.('details.recap-episode');
+    if (!details || String(details.open) === details.dataset.renderedOpen) return;
+    const number = Number(details.dataset.recapEpisode);
+    details.dataset.renderedOpen = String(details.open);
+    (details.open ? recapOpen : recapShut).add(number);
+    (details.open ? recapShut : recapOpen).delete(number);
+  }, true);
+  // A choice made by hand: remembered for every episode it names, even one already in that state.
+  function setRecapEpisode(details, open) {
+    const number = Number(details.dataset.recapEpisode);
+    (open ? recapOpen : recapShut).add(number);
+    (open ? recapShut : recapOpen).delete(number);
+    details.dataset.renderedOpen = String(open); // so its toggle event is not taken for a second choice
+    details.open = open;
+  }
+  function revealRecapCard(card) {
+    const details = card?.closest('details.recap-episode');
+    if (details) setRecapEpisode(details, true);
   }
   const CHARACTER_SECTIONS = [
     ['Survey Corps', ['survey']],
@@ -826,8 +945,11 @@
   }
   function characterCard(character) {
     const involvement = state.characterFaction === 'episode' ? episodeInvolvement(character) : '';
-    return `<article class="character-card faction-${factionOf(character)}${revealOf(character) ? ' revealed' : ''}${state.focusCharacter === character.id ? ' focused' : ''}" id="character-${escapeHTML(character.id)}" data-character="${escapeHTML(character.id)}" tabindex="-1">
-      <h3 class="character-card-heading"><button type="button" class="character-card-button" data-show-character="${escapeHTML(character.id)}" aria-label="Open details for ${escapeHTML(nameOf(character))}"${involvement ? ` aria-describedby="character-involvement-${escapeHTML(character.id)}"` : ''} aria-haspopup="dialog" aria-controls="character-detail-dialog" aria-expanded="false">${avatar(character, 'lg')}<span class="character-card-copy"><span class="character-name">${escapeHTML(nameOf(character))}</span><span class="character-role" title="${escapeHTML(roleOf(character))}">${escapeHTML(roleOf(character))}</span>${involvement ? `<span class="character-involvement" id="character-involvement-${escapeHTML(character.id)}">${escapeHTML(involvement)}</span>` : ''}</span><svg class="icon character-card-chevron" aria-hidden="true"><use href="#i-next"/></svg></button></h3>
+    const fate = fateOf(character);
+    // The button's name is fixed text, so the mark and the episode's involvement are announced as its description.
+    const described = [involvement && `character-involvement-${character.id}`, fate && `character-fate-${character.id}`].filter(Boolean).join(' ');
+    return `<article class="character-card faction-${factionOf(character)}${revealOf(character) ? ' revealed' : ''}${fate ? ' fallen' : ''}${state.focusCharacter === character.id ? ' focused' : ''}" id="character-${escapeHTML(character.id)}" data-character="${escapeHTML(character.id)}" tabindex="-1">
+      <h3 class="character-card-heading"><button type="button" class="character-card-button" data-show-character="${escapeHTML(character.id)}" aria-label="Open details for ${escapeHTML(nameOf(character))}"${described ? ` aria-describedby="${escapeHTML(described)}"` : ''} aria-haspopup="dialog" aria-controls="character-detail-dialog" aria-expanded="false">${avatar(character, 'lg')}<span class="character-card-copy"><span class="character-name">${escapeHTML(nameOf(character))}</span><span class="character-role" title="${escapeHTML(roleOf(character))}">${escapeHTML(roleOf(character))}</span>${fateChip(character, `character-fate-${character.id}`)}${involvement ? `<span class="character-involvement" id="character-involvement-${escapeHTML(character.id)}">${escapeHTML(involvement)}</span>` : ''}</span><svg class="icon character-card-chevron" aria-hidden="true"><use href="#i-next"/></svg></button></h3>
     </article>`;
   }
   function characterDetails(character) {
@@ -836,7 +958,7 @@
     const place = position?.locationId ? getLocation(position.locationId) : null;
     const notes = (character.notes || []).filter(note => note.episode <= state.viewing).sort((a, b) => b.episode - a.episode);
     const noteItem = note => `<li><span class="note-episode">${episodeCode(note.episode)}</span><span>${escapeHTML(note.text)}</span></li>`;
-    return `<div class="character-detail-identity">${avatar(character, 'lg')}<p class="character-description">${escapeHTML(roleOf(character))}</p></div>
+    return `<div class="character-detail-identity">${avatar(character, 'lg')}<div class="character-detail-summary"><p class="character-description">${escapeHTML(roleOf(character))}</p>${fateChip(character)}</div></div>
         ${revealed ? `<p class="reveal-line">Revealed in ${episodeLabel(character.revealedAs.episode).toLowerCase()}: <button class="inline-link" data-open-character="${escapeHTML(revealed.id)}">${escapeHTML(nameOf(revealed))}</button></p>` : ''}
         ${notes.length ? `<section class="character-detail-notes"><h3>Known so far</h3><ol class="character-notes">${notes.slice(0, 3).map(noteItem).join('')}</ol>${notes.length > 3 ? `<details class="more-notes"><summary>Earlier (${notes.length - 3})</summary><ol class="character-notes">${notes.slice(3).map(noteItem).join('')}</ol></details>` : ''}</section>` : ''}
         <footer class="character-detail-footer">${position ? (place
@@ -844,34 +966,72 @@
           : `<span>Last recorded in ${episodeLabel(position.episode).toLowerCase()}, somewhere this map does not place.</span>`) : ''}<span class="since">In the atlas from ${episodeLabel(character.firstEpisode).toLowerCase()}</span></footer>
     `;
   }
+  // The order people appear in: by first appearance (the Died filter: by death), or alphabetically.
+  // Whoever is only a later identity of someone already listed comes last.
+  const nameOrder = new Intl.Collator('en', { sensitivity: 'base' });
+  const CHARACTER_SORTS = [['story', 'Sort: story order'], ['name', 'Sort: A–Z']];
+  function sortedCharacters(list) {
+    if (state.characterSort === 'name') return list.sort((a, b) => nameOrder.compare(nameOf(a), nameOf(b)));
+    if (state.characterFaction === 'died') return list.sort((a, b) => a.died - b.died || a.firstEpisode - b.firstEpisode);
+    return list.sort((a, b) => Boolean(revealOf(a)) - Boolean(revealOf(b)) || a.firstEpisode - b.firstEpisode);
+  }
+  // Phones get the list, which fits a role and a mark on one row, until the viewer picks the cards (or the list).
+  const compactQuery = window.matchMedia('(max-width: 560px)');
+  const characterLayout = () => state.characterView || (compactQuery.matches ? 'list' : 'grid');
   function renderCharacters() {
     const query = state.characterFilter.trim().toLocaleLowerCase();
     const participants = episodeParticipants();
-    const episodeMode = state.characterFaction === 'episode';
+    const filter = state.characterFaction;
+    const episodeMode = filter === 'episode';
+    const diedMode = filter === 'died';
+    const layout = characterLayout();
     const matches = visibleCharacters().filter(character => character.type !== 'group' && (!query
       || [nameOf(character), roleOf(character), ...(character.aliases || [])].join(' ').toLocaleLowerCase().includes(query)));
-    const sortCharacters = (a, b) => Boolean(revealOf(a)) - Boolean(revealOf(b)) || a.firstEpisode - b.firstEpisode;
     const episodeMatches = matches.filter(character => participants.has(character.id));
-    const displayed = episodeMode ? episodeMatches : matches;
-    const sections = state.characterFaction === 'all' || episodeMode
-      ? (displayed.length ? `<h2 class="sr-only">Characters</h2><div class="character-grid${episodeMode ? ' episode-character-grid' : ''}">${displayed.sort(sortCharacters).map(characterCard).join('')}</div>` : '')
-      : CHARACTER_SECTIONS.filter(([title]) => state.characterFaction === title).map(([title, keys]) => {
-      const members = matches.filter(character => keys.includes(factionOf(character)))
-        .sort(sortCharacters);
-      return members.length ? `<section class="character-section"><h2>${title}<span>${members.length}</span></h2><div class="character-grid">${members.map(characterCard).join('')}</div></section>` : '';
-    }).join('');
+    const fallen = matches.filter(fateOf);
+    const displayed = episodeMode ? episodeMatches : diedMode ? fallen : matches;
+    const grid = (members, extra = '') => `<div class="character-grid${extra}${layout === 'list' ? ' is-list' : ''}">${sortedCharacters(members).map(characterCard).join('')}</div>`;
+    const sections = filter === 'all' || episodeMode || diedMode
+      ? (displayed.length ? `<h2 class="sr-only">Characters</h2>${grid(displayed, episodeMode ? ' episode-character-grid' : '')}` : '')
+      : CHARACTER_SECTIONS.filter(([title]) => filter === title).map(([title, keys]) => {
+        const members = matches.filter(character => keys.includes(factionOf(character)));
+        return members.length ? `<section class="character-section"><h2>${title}<span>${members.length}</span></h2>${grid(members)}</section>` : '';
+      }).join('');
     const counts = Object.fromEntries(CHARACTER_SECTIONS.map(([title, keys]) => [title, matches.filter(character => keys.includes(factionOf(character))).length]));
-    const chips = [['all', 'Everyone', matches.length], ['episode', 'This episode', episodeMatches.length], ...CHARACTER_SECTIONS.map(([title]) => [title, title, counts[title]])]
+    const chips = [['all', 'Everyone', matches.length], ['episode', 'This episode', episodeMatches.length], ['died', 'Died', fallen.length], ...CHARACTER_SECTIONS.map(([title]) => [title, title, counts[title]])]
       .filter(([, , count], index) => index < 2 || count)
-      .map(([value, label, count]) => `<button class="filter-chip" data-faction-filter="${escapeHTML(value)}" aria-pressed="${state.characterFaction === value}">${escapeHTML(label)} <span>${count}</span></button>`).join('');
+      .map(([value, label, count]) => `<button class="filter-chip" data-faction-filter="${escapeHTML(value)}" aria-pressed="${filter === value}">${escapeHTML(label)} <span>${count}</span></button>`).join('');
     // The one expansion button lives beside the title on phones, and beside search elsewhere.
     $('#mobile-gallery-action').replaceChildren();
-    const coverage = episodeMode ? `<p class="episode-cast-note" role="status">${episodeCode(state.viewing)} · Characters named in this episode’s recorded events.</p>` : '';
-    const empty = episodeMode ? 'No character in this episode’s recorded events matches that filter.' : 'No character matches that filter at this episode.';
-    $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by episode or group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><div class="gallery-actions"><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"><button type="button" id="expand-gallery" class="expand-gallery" aria-label="Expand gallery" title="Expand gallery" aria-haspopup="dialog" aria-controls="expanded-gallery-dialog">${icon('expand')}<span class="expand-gallery-label">Expand gallery</span></button></div></div>${coverage}${sections || `<p class="search-empty">${empty}</p>`}`;
+    const coverage = episodeMode ? `<p class="episode-cast-note" role="status">${episodeCode(state.viewing)} · Characters named in this episode’s recorded events.</p>`
+      : diedMode ? `<p class="episode-cast-note" role="status">Deaths this atlas records up to ${episodeCode(state.viewing)}. Someone who is not here has no recorded death, which does not mean they lived.</p>` : '';
+    const empty = episodeMode ? 'No character in this episode’s recorded events matches that filter.'
+      : diedMode ? 'No recorded death matches that filter at this episode.' : 'No character matches that filter at this episode.';
+    const sortControl = `<label class="sr-only" for="character-sort">Sort characters</label><select id="character-sort" class="character-sort">${CHARACTER_SORTS.map(([value, label]) => `<option value="${value}"${state.characterSort === value ? ' selected' : ''}>${label}</option>`).join('')}</select>`;
+    const layoutControl = `<div class="layout-switch" role="group" aria-label="Layout">${[['grid', 'Cards'], ['list', 'List']].map(([value, label]) => `<button type="button" data-character-layout="${value}" aria-pressed="${layout === value}" aria-label="${label}" title="${label}">${icon(value)}</button>`).join('')}</div>`;
+    $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by episode or group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><div class="gallery-actions"><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"><div class="gallery-options">${sortControl}${layoutControl}</div><button type="button" id="expand-gallery" class="expand-gallery" aria-label="Expand gallery" title="Expand gallery" aria-haspopup="dialog" aria-controls="expanded-gallery-dialog">${icon('expand')}<span class="expand-gallery-label">Expand gallery</span></button></div></div>${coverage}${sections || `<p class="search-empty">${empty}</p>`}`;
     syncGalleryAction();
   }
+  // Cards and list differ only by a class, so switching needs no rebuild: scroll position and focus stay put.
+  function applyCharacterLayout() {
+    const layout = characterLayout();
+    $$('#characters-view .character-grid').forEach(grid => grid.classList.toggle('is-list', layout === 'list'));
+    $$('#characters-view [data-character-layout]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.characterLayout === layout)));
+  }
+  // A view that starts as the list on a phone follows the window until the viewer has chosen.
+  compactQuery.addEventListener('change', () => { if (!state.characterView) applyCharacterLayout(); });
+  // Story and People are built only while they are on screen. Every render() empties the other one, so
+  // text from a later episode never lingers in a hidden view, and stepping through episodes on the map
+  // does not pay for the thousands of nodes those two views hold.
+  const SECONDARY_VIEWS = { recap: renderRecap, characters: renderCharacters };
+  function renderSecondaryViews() {
+    for (const [name, build] of Object.entries(SECONDARY_VIEWS)) {
+      if (name === state.view) build(); else $(`#${name}-view`).replaceChildren();
+    }
+    if (state.view !== 'characters') $('#mobile-gallery-action').replaceChildren();
+  }
   function render({ save = true } = {}) {
+    sheetPan = null;
     if (state.view !== 'characters') closeCharacterDetails({ restoreFocus: false });
     if (state.view !== 'map') closeExpandedMap();
     if (state.view !== 'characters') closeExpandedGallery();
@@ -889,20 +1049,21 @@
     renderGeography();
     renderPanel();
     renderTimeline();
-    renderRecap();
-    renderCharacters();
+    renderSecondaryViews();
     syncCharacterDetails();
     // Search results are rebuilt from the current visibility boundary, never retained across it.
     $('#location-search').value = '';
     $('#search-results').hidden = true;
     $('#search-results').innerHTML = '';
     if (save) persist();
+    syncUrl('replace');
     applyCamera();
   }
 
   /* ---------- Navigation ---------- */
   function showView(view) {
     state.view = view;
+    syncUrl('push');
     render();
     if (view === 'map') applyCamera();
     if (window.matchMedia('(max-width: 760px)').matches) $('main').scrollIntoView({ block: 'start' });
@@ -915,6 +1076,7 @@
     if (state.mapExtent !== area) { state.mapExtent = area; state.zoom = 1; state.panX = 0; state.panY = 0; }
     state.view = 'map';
     state.panelExpanded = !window.matchMedia('(max-width: 760px)').matches;
+    syncUrl('push');
     render();
     $('#location-panel').scrollTop = 0;
     if (focus && !location.opensMap) {
@@ -935,6 +1097,7 @@
     state.focusCharacter = id;
     state.characterFilter = '';
     state.characterFaction = 'all';
+    syncUrl('push');
     render();
     const card = $(`#character-${CSS.escape(id)}`);
     card?.scrollIntoView({ block: 'center' });
@@ -962,6 +1125,69 @@
     if (!target) return;
     setEpisode(target, { follow: true });
   }
+
+  /* ---------- Routes: where you are is in the address, and Back works ---------- */
+  // #/map/<place>, #/story, #/people/<person>. A page change (a tab, a chosen place, arriving at a person) adds a
+  // history entry so Back returns to it; everything else, such as stepping through episodes or opening a card
+  // within People, only updates the current entry. The viewing episode is never part of an address: a link made
+  // far into the series must not spoil whoever opens it, and a place or person the viewer has not met is skipped.
+  const BASE_TITLE = document.title;
+  let applyingRoute = false;
+  function currentRoute() {
+    if (state.view === 'recap') return '#/story';
+    if (state.view === 'characters') return detailCharacterId && getCharacter(detailCharacterId) ? `#/people/${encodeURIComponent(detailCharacterId)}` : '#/people';
+    return getLocation(state.selected) ? `#/map/${encodeURIComponent(state.selected)}` : '#/map';
+  }
+  function syncUrl(mode = 'replace') {
+    if (applyingRoute) return;
+    const target = currentRoute();
+    if (target !== location.hash) {
+      try { history[mode === 'push' ? 'pushState' : 'replaceState'](null, '', target); } catch { /* an address that cannot change still works */ }
+    }
+    // Set after the entry exists, so the entry being left keeps its own title.
+    const subject = state.view === 'recap' ? 'The story so far' : state.view === 'characters'
+      ? (detailCharacterId && getCharacter(detailCharacterId) ? nameOf(getCharacter(detailCharacterId)) : 'Characters') : getLocation(state.selected)?.name;
+    document.title = subject ? `${subject} · Scout Atlas` : BASE_TITLE;
+  }
+  function parseRoute(hash) {
+    const match = /^#\/(map|story|people)(?:\/([\w-]+))?$/.exec(hash || '');
+    return match ? { view: { map: 'map', story: 'recap', people: 'characters' }[match[1]], id: match[2] || null } : null;
+  }
+  // Applies an address. Returns false when it named a place or person the viewer has not reached yet.
+  function applyRoute(route) {
+    let reached = true;
+    applyingRoute = true;
+    try {
+      state.view = route.view;
+      if (route.view === 'map' && route.id) {
+        const place = getLocation(route.id);
+        if (!place) reached = false;
+        // The address names the place, not which area of the map it is shown on. Arriving at the place already
+        // selected (a reload, or Back from another tab) leaves the map, and a map chosen by hand, as it was.
+        else if (place.id !== state.selected) {
+          state.selected = place.id;
+          const area = place.opensMap || mapAreaOf(place);
+          if (state.mapExtent !== area) { state.mapExtent = area; state.zoom = 1; state.panX = 0; state.panY = 0; }
+          state.activeEvent = null;
+          state.panelExpanded = !isPhone();
+        }
+      }
+      const person = route.view === 'characters' && route.id ? getCharacter(route.id) : null;
+      if (route.view === 'characters' && route.id && !person) reached = false;
+      if (person) state.focusCharacter = person.id;
+      render();
+      if (route.view === 'map') applyCamera();
+      if (route.view === 'characters') { if (person) showCharacterDetails(person.id); else closeCharacterDetails(); }
+    } finally { applyingRoute = false; }
+    syncUrl('replace'); // the canonical address, which also drops one that named something hidden
+    return reached;
+  }
+  const skippedLink = () => toast('That link doesn’t match anything you have reached yet, so it was skipped.');
+  window.addEventListener('popstate', () => {
+    const route = parseRoute(location.hash);
+    if (route && !applyRoute(route)) skippedLink();
+    else if (!route) syncUrl('replace');
+  });
 
   /* ---------- Search: places, people and events known by the viewing episode ---------- */
   function searchAll() {
@@ -998,12 +1224,17 @@
       ? { left: Math.min(...coastPoints.map(p => p[0])), right: Math.max(...coastPoints.map(p => p[0])), top: Math.min(...coastPoints.map(p => p[1])), bottom: Math.max(...coastPoints.map(p => p[1])) }
       : state.mapExtent === 'walls' ? { left: 600 - RINGS.maria[0], right: 600 + RINGS.maria[0], top: 405 - RINGS.maria[1], bottom: 405 + RINGS.maria[1] }
         : { left: view.x, right: view.x + view.width, top: view.y, bottom: view.y + view.height };
-    // Keep a substantial portion of the chosen map area on screen while panning.
+    // Keep a substantial portion of the chosen map area on screen while panning. An open phone sheet hides the
+    // bottom of the map, so the limits count only the part that still shows.
     const zoom = state.zoom;
+    const scale = map.getScreenCTM();
+    const sheetTop = state.panelExpanded && isPhone() ? $('#location-panel').getBoundingClientRect().top : Infinity;
+    const covered = scale?.a > 0 ? Math.max(0, map.getBoundingClientRect().bottom - sheetTop) / scale.a : 0;
+    const shownHeight = Math.max(viewport.height * 0.2, viewport.height - covered);
     const needX = Math.min(viewport.width, (bounds.right - bounds.left) * zoom) * 0.45;
-    const needY = Math.min(viewport.height, (bounds.bottom - bounds.top) * zoom) * 0.45;
+    const needY = Math.min(shownHeight, (bounds.bottom - bounds.top) * zoom) * 0.45;
     state.panX = Math.min(viewport.x + viewport.width - needX - bounds.left * zoom, Math.max(viewport.x + needX - bounds.right * zoom, state.panX));
-    state.panY = Math.min(viewport.y + viewport.height - needY - bounds.top * zoom, Math.max(viewport.y + needY - bounds.bottom * zoom, state.panY));
+    state.panY = Math.min(viewport.y + shownHeight - needY - bounds.top * zoom, Math.max(viewport.y + needY - bounds.bottom * zoom, state.panY));
     $('#map-camera').setAttribute('transform', `translate(${Math.round(state.panX * 100) / 100} ${Math.round(state.panY * 100) / 100}) scale(${zoom})`);
     $('#zoom-level').textContent = `${Math.round(zoom * 100)}%`;
     $('#zoom-out').disabled = zoom <= 0.75;
@@ -1074,17 +1305,23 @@
     hintTimeout = setTimeout(() => hint.classList.remove('visible'), 1800);
   }
 
-  // Mouse and pen drag the map. Touch scrolls the page with one finger and moves the map with two.
+  // Mouse and pen drag the map. Inline, touch scrolls the page with one finger and moves the map with two;
+  // in the expanded map there is no page to scroll, so one finger pans it and a second finger pinches.
   let drag = null;
   map.addEventListener('pointerdown', event => {
-    if (event.pointerType === 'touch' || event.button !== 0 || event.target.closest('.map-marker, [data-open-place]')) return;
+    swallowClick = false; // a new press starts a new click; a touch drag leaves no click behind to consume it
+    const touch = event.pointerType === 'touch';
+    if (touch && !event.isPrimary) { drag = null; map.classList.remove('dragging'); return; }
+    if (event.button !== 0 || (touch && !expandedMapDialog.open)) return;
+    // A press on a pin selects it; a touch that moves still pans, and the click that follows is swallowed.
+    if (!touch && event.target.closest('.map-marker, [data-open-place]')) return;
     const point = mapPoint(event.clientX, event.clientY);
     drag = { id: event.pointerId, x: point.x, y: point.y, panX: state.panX, panY: state.panY, startX: event.clientX, startY: event.clientY, moved: false };
-    map.setPointerCapture(event.pointerId);
+    if (!touch) map.setPointerCapture(event.pointerId);
     map.classList.add('dragging');
   });
   map.addEventListener('pointermove', event => {
-    if (!drag || event.pointerId !== drag.id) return;
+    if (!drag || event.pointerId !== drag.id || pinch) return;
     const point = mapPoint(event.clientX, event.clientY);
     if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4) drag.moved = true;
     state.panX = drag.panX + point.x - drag.x;
@@ -1109,6 +1346,8 @@
   map.addEventListener('touchstart', event => {
     if (event.touches.length !== 2) return;
     event.preventDefault();
+    drag = null; // the second finger turns a one-finger pan into a pinch
+    map.classList.remove('dragging');
     const center = touchCenter(event.touches);
     const point = mapPoint(center.x, center.y);
     pinch = { distance: touchDistance(event.touches), zoom: state.zoom, worldX: (point.x - state.panX) / state.zoom, worldY: (point.y - state.panY) / state.zoom };
@@ -1122,7 +1361,7 @@
       state.panX = point.x - pinch.worldX * state.zoom;
       state.panY = point.y - pinch.worldY * state.zoom;
       applyCamera();
-    } else if (event.touches.length === 1 && !touchHintShown) {
+    } else if (event.touches.length === 1 && !touchHintShown && !expandedMapDialog.open) {
       touchHintShown = true;
       mapHint('Use two fingers to move or zoom the map');
     }
@@ -1162,6 +1401,7 @@
     state.selected = destination.locationId;
     state.activeEvent = null;
     state.zoom = 1; state.panX = 0; state.panY = 0;
+    syncUrl('push');
     render();
     $('#location-panel').scrollTop = 0;
     $(`[data-location="${CSS.escape(destination.locationId)}"]`)?.focus({ preventScroll: true });
@@ -1246,9 +1486,10 @@
     if (!sheetGesture || sheetGesture.id !== event.pointerId) return;
     const delta = event.clientY - sheetGesture.y;
     sheetGesture = null;
-    if (Math.abs(delta) < 35) return;
+    // A swipe opens or closes the sheet; a short press toggles it. Touch acts on release rather than waiting for
+    // a synthesized click, which a browser may skip right after a swipe. The click that may still follow is swallowed.
     suppressSheetClick = true;
-    setPanelExpanded(delta < 0);
+    setPanelExpanded(Math.abs(delta) < 35 ? !state.panelExpanded : delta < 0);
   });
   locationPanel.addEventListener('pointercancel', () => { sheetGesture = null; });
   locationPanel.addEventListener('click', event => {
@@ -1281,6 +1522,7 @@
       window.scrollTo({ top: detailScrollY, behavior: 'instant' });
       $('#expanded-gallery-slot').scrollTop = detailGalleryScrollTop;
     }
+    syncUrl('replace'); // back to the gallery's address; the person was part of the page, not a page of their own
   }
   function closeCharacterDetails(options) {
     if (characterDetailDialog.open) characterDetailDialog.close();
@@ -1319,6 +1561,7 @@
       characterDetailDialog.showModal();
     }
     $('#close-character-detail').focus({ preventScroll: true });
+    syncUrl('replace');
   }
   $('#close-character-detail').addEventListener('click', () => closeCharacterDetails());
   characterDetailDialog.addEventListener('cancel', event => {
@@ -1402,6 +1645,12 @@
       item.classList.toggle('dim', Boolean(id) && !episode.events.some(event => event.locationId === id));
     });
   }
+  $('#trail-toggle').addEventListener('click', () => {
+    state.trailOpen = !state.trailOpen;
+    state.trailChosen = true;
+    renderTimeline();
+    persist();
+  });
   $('#timeline-track').addEventListener('pointerover', event => { const item = event.target.closest('[data-episode]'); if (item) highlightEpisode(Number(item.dataset.episode)); });
   $('#timeline-track').addEventListener('pointerleave', () => highlightEpisode(null));
   $('#timeline-track').addEventListener('focusin', event => { const item = event.target.closest('[data-episode]'); if (item) highlightEpisode(Number(item.dataset.episode)); });
@@ -1440,6 +1689,13 @@
     input.focus();
     input.setSelectionRange(caret, caret);
   });
+  $('#characters-view').addEventListener('change', event => {
+    if (event.target.id !== 'character-sort') return;
+    state.characterSort = event.target.value === 'name' ? 'name' : 'story';
+    persist();
+    renderCharacters();
+    $('#character-sort').focus();
+  });
   document.addEventListener('keydown', event => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
     const otherDialog = $$('dialog[open]').some(dialog => dialog !== expandedMapDialog);
@@ -1450,7 +1706,7 @@
   for (const name of ['locations', 'groups', 'territory', 'walls']) {
     $(`#layer-${name}`).addEventListener('change', event => { state.layers[name] = event.target.checked; syncLayers(); persist(); });
   }
-  $('#map-guide').addEventListener('click', () => $('#about-dialog').showModal());
+  $$('[data-open-guide]').forEach(button => button.addEventListener('click', () => $('#about-dialog').showModal()));
   $$('.close-dialog').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
   $$('dialog').forEach(dialog => dialog.addEventListener('click', event => {
     if (event.target !== dialog) return;
@@ -1477,6 +1733,23 @@
     if (state.card && !event.target.closest('#person-card')) closeCard();
     const viewButton = event.target.closest('[data-view]');
     if (viewButton) { showView(viewButton.dataset.view); return; }
+    const seasonJump = event.target.closest('[data-recap-jump]');
+    if (seasonJump) {
+      const section = $(`#recap-season-${CSS.escape(seasonJump.dataset.recapJump)}`);
+      section?.scrollIntoView({ block: 'start' });
+      section?.focus({ preventScroll: true });
+      return;
+    }
+    const recapAll = event.target.closest('[data-recap-all]');
+    if (recapAll) {
+      const openAll = recapAll.dataset.recapAll === 'open';
+      if (!openAll) { recapOpen.clear(); recapShut.clear(); } // back to the defaults: the newest two
+      for (const details of $$('details.recap-episode', $('#recap-view'))) {
+        if (openAll) setRecapEpisode(details, true);
+        else { const recent = details.dataset.recent === 'true'; details.dataset.renderedOpen = String(recent); details.open = recent; }
+      }
+      return;
+    }
     const marker = event.target.closest('[data-location]');
     if (marker) { state.activeEvent = null; selectLocation(marker.dataset.location); return; }
     const result = event.target.closest('[data-search-location]');
@@ -1485,6 +1758,13 @@
     if (change) { state.activeEvent = change.dataset.changeEvent || null; selectLocation(change.dataset.changePlace, { focus: true }); return; }
     const factionChip = event.target.closest('[data-faction-filter]');
     if (factionChip) { state.characterFaction = factionChip.dataset.factionFilter; state.focusCharacter = null; renderCharacters(); $(`[data-faction-filter="${CSS.escape(state.characterFaction)}"]`)?.focus(); return; }
+    const layoutButton = event.target.closest('[data-character-layout]');
+    if (layoutButton) {
+      state.characterView = layoutButton.dataset.characterLayout === 'list' ? 'list' : 'grid';
+      persist();
+      applyCharacterLayout();
+      return;
+    }
     const person = event.target.closest('[data-open-character]');
     if (person) { openCharacter(person.dataset.openCharacter); return; }
     const place = event.target.closest('[data-open-place]');
@@ -1506,6 +1786,7 @@
         closeExpandedMap();
         showView('recap');
         const card = $(`#recap-${CSS.escape(storyEvent.id)}`);
+        revealRecapCard(card);
         card?.scrollIntoView({ block: 'center' });
         card?.focus({ preventScroll: true });
       }
@@ -1515,7 +1796,8 @@
   });
 
   applyMapStyle();
-  render();
+  const openingRoute = parseRoute(location.hash);
+  if (openingRoute) { if (!applyRoute(openingRoute)) skippedLink(); } else render();
   applyCamera();
   $('#map-legend').addEventListener('toggle', scheduleLayout);
   if (unreadableCopy) toast('Saved data could not be read. A copy was kept in this browser and the atlas started fresh.');

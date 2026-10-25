@@ -2,7 +2,7 @@
   {
     "id": "armored",
     "from": 2,
-    "file": "armored-e02.jpg",
+    "file": "armored-e02.webp",
     "sourceUrl": "https://media.myshows.me/episodes/normal/e/5b/e5b6321ff77064ced8c12f0c509315d5.jpg",
     "sourcePageUrl": "https://myshows.me/view/episode/1779614/",
     "sourceSize": [
@@ -22,7 +22,7 @@
   {
     "id": "carla",
     "from": 1,
-    "file": "carla-portrait.png",
+    "file": "carla-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/n62475-CExspVnLfweu.png",
     "sourceSize": [
       230,
@@ -40,7 +40,7 @@
   {
     "id": "colt",
     "from": 60,
-    "file": "colt-portrait.png",
+    "file": "colt-portrait.webp",
     "sourceUrl": "https://shingeki.tv/final/character/img/colt_thumb.png",
     "crop": [
       57,
@@ -58,7 +58,7 @@
   {
     "id": "dina",
     "from": 57,
-    "file": "dina-portrait.png",
+    "file": "dina-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b133215-ifxjiTHsEGNl.png",
     "sourceSize": [
       230,
@@ -76,7 +76,7 @@
   {
     "id": "falco",
     "from": 60,
-    "file": "falco-portrait.png",
+    "file": "falco-portrait.webp",
     "sourceUrl": "https://shingeki.tv/final/character/img/falco_thumb.png",
     "crop": [
       60,
@@ -94,7 +94,7 @@
   {
     "id": "female-titan",
     "from": 17,
-    "file": "female-titan-e17.jpg",
+    "file": "female-titan-e17.webp",
     "sourceUrl": "https://m.media-amazon.com/images/M/MV5BMDUxMmUwYzEtYzAxZS00ODAwLTg2YzgtZGI3MTdhMDA4MDA2XkEyXkFqcGc%40._V1_.jpg",
     "sourcePageUrl": "https://www.imdb.com/title/tt3104218/mediaviewer/rm2968560897/",
     "episodeReferenceUrl": "https://attackontitan.fandom.com/wiki/Female_Titan:_The_57th_Exterior_Scouting_Mission,_Part_1",
@@ -115,7 +115,7 @@
   {
     "id": "floch",
     "from": 49,
-    "file": "floch-portrait.png",
+    "file": "floch-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b127703-qNIccR0yPZKu.png",
     "sourceSize": [
       230,
@@ -133,7 +133,7 @@
   {
     "id": "founder-ymir",
     "from": 78,
-    "file": "founder-ymir-portrait.png",
+    "file": "founder-ymir-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b199551-UNzb9vgcbOIx.png",
     "sourceSize": [
       230,
@@ -151,7 +151,7 @@
   {
     "id": "four-legged-titan",
     "from": 55,
-    "file": "four-legged-titan-e55.png",
+    "file": "four-legged-titan-e55.webp",
     "sourceUrl": "https://i.imgflip.com/4uy231.png",
     "sourcePageUrl": "https://imgflip.com/meme/293842189/Cart-titan",
     "episodeReferenceUrl": "https://attackontitan.fandom.com/wiki/Midnight_Sun_(Episode)",
@@ -172,7 +172,7 @@
   {
     "id": "gabi",
     "from": 60,
-    "file": "gabi-portrait.png",
+    "file": "gabi-portrait.webp",
     "sourceUrl": "https://shingeki.tv/final/character/img/gabi_thumb.png",
     "crop": [
       55,
@@ -208,7 +208,7 @@
   {
     "id": "hannes",
     "from": 1,
-    "file": "hannes-portrait.jpg",
+    "file": "hannes-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b46492-5kRaMLDCVD0B.jpg",
     "sourceSize": [
       230,
@@ -226,7 +226,7 @@
   {
     "id": "jaw-titan",
     "from": 60,
-    "file": "jaw-titan-e60.jpg",
+    "file": "jaw-titan-e60.webp",
     "sourceUrl": "https://www.denofgeek.com/wp-content/uploads/2020/12/Attack-On-Titan-401-Jaw-Titan-Attacks.jpg",
     "sourcePageUrl": "https://www.denofgeek.com/tv/attack-on-titan-season-4-episode-1-review-the-other-side-of-the-sea/",
     "sourceSize": [
@@ -246,7 +246,7 @@
   {
     "id": "kaya",
     "from": 70,
-    "file": "kaya-portrait.jpg",
+    "file": "kaya-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/n132738-I8jNSdoNIhZI.jpg",
     "sourceSize": [
       230,
@@ -264,7 +264,7 @@
   {
     "id": "keith",
     "from": 3,
-    "file": "keith-portrait.png",
+    "file": "keith-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/n84305-15nngV5nTUp6.png",
     "sourceSize": [
       230,
@@ -282,7 +282,7 @@
   {
     "id": "kiyomi",
     "from": 64,
-    "file": "kiyomi-portrait.png",
+    "file": "kiyomi-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b202799-WlK66SqrhzED.png",
     "crop": [
       0,
@@ -300,7 +300,7 @@
   {
     "id": "kruger",
     "from": 57,
-    "file": "kruger-portrait.jpg",
+    "file": "kruger-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b131440-ynAPKMtrhhj1.jpg",
     "sourceSize": [
       230,
@@ -318,7 +318,7 @@
   {
     "id": "louise",
     "from": 70,
-    "file": "louise-portrait.png",
+    "file": "louise-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b209870-urk2Tf2nV0mQ.png",
     "sourceSize": [
       230,
@@ -336,7 +336,7 @@
   {
     "id": "magath",
     "from": 60,
-    "file": "magath-portrait.jpg",
+    "file": "magath-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b131763-YNYd9scK4Den.jpg",
     "crop": [
       0,
@@ -354,7 +354,7 @@
   {
     "id": "marcel",
     "from": 62,
-    "file": "marcel-portrait.png",
+    "file": "marcel-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b127683-VDnuXVkMerjU.png",
     "sourceSize": [
       230,
@@ -372,7 +372,7 @@
   {
     "id": "niccolo",
     "from": 68,
-    "file": "niccolo-portrait.png",
+    "file": "niccolo-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b133218-G3SQp19jnFIJ.png",
     "crop": [
       0,
@@ -390,7 +390,7 @@
   {
     "id": "onyankopon",
     "from": 68,
-    "file": "onyankopon-portrait.png",
+    "file": "onyankopon-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b192909-81EoCndP0uEH.png",
     "crop": [
       0,
@@ -408,7 +408,7 @@
   {
     "id": "pieck",
     "from": 61,
-    "file": "pieck-portrait.png",
+    "file": "pieck-portrait.webp",
     "sourceUrl": "https://shingeki.tv/final/character/img/pieck_thumb.png",
     "crop": [
       41,
@@ -426,7 +426,7 @@
   {
     "id": "porco",
     "from": 61,
-    "file": "porco-portrait.png",
+    "file": "porco-portrait.webp",
     "sourceUrl": "https://shingeki.tv/final/character/img/porco_thumb.png",
     "crop": [
       67,
@@ -444,7 +444,7 @@
   {
     "id": "ramzi",
     "from": 87,
-    "file": "ramzi-portrait.jpg",
+    "file": "ramzi-portrait.webp",
     "sourceUrl": "https://sportshub.cbsistatic.com/i/2023/03/02/90ac2a38-255c-4da4-8b4e-adde4cdc995e/attack-on-titan-ramzi.jpg",
     "sourceSize": [
       900,
@@ -462,7 +462,7 @@
   {
     "id": "smiling-titan",
     "from": 1,
-    "file": "smiling-titan-e01.jpg",
+    "file": "smiling-titan-e01.webp",
     "sourceUrl": "https://blog-imgs-51.fc2.com/y/a/r/yaraon/1365269554690.jpg",
     "sourcePageUrl": "https://onepixeljumpdotcom.wordpress.com/2013/04/07/and-so-was-the-end-of-humanity-attack-on-titan/",
     "sourceSize": [
@@ -482,7 +482,7 @@
   {
     "id": "tybur-sister",
     "from": 65,
-    "file": "tybur-sister-portrait.jpg",
+    "file": "tybur-sister-portrait.webp",
     "sourceUrl": "https://pbs.twimg.com/media/Er-XG-jXcAMoSb0.jpg",
     "crop": [
       157,
@@ -500,7 +500,7 @@
   {
     "id": "udo",
     "from": 60,
-    "file": "udo-portrait.png",
+    "file": "udo-portrait.webp",
     "sourceUrl": "https://shingeki.tv/final/character/img/udo_thumb.png",
     "crop": [
       50,
@@ -518,7 +518,7 @@
   {
     "id": "war-hammer",
     "from": 65,
-    "file": "war-hammer-e65.jpg",
+    "file": "war-hammer-e65.webp",
     "sourceUrl": "https://pbs.twimg.com/media/EsDYdWcW4AMDYn-.jpg",
     "sourcePageUrl": "https://x.com/AoTWiki/status/1351317888943185925",
     "episodeReferenceUrl": "https://attackontitan.fandom.com/wiki/The_War_Hammer_Titan_(Episode)",
@@ -539,7 +539,7 @@
   {
     "id": "willy",
     "from": 63,
-    "file": "willy-portrait.png",
+    "file": "willy-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b131762-kOPlEZO6nkyC.png",
     "crop": [
       0,
@@ -557,7 +557,7 @@
   {
     "id": "xaver",
     "from": 74,
-    "file": "xaver-portrait.png",
+    "file": "xaver-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b140852-TdGBEPLEJ2Mr.png",
     "sourceSize": [
       230,
@@ -575,7 +575,7 @@
   {
     "id": "yelena",
     "from": 67,
-    "file": "yelena-portrait.png",
+    "file": "yelena-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b133216-HKl61n4F7eYv.png",
     "crop": [
       0,
@@ -593,7 +593,7 @@
   {
     "id": "zeke",
     "from": 57,
-    "file": "zeke-e57.jpg",
+    "file": "zeke-e57.webp",
     "sourceUrl": "https://image.idntimes.com/post/20201225/zeke-yeager-681999268b889c791bab644d923ccdb6.jpg",
     "sourceSize": [
       797,
@@ -611,7 +611,7 @@
   {
     "id": "zeke",
     "from": 60,
-    "file": "zeke-portrait.png",
+    "file": "zeke-portrait.webp",
     "sourceUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b125661-FiqFvAtNlL0v.png",
     "sourceSize": [
       230,
@@ -629,7 +629,7 @@
   {
     "id": "zofia",
     "from": 60,
-    "file": "zofia-portrait.png",
+    "file": "zofia-portrait.webp",
     "sourceUrl": "https://shingeki.tv/final/character/img/zofia_thumb.png",
     "crop": [
       46,
