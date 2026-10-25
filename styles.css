@@ -577,14 +577,17 @@ svg.avatar.image-portrait { border: 2px solid var(--ring); background: var(--dis
 .person-chip:hover { border-color: var(--brass); }
 
 /* ---------- Timeline ---------- */
-.timeline { padding: 14px 20px 12px; border-top: 1px solid var(--line); background: var(--reading-bg); }
-.timeline-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.timeline { padding: 10px 20px 8px; border-top: 1px solid var(--line); background: var(--reading-bg); }
+.timeline.collapsed { padding-bottom: 6px; }
+.timeline-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.timeline-meta { display: flex; align-items: center; gap: 4px; }
+.trail-toggle { min-height: 32px; padding: 0 8px; border-radius: 6px; font-size: 12.5px; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .timeline-heading h2 { display: flex; align-items: center; gap: 9px; margin: 0; font-size: 15px; }
 .timeline-heading h2 .icon { width: 15px; height: 15px; color: var(--accent); }
 .timeline-heading h2 span { font: 13px var(--sans); color: var(--muted); }
 .timeline-count { font-size: 12px; color: var(--muted); }
-.timeline-track { display: flex; overflow-x: auto; margin-top: 13px; padding: 5px 0; scrollbar-width: thin; scrollbar-color: var(--muted) transparent; }
-.timeline-event { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 8px; align-content: start; flex: 0 0 156px; padding: 11px 14px 7px 10px; border-top: 1px solid var(--line); text-align: left; color: var(--muted); }
+.timeline-track { display: flex; overflow-x: auto; margin-top: 9px; padding: 5px 0; scrollbar-width: thin; scrollbar-color: var(--muted) transparent; }
+.timeline-event { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 8px; align-content: start; flex: 0 0 156px; padding: 10px 14px 6px 10px; border-top: 1px solid var(--line); text-align: left; color: var(--muted); }
 .timeline-event::before { content: ''; position: absolute; top: -4px; left: 10px; width: 6px; height: 6px; border-radius: 50%; background: var(--reading-bg); border: 1px solid var(--muted); }
 .timeline-event .time-number { display: block; padding-top: 2px; font-size: 11.5px; letter-spacing: .06em; color: var(--muted); }
 .timeline-event strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 0; margin-top: 0; font: 400 14px/1.3 var(--serif); overflow: hidden; }
@@ -926,6 +929,53 @@ dialog label { display: block; margin-top: 18px; font-size: 14px; color: var(--t
   #expanded-changes-slot .map-scenes:has(.scene-wide) { max-height: min(160px, 20dvh); }
   .change-list { grid-template-columns: 1fr; max-height: 108px; }
   .episode-changes-panel { padding: 8px 12px; }
+}
+
+/* ---------- Phone map: a short toolbar, controls clear of the pins, touch-sized targets ---------- */
+.tool-icon { display: none; }
+@media (max-width: 760px) {
+  /* Episode picker, then search with Layers and Changes as icon buttons, then the map areas. The map's
+     name stays for screen readers; the area switch already says where you are. */
+  .map-toolbar { gap: 8px; padding: 10px 12px; }
+  .map-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .map-navigation { flex: 1 1 100%; flex-wrap: wrap; gap: 8px 6px; }
+  .map-navigation .search-wrap { flex: 1 1 0; min-width: 0; min-height: 44px; }
+  .map-options, #show-changes { flex: 0 0 44px; }
+  .map-options > summary, #show-changes { display: grid; place-items: center; width: 44px; min-height: 44px; padding: 0; list-style: none; }
+  .map-options > summary::-webkit-details-marker { display: none; }
+  .tool-icon { display: block; width: 20px; height: 20px; }
+  .tool-label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  #map-options-content { left: auto; right: 0; }
+  .map-extent-switch { flex: 1 1 100%; }
+  .map-extent-switch button { min-height: 44px; }
+  .step-button, .map-episode-slot .step-button, .page-heading .step-button { width: 44px; }
+  .map-episode-slot .stepper, .page-heading .stepper { min-height: 44px; }
+  .map-episode-slot select, .page-heading .select-wrap select { height: 44px; }
+  /* The square walls map gains the height the shorter toolbar freed; the wide regional maps keep their shape. */
+  .atlas-body .map-stage[data-extent="walls"] { aspect-ratio: 960 / 1180; }
+  /* Zoom: a column down the right edge, so the default framing never parks a control on a pin. The
+     percentage stays in the page for screen readers. With the sheet open only + and - stay: the band of map
+     left above the sheet is shorter than the whole column. */
+  .zoom-controls { flex-direction: column; right: 8px; bottom: 8px; width: 44px; border-radius: 10px; }
+  .zoom-controls button { width: 44px; height: 44px; }
+  .zoom-controls span { position: absolute; width: 1px; height: 1px; min-width: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  .zoom-controls > div { width: 24px; height: 1px; margin: 0; }
+  .map-stage.has-sheet .zoom-controls { right: 8px; }
+  .map-stage.sheet-open .zoom-controls :is(div, #reset-map, #expand-map) { display: none; }
+  /* The whole Key chip opens it, not just the word. */
+  .map-legend { padding: 0; }
+  .map-legend summary { display: flex; align-items: center; min-height: 44px; padding: 0 12px; }
+  .map-legend[open] summary { min-height: 36px; }
+  .map-legend .legend-items { padding: 0 12px 8px; }
+  .trail-toggle { min-height: 44px; padding: 0 12px; }
+  .timeline.collapsed { padding: 0 14px; }
+  /* One finger moves the map only in the expanded view, where there is no page to scroll. */
+  #expanded-map-dialog #atlas-map { touch-action: none; }
+}
+@media (pointer: coarse) {
+  .zoom-controls button { min-width: 44px; min-height: 44px; }
+  .map-tool-button, .map-options > summary { min-height: 44px; }
+  .map-extent-switch button { min-height: 40px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }

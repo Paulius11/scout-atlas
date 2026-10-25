@@ -6,6 +6,8 @@
 //   ATLAS_URL=http://127.0.0.1:8765 node tests/browser.cjs  (a running local server)
 //   CHROME=/path/to/chrome node tests/browser.cjs           (another Chrome build)
 //   ATLAS_TEST_FILTER='recognizable|Back to this episode' node tests/browser.cjs
+// Running several copies at once? Point them at a server with ATLAS_URL. Headless Chromium can lose file://
+// localStorage across a reload when many browsers share a machine, which fails the reload checks at random.
 
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -96,6 +98,10 @@ async function setLayer(page, name, checked) {
   await page.locator('#map-options').evaluate(element => { element.open = false; });
 }
 async function view(page, name) { await page.locator(`.primary-nav [data-view="${name}"]`).click(); }
+// The Episode trail starts open only on tall desktop windows; checks that use it open it first.
+async function openTrail(page) {
+  if (await page.locator('#trail-toggle').getAttribute('aria-expanded') === 'false') await page.locator('#trail-toggle').click();
+}
 async function episode(page, number) { await page.locator('#episode-select').selectOption(String(number)); }
 async function characterDetails(page, id) {
   await page.locator(`#character-${id} .character-card-button`).click();
@@ -243,6 +249,7 @@ async function main() {
         assert.deepEqual(specials, [{ number: 88, code: 'SP1' }, { number: 89, code: 'SP2' }], 'the two long specials are separate from the seven television recuts');
         assert.equal(await complete.locator('#episode-select optgroup[label="Season 4"] option').count(), 30, 'the Final Season includes28regular episodes and both specials');
         await episode(complete, 87);
+        await openTrail(complete);
         for (const number of [88, 89]) {
           await complete.locator('#next-milestone').click();
           assert.equal(await complete.locator('#episode-select').inputValue(), String(number), 'stepping follows the two special entries');
@@ -697,6 +704,7 @@ async function main() {
         for (const number of [70, 72]) {
           await episode(focused, 73);
           await focused.locator('[data-map-extent="world"]').click();
+          await openTrail(focused);
           await focused.locator(`#timeline-track [data-episode="${number}"]`).click();
           assert.equal(await mapArea(focused), 'island', `E${number} timeline navigation follows the current setting`);
           assert.equal(await focused.locator('.map-marker.selected').getAttribute('data-location'), 'paradis');
@@ -2349,7 +2357,8 @@ async function main() {
     });
 
     await test('the mouse wheel scrolls the page; Ctrl+wheel zooms the map', async () => {
-      const laptop = await createPage({ width: 1366, height: 700 });
+      // A short window, so the page is taller than the screen and the wheel has somewhere to go.
+      const laptop = await createPage({ width: 1366, height: 480 });
       const box = await laptop.locator('#map-stage').boundingBox();
       await laptop.mouse.move(box.x + box.width / 2, box.y + 100);
       await laptop.mouse.wheel(0, 300);
@@ -2576,6 +2585,156 @@ async function main() {
         assert.equal(await listed.locator('#character-levi svg.avatar:not(.image-portrait)').count(), 1);
         assert.equal(await listed.locator('#character-historia [data-portrait]').count(), 0);
       }
+    });
+
+    await test('phone map: no control covers a pin at first framing, and the toolbar leaves the map high on the screen', async () => {
+      for (const [width, height] of [[360, 740], [390, 844], [412, 915], [430, 932], [320, 740]]) {
+        const phone = await createPage({ width, height });
+        for (const number of [1, 2, 4, 8, 13, 25, 31, 40, 50, 56]) {
+          await episode(phone, number);
+          const covered = await phone.evaluate(() => {
+            const hit = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
+            const overlays = ['.zoom-controls', '.map-legend', '.map-overview', '.map-episode-return']
+              .map(selector => document.querySelector(selector)).filter(element => element && !element.hidden && element.getBoundingClientRect().width)
+              .map(element => element.getBoundingClientRect());
+            return [...document.querySelectorAll('#location-markers .map-marker')].flatMap(marker => {
+              const ring = marker.querySelector('.marker-ring');
+              if (!ring || !overlays.some(box => hit(ring.getBoundingClientRect(), box))) return [];
+              return [marker.dataset.location + (marker.classList.contains('selected') ? '*' : '')];
+            });
+          });
+          // 320 px is the narrowest phone and the east edge is tight there; the place being explored is never covered.
+          assert.deepEqual(width === 320 ? covered.filter(id => id.endsWith('*')) : covered, [], `${width}px E${number}: a control covers a pin`);
+        }
+        if (width === 390) {
+          await episode(phone, 1);
+          const stage = await phone.locator('#map-stage').boundingBox();
+          assert.ok(stage.y <= 240, `the map starts ${Math.round(stage.y)}px down the screen`);
+          const toggle = await phone.locator('#trail-toggle').boundingBox();
+          const nav = await phone.locator('.primary-nav').boundingBox();
+          assert.ok(toggle.y + toggle.height <= nav.y, 'the whole map view, trail control included, fits above the tab bar');
+        }
+        await assertNoHorizontalOverflow(phone, `${width}px phone map`);
+      }
+    });
+
+    await test('phone controls are at least 44 px so a thumb can use them', async () => {
+      const phone = await createPage({ width: 390, height: 844 });
+      await episode(phone, 60);
+      const small = await phone.evaluate(() => [...document.querySelectorAll('#prev-milestone, #next-milestone, #episode-select, .map-navigation .search-wrap, #map-options > summary, #show-changes, #zoom-in, #zoom-out, #reset-map, #expand-map, #map-legend summary, .map-extent-switch button:not([hidden]), #place-peek, #trail-toggle')]
+        .map(element => ({ name: element.id || element.className || element.tagName, ...(({ width, height }) => ({ width, height }))(element.getBoundingClientRect()) }))
+        .filter(box => box.width < 43.5 || box.height < 43.5));
+      assert.deepEqual(small, [], 'controls under 44 px');
+    });
+
+    await test('phone sheet: opening the details keeps the chosen place in view, and closing puts the map back', async () => {
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+      contexts.push(ctx);
+      const phone = await createPage(undefined, undefined, ctx);
+      for (const number of [8, 25, 50, 70]) {
+        await episode(phone, number);
+        const home = await phone.locator('#map-camera').getAttribute('transform');
+        await phone.locator('#place-peek').tap();
+        assert.equal(await phone.locator('#place-details').isVisible(), true);
+        const open = await phone.evaluate(() => {
+          const ring = document.querySelector('#location-markers .map-marker.selected .marker-ring').getBoundingClientRect();
+          const sheet = document.querySelector('#location-panel').getBoundingClientRect();
+          const map = document.querySelector('#atlas-map').getBoundingClientRect();
+          return { pinTop: ring.top, pinBottom: ring.bottom, left: ring.left, right: ring.right, sheetTop: sheet.top, mapTop: map.top, mapLeft: map.left, mapRight: map.right };
+        });
+        assert.ok(open.pinBottom <= open.sheetTop && open.pinTop >= open.mapTop && open.left >= open.mapLeft && open.right <= open.mapRight,
+          `E${number}: the selected place is hidden: ${JSON.stringify(open)}`);
+        await phone.locator('#place-peek').tap();
+        assert.equal(await phone.locator('#map-camera').getAttribute('transform'), home, `E${number}: closing the sheet puts the map back`);
+      }
+      // A map the viewer moved while the sheet was open stays where they left it.
+      await episode(phone, 50);
+      await phone.locator('#place-peek').tap();
+      await phone.locator('#zoom-in').tap();
+      const home = 'translate(0 0) scale(1)';
+      await phone.locator('#place-peek').tap();
+      // The normal pan limits apply again once the sheet closes, but the viewer's zoom stays and the map is not snapped back.
+      const after = await phone.locator('#map-camera').getAttribute('transform');
+      assert.match(after, /scale\(1\.25\)/, 'closing the sheet must not undo the viewer\'s own zoom');
+      assert.notEqual(after, home);
+      await assertNoHorizontalOverflow(phone, 'phone sheet');
+    });
+
+    await test('one finger pans the expanded phone map; inline it leaves the map to the page and two fingers', async () => {
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+      contexts.push(ctx);
+      const phone = await createPage(undefined, undefined, ctx);
+      await episode(phone, 40);
+      const cdp = await ctx.newCDPSession(phone);
+      const drag = async (from, to, steps = 6) => {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
+        for (let step = 1; step <= steps; step++) {
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from.x + (to.x - from.x) * step / steps, y: from.y + (to.y - from.y) * step / steps }] });
+        }
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      };
+      const emptyGround = async () => { const box = await phone.locator('#atlas-map').boundingBox(); return { x: box.x + box.width * 0.3, y: box.y + box.height * 0.12 }; };
+      const camera = () => phone.locator('#map-camera').getAttribute('transform');
+      const inline = await camera();
+      let from = await emptyGround();
+      await drag(from, { x: from.x + 70, y: from.y + 50 });
+      assert.equal(await camera(), inline, 'inline, one finger does not move the map');
+      // A fresh page, so the one-time two-finger hint has not already been spent inline.
+      const expandedPhone = await createPage(undefined, undefined, ctx);
+      await episode(expandedPhone, 40);
+      await expandedPhone.locator('#expand-map').tap();
+      const expandedCdp = await ctx.newCDPSession(expandedPhone);
+      const expandedDrag = async (start, end, steps = 6) => {
+        await expandedCdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+        for (let step = 1; step <= steps; step++) {
+          await expandedCdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: start.x + (end.x - start.x) * step / steps, y: start.y + (end.y - start.y) * step / steps }] });
+        }
+        await expandedCdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      };
+      const expandedCamera = () => expandedPhone.locator('#map-camera').getAttribute('transform');
+      const expandedGround = async () => { const box = await expandedPhone.locator('#atlas-map').boundingBox(); return { x: box.x + box.width * 0.3, y: box.y + box.height * 0.12 }; };
+      const before = await expandedCamera();
+      from = await expandedGround();
+      await expandedDrag(from, { x: from.x + 70, y: from.y + 50 });
+      assert.notEqual(await expandedCamera(), before, 'expanded, one finger pans the map');
+      assert.equal(await expandedPhone.locator('#map-hint').evaluate(hint => hint.classList.contains('visible')), false, 'the two-finger hint does not appear where one finger works');
+      // A tap that does not move still selects a place, and a drag that starts on a pin pans without selecting it.
+      await expandedPhone.locator('[data-location="trost"]').tap();
+      assert.equal(await expandedPhone.locator('[data-location="trost"]').getAttribute('aria-pressed'), 'true');
+      await expandedPhone.locator('#reset-map').tap();
+      const afterTap = await expandedCamera();
+      const pin = await expandedPhone.locator('[data-location="stohess"] .marker-ring').boundingBox();
+      const finger = { x: pin.x + pin.width / 2, y: pin.y + pin.height / 2 };
+      assert.equal(await expandedPhone.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-location]')?.dataset.location, finger), 'stohess', 'the finger lands on the pin');
+      await expandedDrag(finger, { x: finger.x - 50, y: finger.y - 30 });
+      assert.notEqual(await expandedCamera(), afterTap, 'a drag that starts on a pin still pans');
+      assert.equal(await expandedPhone.locator('[data-location="trost"]').getAttribute('aria-pressed'), 'true', 'and does not select the pin it started on');
+      await cdp.detach();
+      await expandedCdp.detach();
+    });
+
+    await test('Episode trail: open by default only where there is room, collapsible, built only when open, remembered', async () => {
+      for (const [viewport, expectOpen] of [[{ width: 1440, height: 1040 }, true], [{ width: 1366, height: 657 }, false], [{ width: 390, height: 844 }, false]]) {
+        const trail = await createPage(viewport);
+        await episode(trail, 30);
+        const label = `${viewport.width}x${viewport.height}`;
+        assert.equal(await trail.locator('#trail-toggle').getAttribute('aria-expanded'), String(expectOpen), `${label}: default`);
+        assert.equal(await trail.locator('#timeline-track').isVisible(), expectOpen, `${label}: track visibility`);
+        assert.equal(await trail.locator('#timeline-track .timeline-event').count(), expectOpen ? 30 : 0, `${label}: a closed trail builds none of its 30 items`);
+        assert.equal(await trail.evaluate(key => JSON.parse(localStorage.getItem(key)).trailOpen, storageKey), undefined, `${label}: the default is not saved as a choice`);
+        await trail.locator('#trail-toggle').click();
+        assert.equal(await trail.locator('#trail-toggle').getAttribute('aria-expanded'), String(!expectOpen));
+        assert.equal(await trail.locator('#timeline-track .timeline-event').count(), expectOpen ? 0 : 30, `${label}: toggling builds or clears the items`);
+        if (!expectOpen) assert.equal(await trail.locator('.timeline-event.active').getAttribute('aria-current'), 'step', 'the open trail marks where the viewer is');
+        assert.equal(await trail.evaluate(key => JSON.parse(localStorage.getItem(key)).trailOpen, storageKey), !expectOpen, `${label}: the choice is saved`);
+        await episode(trail, 31);
+        assert.equal(await trail.locator('#timeline-track .timeline-event').count(), expectOpen ? 0 : 31, `${label}: stepping keeps the chosen state`);
+        await assertNoHorizontalOverflow(trail, `${label} trail`);
+      }
+      // A saved choice beats the default, so a tall window can keep it shut.
+      const kept = await createPage({ width: 1440, height: 1040 }, `if (!localStorage.getItem(${JSON.stringify(storageKey)})) localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify({ viewing: 12, trailOpen: false }))})`);
+      assert.equal(await kept.locator('#trail-toggle').getAttribute('aria-expanded'), 'false');
+      assert.equal(await kept.locator('#timeline-track .timeline-event').count(), 0);
     });
 
     await test('phone layout fits, keeps every tab reachable, and fills the map', async () => {

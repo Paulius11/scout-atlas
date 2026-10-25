@@ -62,6 +62,10 @@
     characterFaction: 'all',
     changesOnly: false,
     panelExpanded: !window.matchMedia('(max-width: 760px)').matches,
+    // The trail opens on tall desktop windows and stays shut where the map needs the room, until the viewer chooses.
+    trailOpen: typeof stored.trailOpen === 'boolean' ? stored.trailOpen
+      : !window.matchMedia('(max-width: 760px)').matches && window.innerHeight >= 860,
+    trailChosen: typeof stored.trailOpen === 'boolean',
     card: null,
     zoom: 1,
     mapExtent: 'walls',
@@ -73,6 +77,7 @@
       let current = {};
       try { current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch { current = {}; }
       const saved = { viewing: state.viewing, selected: state.selected, mapExtent: state.mapExtent, mapStyle: state.mapStyle, layers: state.layers };
+      if (state.trailChosen) saved.trailOpen = state.trailOpen;
       // Preserve legacy notes without exposing a removed feature or erasing existing user data.
       if (Object.prototype.hasOwnProperty.call(current, 'notes')) saved.notes = current.notes;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
@@ -771,19 +776,61 @@
     $('#map-panel-toggle').setAttribute('aria-expanded', String(state.panelExpanded));
     $('#map-panel-toggle').textContent = state.panelExpanded ? 'Hide details' : 'Place details';
     $('#map-stage').classList.toggle('has-sheet', phone);
+    $('#map-stage').classList.toggle('sheet-open', phone && state.panelExpanded);
     $('#map-stage').style.setProperty('--sheet-height', `${phone ? panel.offsetHeight : 0}px`);
     $('#map-stage').style.setProperty('--sheet-peek-height', `${phone ? peek?.offsetHeight || 90 : 0}px`);
   }
+  // On a phone the open sheet covers most of the map. Pan so the chosen place stays in the part that still
+  // shows, and put the map back when the sheet closes if the viewer has not moved it since.
+  const phoneQuery = window.matchMedia('(max-width: 760px)');
+  const isPhone = () => phoneQuery.matches;
+  let sheetPan = null;
+  function revealSelected() {
+    const ring = $('#location-markers .map-marker.selected .marker-ring');
+    const ctm = map.getScreenCTM();
+    if (!ring || !ctm || !(ctm.a > 0)) return;
+    const area = map.getBoundingClientRect();
+    const shown = { top: area.top, bottom: Math.min(area.bottom, $('#location-panel').getBoundingClientRect().top) };
+    const pin = ring.getBoundingClientRect();
+    const x = pin.left + pin.width / 2;
+    const y = pin.top + pin.height / 2;
+    // The pin and its name beneath it stay inside the visible band, clear of the zoom column.
+    const comfort = { top: shown.top + 40, bottom: shown.bottom - 48, left: area.left + 28, right: area.right - 64 };
+    const dy = y < comfort.top || y > comfort.bottom ? (shown.top + shown.bottom) / 2 - y : 0;
+    const dx = x < comfort.left || x > comfort.right ? (comfort.left + comfort.right) / 2 - x : 0;
+    if (!dx && !dy) return;
+    sheetPan = { from: { x: state.panX, y: state.panY, zoom: state.zoom }, to: null };
+    state.panX += dx / ctm.a;
+    state.panY += dy / ctm.a;
+  }
   function setPanelExpanded(expanded) {
+    const changed = expanded !== state.panelExpanded;
     state.panelExpanded = expanded;
     syncPanel();
+    if (changed && isPhone()) {
+      if (expanded) { sheetPan = null; revealSelected(); }
+      else {
+        const home = sheetPan;
+        sheetPan = null;
+        const unmoved = home?.to && home.from.zoom === state.zoom && Math.abs(state.panX - home.to.x) < 0.5 && Math.abs(state.panY - home.to.y) < 0.5;
+        if (unmoved) { state.panX = home.from.x; state.panY = home.from.y; }
+      }
+    }
     applyCamera();
+    if (sheetPan) sheetPan.to = { x: state.panX, y: state.panY };
   }
 
   /* ---------- Timeline, recap, characters ---------- */
   function renderTimeline() {
     const episodes = visibleEpisodes();
     $('#timeline-count').textContent = `${episodes.length} of ${data.episodes.length} milestones`;
+    const toggle = $('#trail-toggle');
+    toggle.setAttribute('aria-expanded', String(state.trailOpen));
+    toggle.textContent = state.trailOpen ? 'Hide' : 'Show';
+    $('#episode-trail').classList.toggle('collapsed', !state.trailOpen);
+    $('#timeline-track').hidden = !state.trailOpen;
+    // A collapsed trail is not built at all; it is drawn when it is opened.
+    if (!state.trailOpen) { $('#timeline-track').replaceChildren(); return; }
     $('#timeline-track').innerHTML = episodes.map(episode => {
       const places = [...new Set(episode.events.map(event => event.locationId).filter(Boolean))].map(getLocation).filter(Boolean);
       const settings = [...new Set(episode.events.map(event => event.placeName).filter(Boolean))];
@@ -887,6 +934,7 @@
     if (state.view !== 'characters') $('#mobile-gallery-action').replaceChildren();
   }
   function render({ save = true } = {}) {
+    sheetPan = null;
     if (state.view !== 'characters') closeCharacterDetails({ restoreFocus: false });
     if (state.view !== 'map') closeExpandedMap();
     if (state.view !== 'characters') closeExpandedGallery();
@@ -1012,12 +1060,17 @@
       ? { left: Math.min(...coastPoints.map(p => p[0])), right: Math.max(...coastPoints.map(p => p[0])), top: Math.min(...coastPoints.map(p => p[1])), bottom: Math.max(...coastPoints.map(p => p[1])) }
       : state.mapExtent === 'walls' ? { left: 600 - RINGS.maria[0], right: 600 + RINGS.maria[0], top: 405 - RINGS.maria[1], bottom: 405 + RINGS.maria[1] }
         : { left: view.x, right: view.x + view.width, top: view.y, bottom: view.y + view.height };
-    // Keep a substantial portion of the chosen map area on screen while panning.
+    // Keep a substantial portion of the chosen map area on screen while panning. An open phone sheet hides the
+    // bottom of the map, so the limits count only the part that still shows.
     const zoom = state.zoom;
+    const scale = map.getScreenCTM();
+    const sheetTop = state.panelExpanded && isPhone() ? $('#location-panel').getBoundingClientRect().top : Infinity;
+    const covered = scale?.a > 0 ? Math.max(0, map.getBoundingClientRect().bottom - sheetTop) / scale.a : 0;
+    const shownHeight = Math.max(viewport.height * 0.2, viewport.height - covered);
     const needX = Math.min(viewport.width, (bounds.right - bounds.left) * zoom) * 0.45;
-    const needY = Math.min(viewport.height, (bounds.bottom - bounds.top) * zoom) * 0.45;
+    const needY = Math.min(shownHeight, (bounds.bottom - bounds.top) * zoom) * 0.45;
     state.panX = Math.min(viewport.x + viewport.width - needX - bounds.left * zoom, Math.max(viewport.x + needX - bounds.right * zoom, state.panX));
-    state.panY = Math.min(viewport.y + viewport.height - needY - bounds.top * zoom, Math.max(viewport.y + needY - bounds.bottom * zoom, state.panY));
+    state.panY = Math.min(viewport.y + shownHeight - needY - bounds.top * zoom, Math.max(viewport.y + needY - bounds.bottom * zoom, state.panY));
     $('#map-camera').setAttribute('transform', `translate(${Math.round(state.panX * 100) / 100} ${Math.round(state.panY * 100) / 100}) scale(${zoom})`);
     $('#zoom-level').textContent = `${Math.round(zoom * 100)}%`;
     $('#zoom-out').disabled = zoom <= 0.75;
@@ -1088,17 +1141,23 @@
     hintTimeout = setTimeout(() => hint.classList.remove('visible'), 1800);
   }
 
-  // Mouse and pen drag the map. Touch scrolls the page with one finger and moves the map with two.
+  // Mouse and pen drag the map. Inline, touch scrolls the page with one finger and moves the map with two;
+  // in the expanded map there is no page to scroll, so one finger pans it and a second finger pinches.
   let drag = null;
   map.addEventListener('pointerdown', event => {
-    if (event.pointerType === 'touch' || event.button !== 0 || event.target.closest('.map-marker, [data-open-place]')) return;
+    swallowClick = false; // a new press starts a new click; a touch drag leaves no click behind to consume it
+    const touch = event.pointerType === 'touch';
+    if (touch && !event.isPrimary) { drag = null; map.classList.remove('dragging'); return; }
+    if (event.button !== 0 || (touch && !expandedMapDialog.open)) return;
+    // A press on a pin selects it; a touch that moves still pans, and the click that follows is swallowed.
+    if (!touch && event.target.closest('.map-marker, [data-open-place]')) return;
     const point = mapPoint(event.clientX, event.clientY);
     drag = { id: event.pointerId, x: point.x, y: point.y, panX: state.panX, panY: state.panY, startX: event.clientX, startY: event.clientY, moved: false };
-    map.setPointerCapture(event.pointerId);
+    if (!touch) map.setPointerCapture(event.pointerId);
     map.classList.add('dragging');
   });
   map.addEventListener('pointermove', event => {
-    if (!drag || event.pointerId !== drag.id) return;
+    if (!drag || event.pointerId !== drag.id || pinch) return;
     const point = mapPoint(event.clientX, event.clientY);
     if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4) drag.moved = true;
     state.panX = drag.panX + point.x - drag.x;
@@ -1123,6 +1182,8 @@
   map.addEventListener('touchstart', event => {
     if (event.touches.length !== 2) return;
     event.preventDefault();
+    drag = null; // the second finger turns a one-finger pan into a pinch
+    map.classList.remove('dragging');
     const center = touchCenter(event.touches);
     const point = mapPoint(center.x, center.y);
     pinch = { distance: touchDistance(event.touches), zoom: state.zoom, worldX: (point.x - state.panX) / state.zoom, worldY: (point.y - state.panY) / state.zoom };
@@ -1136,7 +1197,7 @@
       state.panX = point.x - pinch.worldX * state.zoom;
       state.panY = point.y - pinch.worldY * state.zoom;
       applyCamera();
-    } else if (event.touches.length === 1 && !touchHintShown) {
+    } else if (event.touches.length === 1 && !touchHintShown && !expandedMapDialog.open) {
       touchHintShown = true;
       mapHint('Use two fingers to move or zoom the map');
     }
@@ -1260,9 +1321,10 @@
     if (!sheetGesture || sheetGesture.id !== event.pointerId) return;
     const delta = event.clientY - sheetGesture.y;
     sheetGesture = null;
-    if (Math.abs(delta) < 35) return;
+    // A swipe opens or closes the sheet; a short press toggles it. Touch acts on release rather than waiting for
+    // a synthesized click, which a browser may skip right after a swipe. The click that may still follow is swallowed.
     suppressSheetClick = true;
-    setPanelExpanded(delta < 0);
+    setPanelExpanded(Math.abs(delta) < 35 ? !state.panelExpanded : delta < 0);
   });
   locationPanel.addEventListener('pointercancel', () => { sheetGesture = null; });
   locationPanel.addEventListener('click', event => {
@@ -1416,6 +1478,12 @@
       item.classList.toggle('dim', Boolean(id) && !episode.events.some(event => event.locationId === id));
     });
   }
+  $('#trail-toggle').addEventListener('click', () => {
+    state.trailOpen = !state.trailOpen;
+    state.trailChosen = true;
+    renderTimeline();
+    persist();
+  });
   $('#timeline-track').addEventListener('pointerover', event => { const item = event.target.closest('[data-episode]'); if (item) highlightEpisode(Number(item.dataset.episode)); });
   $('#timeline-track').addEventListener('pointerleave', () => highlightEpisode(null));
   $('#timeline-track').addEventListener('focusin', event => { const item = event.target.closest('[data-episode]'); if (item) highlightEpisode(Number(item.dataset.episode)); });

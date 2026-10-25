@@ -31,6 +31,10 @@
     <symbol id="i-prev" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
     <symbol id="i-next" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
     <symbol id="i-wall" viewBox="0 0 24 24"><path d="M3 20V8h3V5h3v3h6V5h3v3h3v12Zm0-6h18"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
+    <symbol id="i-changes" viewBox="0 0 24 24"><path d="M4 6h12M4 12h8M4 18h8"/><path d="M18 11v8m-4-4h8"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><rect x="13" y="13" width="7" height="7" rx="1.2"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
   </defs></svg>
   <a class="skip-link" href="#atlas-map">Skip to the map</a>
 
@@ -84,11 +88,11 @@
           </div>
           <div class="map-navigation">
             <div class="search-wrap"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="location-search" placeholder="Find a place, person or event" aria-label="Find a place, person or event" autocomplete="off"><kbd>/</kbd><div id="search-results" class="search-results" hidden></div></div>
-            <details id="map-options" class="map-options"><summary><span id="map-options-label">Layers</span></summary><div id="map-options-content"></div></details>
-            <button type="button" id="show-changes" class="map-tool-button" aria-pressed="false" aria-controls="episode-changes-panel">Changes this episode</button>
+            <details id="map-options" class="map-options"><summary><svg class="icon tool-icon" aria-hidden="true"><use href="#i-layers"/></svg><span id="map-options-label" class="tool-label">Layers</span></summary><div id="map-options-content"></div></details>
+            <button type="button" id="show-changes" class="map-tool-button" aria-pressed="false" aria-controls="episode-changes-panel"><svg class="icon tool-icon" aria-hidden="true"><use href="#i-changes"/></svg><span class="tool-label">Changes this episode</span></button>
             <button type="button" id="map-panel-toggle" class="map-tool-button" aria-expanded="true" aria-controls="location-panel">Hide details</button>
+            <div id="map-extent-switch" class="map-extent-switch" role="group" aria-label="Map area" hidden><button type="button" data-map-extent="walls" aria-pressed="true">Walls</button><button type="button" data-map-extent="island" aria-pressed="false">Island</button><button type="button" data-map-extent="world" aria-pressed="false" hidden>World</button><button type="button" data-map-extent="liberio" aria-pressed="false" hidden>Liberio</button></div>
           </div>
-          <div id="map-extent-switch" class="map-extent-switch" role="group" aria-label="Map area" hidden><button type="button" data-map-extent="walls" aria-pressed="true">Walls</button><button type="button" data-map-extent="island" aria-pressed="false">Island</button><button type="button" data-map-extent="world" aria-pressed="false" hidden>World</button><button type="button" data-map-extent="liberio" aria-pressed="false" hidden>Liberio</button></div>
           <p id="map-area-note" class="map-area-note" role="status" hidden></p>
         </div>
         <section id="episode-changes-panel" class="episode-changes-panel" aria-label="Changes this episode" hidden></section>
@@ -169,8 +173,8 @@
           </div>
           <aside id="location-panel" class="location-panel" aria-label="Selected place"></aside>
         </div>
-        <div class="timeline">
-          <div class="timeline-heading"><h2><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Episode trail<span>Selected moments</span></h2><span id="timeline-count" class="timeline-count"></span></div>
+        <div class="timeline" id="episode-trail">
+          <div class="timeline-heading"><h2><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Episode trail<span>Selected moments</span></h2><div class="timeline-meta"><span id="timeline-count" class="timeline-count"></span><button type="button" id="trail-toggle" class="trail-toggle" aria-expanded="true" aria-controls="timeline-track">Hide</button></div></div>
           <div class="timeline-track" id="timeline-track"></div>
         </div>
       </section>
