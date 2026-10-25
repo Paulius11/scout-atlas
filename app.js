@@ -1013,12 +1013,14 @@
     $('#search-results').hidden = true;
     $('#search-results').innerHTML = '';
     if (save) persist();
+    syncUrl('replace');
     applyCamera();
   }
 
   /* ---------- Navigation ---------- */
   function showView(view) {
     state.view = view;
+    syncUrl('push');
     render();
     if (view === 'map') applyCamera();
     if (window.matchMedia('(max-width: 760px)').matches) $('main').scrollIntoView({ block: 'start' });
@@ -1031,6 +1033,7 @@
     if (state.mapExtent !== area) { state.mapExtent = area; state.zoom = 1; state.panX = 0; state.panY = 0; }
     state.view = 'map';
     state.panelExpanded = !window.matchMedia('(max-width: 760px)').matches;
+    syncUrl('push');
     render();
     $('#location-panel').scrollTop = 0;
     if (focus && !location.opensMap) {
@@ -1051,6 +1054,7 @@
     state.focusCharacter = id;
     state.characterFilter = '';
     state.characterFaction = 'all';
+    syncUrl('push');
     render();
     const card = $(`#character-${CSS.escape(id)}`);
     card?.scrollIntoView({ block: 'center' });
@@ -1078,6 +1082,69 @@
     if (!target) return;
     setEpisode(target, { follow: true });
   }
+
+  /* ---------- Routes: where you are is in the address, and Back works ---------- */
+  // #/map/<place>, #/story, #/people/<person>. A page change (a tab, a chosen place, arriving at a person) adds a
+  // history entry so Back returns to it; everything else, such as stepping through episodes or opening a card
+  // within People, only updates the current entry. The viewing episode is never part of an address: a link made
+  // far into the series must not spoil whoever opens it, and a place or person the viewer has not met is skipped.
+  const BASE_TITLE = document.title;
+  let applyingRoute = false;
+  function currentRoute() {
+    if (state.view === 'recap') return '#/story';
+    if (state.view === 'characters') return detailCharacterId && getCharacter(detailCharacterId) ? `#/people/${encodeURIComponent(detailCharacterId)}` : '#/people';
+    return getLocation(state.selected) ? `#/map/${encodeURIComponent(state.selected)}` : '#/map';
+  }
+  function syncUrl(mode = 'replace') {
+    if (applyingRoute) return;
+    const target = currentRoute();
+    if (target !== location.hash) {
+      try { history[mode === 'push' ? 'pushState' : 'replaceState'](null, '', target); } catch { /* an address that cannot change still works */ }
+    }
+    // Set after the entry exists, so the entry being left keeps its own title.
+    const subject = state.view === 'recap' ? 'The story so far' : state.view === 'characters'
+      ? (detailCharacterId && getCharacter(detailCharacterId) ? nameOf(getCharacter(detailCharacterId)) : 'Characters') : getLocation(state.selected)?.name;
+    document.title = subject ? `${subject} · Scout Atlas` : BASE_TITLE;
+  }
+  function parseRoute(hash) {
+    const match = /^#\/(map|story|people)(?:\/([\w-]+))?$/.exec(hash || '');
+    return match ? { view: { map: 'map', story: 'recap', people: 'characters' }[match[1]], id: match[2] || null } : null;
+  }
+  // Applies an address. Returns false when it named a place or person the viewer has not reached yet.
+  function applyRoute(route) {
+    let reached = true;
+    applyingRoute = true;
+    try {
+      state.view = route.view;
+      if (route.view === 'map' && route.id) {
+        const place = getLocation(route.id);
+        if (!place) reached = false;
+        // The address names the place, not which area of the map it is shown on. Arriving at the place already
+        // selected (a reload, or Back from another tab) leaves the map, and a map chosen by hand, as it was.
+        else if (place.id !== state.selected) {
+          state.selected = place.id;
+          const area = place.opensMap || mapAreaOf(place);
+          if (state.mapExtent !== area) { state.mapExtent = area; state.zoom = 1; state.panX = 0; state.panY = 0; }
+          state.activeEvent = null;
+          state.panelExpanded = !isPhone();
+        }
+      }
+      const person = route.view === 'characters' && route.id ? getCharacter(route.id) : null;
+      if (route.view === 'characters' && route.id && !person) reached = false;
+      if (person) state.focusCharacter = person.id;
+      render();
+      if (route.view === 'map') applyCamera();
+      if (route.view === 'characters') { if (person) showCharacterDetails(person.id); else closeCharacterDetails(); }
+    } finally { applyingRoute = false; }
+    syncUrl('replace'); // the canonical address, which also drops one that named something hidden
+    return reached;
+  }
+  const skippedLink = () => toast('That link doesn’t match anything you have reached yet, so it was skipped.');
+  window.addEventListener('popstate', () => {
+    const route = parseRoute(location.hash);
+    if (route && !applyRoute(route)) skippedLink();
+    else if (!route) syncUrl('replace');
+  });
 
   /* ---------- Search: places, people and events known by the viewing episode ---------- */
   function searchAll() {
@@ -1291,6 +1358,7 @@
     state.selected = destination.locationId;
     state.activeEvent = null;
     state.zoom = 1; state.panX = 0; state.panY = 0;
+    syncUrl('push');
     render();
     $('#location-panel').scrollTop = 0;
     $(`[data-location="${CSS.escape(destination.locationId)}"]`)?.focus({ preventScroll: true });
@@ -1411,6 +1479,7 @@
       window.scrollTo({ top: detailScrollY, behavior: 'instant' });
       $('#expanded-gallery-slot').scrollTop = detailGalleryScrollTop;
     }
+    syncUrl('replace'); // back to the gallery's address; the person was part of the page, not a page of their own
   }
   function closeCharacterDetails(options) {
     if (characterDetailDialog.open) characterDetailDialog.close();
@@ -1449,6 +1518,7 @@
       characterDetailDialog.showModal();
     }
     $('#close-character-detail').focus({ preventScroll: true });
+    syncUrl('replace');
   }
   $('#close-character-detail').addEventListener('click', () => closeCharacterDetails());
   characterDetailDialog.addEventListener('cancel', event => {
@@ -1669,7 +1739,8 @@
   });
 
   applyMapStyle();
-  render();
+  const openingRoute = parseRoute(location.hash);
+  if (openingRoute) { if (!applyRoute(openingRoute)) skippedLink(); } else render();
   applyCamera();
   $('#map-legend').addEventListener('toggle', scheduleLayout);
   if (unreadableCopy) toast('Saved data could not be read. A copy was kept in this browser and the atlas started fresh.');

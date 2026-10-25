@@ -2874,6 +2874,114 @@ async function main() {
       assert.equal(await story.locator(`#recap-${old.id}`).isVisible(), true);
     });
 
+    await test('addresses: tabs, places and people are in the URL; Back and Forward walk through them; episodes add no entries', async () => {
+      for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
+        const nav = await createPage(viewport);
+        const label = `${viewport.width}px`;
+        const at = async () => nav.evaluate(() => ({ hash: location.hash, title: document.title, entries: history.length }));
+        const back = async hash => { await nav.goBack(); try { await nav.waitForFunction(expected => location.hash === expected, hash); } catch (error) { throw new Error(`Back never reached ${hash}; the address is ${await nav.evaluate(() => location.hash)}`); } };
+        assert.deepEqual((await at()).hash, '#/map/shiganshina', `${label}: a first visit starts at its place`);
+        assert.equal((await at()).title, 'Shiganshina · Scout Atlas');
+        const start = (await at()).entries;
+        // Stepping through the story is not navigation: the address follows, the history does not grow.
+        await episode(nav, 50);
+        for (let step = 0; step < 4; step++) await nav.locator('#next-milestone').click();
+        assert.equal((await at()).entries, start, `${label}: episodes add no history entries`);
+        assert.doesNotMatch(await nav.evaluate(() => location.href), /viewing|episode|cutoff|[?&]/i, `${label}: the episode is never in the address`);
+        // The story moved the place along with the episode, so this entry's address now names that place.
+        const home = (await at()).hash;
+        assert.match(home, /^#\/map\/[\w-]+$/);
+        await chooseLocation(nav, 'Trost', 'trost');
+        assert.equal((await at()).hash, '#/map/trost');
+        assert.equal((await at()).entries, start + 1, `${label}: choosing a place adds one entry`);
+        await view(nav, 'recap');
+        assert.deepEqual([(await at()).hash, (await at()).title], ['#/story', 'The story so far · Scout Atlas']);
+        await view(nav, 'characters');
+        assert.equal((await at()).hash, '#/people');
+        const before = (await at()).entries;
+        await nav.locator('#character-levi .character-card-button').click();
+        assert.deepEqual([(await at()).hash, (await at()).title, (await at()).entries], ['#/people/levi', 'Levi · Scout Atlas', before], `${label}: a person is part of the People page, not a page of their own`);
+        await nav.keyboard.press('Escape');
+        assert.equal((await at()).hash, '#/people', `${label}: closing a person returns the gallery's address`);
+        await nav.locator('#character-levi .character-card-button').click();
+        await back('#/story');
+        assert.equal(await nav.locator('#recap-view').isVisible(), true, `${label}: Back from a person leaves People for the page before it`);
+        assert.equal(await nav.locator('#character-detail-dialog').evaluate(dialog => dialog.open), false, `${label}: and closes the person`);
+        await back('#/map/trost');
+        assert.equal(await nav.locator('.map-marker.selected').getAttribute('data-location'), 'trost');
+        await back(home);
+        assert.equal(await nav.locator('.map-marker.selected').getAttribute('data-location'), home.replace('#/map/', ''));
+        assert.equal(await nav.locator('#episode-select').inputValue(), '54', `${label}: Back does not change the viewing episode`);
+        await nav.goForward();
+        await nav.waitForFunction(() => location.hash === '#/map/trost');
+        assert.equal(await nav.locator('.map-marker.selected').getAttribute('data-location'), 'trost', `${label}: Forward returns to the place`);
+        // Typing or following an address while the atlas is open moves it too.
+        await nav.evaluate(() => { location.hash = '#/story'; });
+        await nav.waitForFunction(() => document.querySelector('#recap-view') && !document.querySelector('#recap-view').hidden);
+        await assertNoHorizontalOverflow(nav, `${label} routes`);
+      }
+    });
+
+    await test('an address names the place, not the map area: Back keeps an area chosen by hand', async () => {
+      const hand = await createPage();
+      await episode(hand, 57);
+      await chooseLocation(hand, 'Liberio', 'liberio');
+      assert.equal(await mapArea(hand), 'liberio');
+      await hand.locator('[data-map-extent="world"]').click();
+      assert.equal(await hand.evaluate(() => location.hash), '#/map/liberio', 'switching the area is not a new place');
+      await view(hand, 'recap');
+      await hand.goBack();
+      await hand.waitForFunction(() => location.hash === '#/map/liberio');
+      assert.equal(await mapArea(hand), 'world', 'Back returns to the map as it was left');
+      assert.equal(await hand.locator('.map-marker.selected').getAttribute('data-location'), 'liberio');
+    });
+
+    await test('deep links open the right page, and anything the viewer has not reached is skipped without a trace', async () => {
+      const seed = viewing => `if (!localStorage.getItem(${JSON.stringify(storageKey)})) localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(JSON.stringify({ viewing }))})`;
+      const open = async (hash, viewing) => {
+        const ctx = await browser.newContext({ viewport: { width: 1440, height: 1040 } });
+        contexts.push(ctx);
+        await ctx.addInitScript(seed(viewing));
+        const page = await ctx.newPage();
+        page.setDefaultTimeout(5000);
+        page.on('pageerror', error => errors.push(error.message));
+        await page.goto(url + hash, { waitUntil: 'load' });
+        await page.locator('#location-panel h2').waitFor({ state: 'attached' });
+        return page;
+      };
+      const state = page => page.evaluate(() => ({
+        hash: location.hash, title: document.title, view: document.querySelector('.primary-nav .active').dataset.view,
+        selected: document.querySelector('.map-marker.selected')?.dataset.location,
+        person: document.querySelector('#character-detail-dialog').open ? document.querySelector('#character-detail-title').textContent : null,
+        toast: document.querySelector('#toast.visible')?.textContent || null
+      }));
+      // Reached: each address opens its own page.
+      assert.deepEqual(await state(await open('#/people/levi', 50)), { hash: '#/people/levi', title: 'Levi · Scout Atlas', view: 'characters', person: 'Levi', selected: 'shiganshina', toast: null });
+      const place = await state(await open('#/map/stohess', 50));
+      assert.deepEqual([place.hash, place.selected, place.view, place.toast], ['#/map/stohess', 'stohess', 'map', null]);
+      const story = await state(await open('#/story', 50));
+      assert.deepEqual([story.hash, story.view, story.title], ['#/story', 'recap', 'The story so far · Scout Atlas']);
+      // Not reached: Stohess and Zeke come later than episode 1. The page opens as a first visit would, says so
+      // without naming anything, and keeps the hidden name out of the address, the title and the page.
+      const hidden = await open('#/map/stohess', 1);
+      const skippedPlace = await state(hidden);
+      assert.deepEqual([skippedPlace.hash, skippedPlace.selected, skippedPlace.title], ['#/map/shiganshina', 'shiganshina', 'Shiganshina · Scout Atlas']);
+      assert.match(skippedPlace.toast, /skipped/);
+      assert.doesNotMatch(skippedPlace.toast + skippedPlace.title + skippedPlace.hash, /stohess/i);
+      assert.ok(!(await readUi(hidden)).includes('Stohess'), 'the hidden place is not on the page');
+      const hiddenPerson = await open('#/people/zeke', 1);
+      const skippedPerson = await state(hiddenPerson);
+      assert.deepEqual([skippedPerson.hash, skippedPerson.view, skippedPerson.person], ['#/people', 'characters', null]);
+      assert.match(skippedPerson.toast, /skipped/);
+      assert.doesNotMatch(skippedPerson.toast + skippedPerson.title + skippedPerson.hash, /zeke/i);
+      assert.ok(!(await readUi(hiddenPerson)).includes('Zeke'), 'the hidden person is not on the page');
+      // Nonsense is ignored, and the address is tidied.
+      const nonsense = await state(await open('#/map/not-a-place', 1));
+      assert.deepEqual([nonsense.hash, nonsense.selected], ['#/map/shiganshina', 'shiganshina']);
+      const unknown = await state(await open('#/whatever', 1));
+      assert.deepEqual([unknown.hash, unknown.view], ['#/map/shiganshina', 'map']);
+    });
+
     await test('phone layout fits, keeps every tab reachable, and fills the map', async () => {
       const mobile = await createPage({ width: 390, height: 844 });
       await episode(mobile, MAX);
