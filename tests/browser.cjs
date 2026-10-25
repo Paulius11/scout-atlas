@@ -132,6 +132,7 @@ async function main() {
     if (init) await ctx.addInitScript(init);
     const page = await ctx.newPage();
     page.setDefaultTimeout(5000);
+    page.setDefaultNavigationTimeout(15000); // a page can load slowly when several copies of this run share a machine
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => { if (/Content Security Policy|Refused to/.test(message.text())) errors.push(message.text()); });
     page.on('request', request => { if (!request.url().startsWith(new URL('.', url).href)) foreign.push(request.url()); });
@@ -1551,6 +1552,24 @@ async function main() {
         return [...card.querySelectorAll('.character-name, .fate-chip, .character-role')].some(item => item.getBoundingClientRect().right > outer.right + 1);
       }).map(card => card.dataset.character));
       assert.deepEqual(spilled, [], 'names, marks and roles stay inside their rows');
+    });
+
+    await test('the People controls wrap rather than squeeze the search, from tablets to wide windows', async () => {
+      for (const width of [761, 768, 820, 1024, 1440]) {
+        const tablet = await createPage({ width, height: 1000 });
+        await episode(tablet, MAX);
+        await view(tablet, 'characters');
+        const boxes = await tablet.evaluate(() => Object.fromEntries(['#character-filter', '#character-sort', '.layout-switch', '#expand-gallery', '.gallery-actions']
+          .map(selector => { const { x, y, width, height } = document.querySelector(selector).getBoundingClientRect(); return [selector, { left: x, top: y, right: x + width, bottom: y + height }]; })));
+        const frame = boxes['.gallery-actions'];
+        assert.ok(boxes['#character-filter'].right - boxes['#character-filter'].left >= 200, `${width}px: the search keeps a usable width`);
+        const items = ['#character-filter', '#character-sort', '.layout-switch', '#expand-gallery'].map(selector => [selector, boxes[selector]]);
+        for (const [selector, box] of items) assert.ok(box.left >= frame.left - 1 && box.right <= frame.right + 1, `${width}px: ${selector} stays inside its row`);
+        for (const [index, [first, a]] of items.entries()) for (const [second, b] of items.slice(index + 1)) {
+          assert.ok(!overlap(a, b), `${width}px: ${first} and ${second} overlap`);
+        }
+        await assertNoHorizontalOverflow(tablet, `${width}px People controls`);
+      }
     });
 
     await test('expanded gallery keeps filters, contains focus, restores the tab and respects episode limits', async () => {
@@ -3121,6 +3140,7 @@ async function main() {
         await ctx.addInitScript(seed(viewing));
         const page = await ctx.newPage();
         page.setDefaultTimeout(5000);
+        page.setDefaultNavigationTimeout(15000);
         page.on('pageerror', error => errors.push(error.message));
         await page.goto(url + hash, { waitUntil: 'load' });
         await page.locator('#location-panel h2').waitFor({ state: 'attached' });

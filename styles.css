@@ -668,7 +668,7 @@ svg.avatar.image-portrait { border: 2px solid var(--ring); background: var(--dis
 .more-notes summary { cursor: pointer; margin-top: 6px; font-size: 13px; color: var(--accent); }
 .more-notes[open] summary { margin-bottom: 2px; }
 .character-tools label { font-size: 14px; color: var(--text-2); }
-.character-tools input { width: min(320px, 100%); min-width: 0; flex: 1; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--reading-wash); color: var(--text); font-size: 14px; }
+.character-tools input { width: min(320px, 100%); min-width: 0; flex: 1 1 220px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--reading-wash); color: var(--text); font-size: 14px; }
 .character-section { margin-bottom: 26px; }
 .character-section h2 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; padding-bottom: 9px; border-bottom: 1px solid var(--line); font-size: 23px; }
 .character-section h2 span { font: 13px var(--sans); color: var(--muted); }
@@ -708,6 +708,8 @@ svg.avatar.image-portrait { border: 2px solid var(--ring); background: var(--dis
 .character-detail-summary .fate-chip { margin-top: 8px; }
 /* Sort and layout sit beside the search; phones give them a row of their own. */
 .gallery-actions { flex-wrap: wrap; }
+.gallery-actions .expand-gallery { margin-left: auto; }
+.gallery-options { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .character-tools .character-sort { flex-shrink: 0; height: 40px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--reading-wash); color: var(--text); font-size: 14px; cursor: pointer; }
 .character-sort option { background: var(--surface); color: var(--text); }
 .layout-switch { display: flex; flex-shrink: 0; gap: 3px; padding: 3px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); }
@@ -931,6 +933,7 @@ dialog label { display: block; margin-top: 18px; font-size: 14px; color: var(--t
   .character-tools { gap: 8px; margin-bottom: 14px; }
   .gallery-actions { width: 100%; }
   .character-tools input { width: 100%; flex: 1 1 100%; }
+  .gallery-options { flex: 1 1 100%; gap: 8px; }
   .character-tools .character-sort { flex: 1; min-width: 0; height: 44px; }
   .layout-switch button { width: 44px; height: 38px; }
   .timeline-heading h2 span { display: none; }
