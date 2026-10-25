@@ -68,9 +68,18 @@ async function test(name, run) {
     console.log(`FAIL ${name}\n     ${String(error.message).split('\n').slice(0, 14).join('\n     ')}`);
   }
 }
+const readText = (page, selector) => page.locator(selector)
+  .evaluateAll(elements => elements.map(element => element.textContent + ' ' + [...element.querySelectorAll('[aria-label],[title]')].map(e => `${e.getAttribute('aria-label') || ''} ${e.getAttribute('title') || ''}`).join(' ')).join('\n'));
+// Story and People are built only while they are shown, so open each to read what the viewer sees there.
 async function readUi(page) {
-  return page.locator('#location-markers, #location-panel, #recap-view, #characters-view, #timeline-track')
-    .evaluateAll(elements => elements.map(element => element.textContent + ' ' + [...element.querySelectorAll('[aria-label],[title]')].map(e => `${e.getAttribute('aria-label') || ''} ${e.getAttribute('title') || ''}`).join(' ')).join('\n'));
+  const parts = [await readText(page, '#location-markers, #location-panel, #timeline-track')];
+  const home = await page.locator('.primary-nav .nav-item.active').getAttribute('data-view');
+  for (const name of ['recap', 'characters']) {
+    await view(page, name);
+    parts.push(await readText(page, `#${name}-view`));
+  }
+  await view(page, home);
+  return parts.join('\n');
 }
 async function assertNoHorizontalOverflow(page, label) {
   const size = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));

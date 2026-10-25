@@ -248,16 +248,20 @@
     $('.page-heading').hidden = state.view === 'map';
     syncEpisodeControl();
     $('#about-ceiling').textContent = `Its story content ends at ${episodeLabel(MAX_EPISODE).toLowerCase()} (${seasonText(MAX_EPISODE).toLowerCase()}).`;
-    const groups = data.seasons.filter(season => season.first <= MAX_EPISODE).map(season => {
-      const last = Math.min(MAX_EPISODE, season.last ?? MAX_EPISODE);
-      const options = [];
-      for (let number = season.first; number <= last; number += 1) {
-        options.push(`<option value="${number}" ${number === state.viewing ? 'selected' : ''}>${episodeCode(number)}  ${escapeHTML(titleOfEpisode(number))}</option>`);
-      }
-      return `<optgroup label="Season ${season.season}">${options.join('')}</optgroup>`;
-    });
-    $('#episode-select').innerHTML = groups.join('');
-    $('#episode-select').title = titleOfEpisode(state.viewing);
+    // Every episode stays a choice, so the list is built once; only the selection follows the viewer.
+    const select = $('#episode-select');
+    if (!select.options.length) {
+      select.innerHTML = data.seasons.filter(season => season.first <= MAX_EPISODE).map(season => {
+        const last = Math.min(MAX_EPISODE, season.last ?? MAX_EPISODE);
+        const options = [];
+        for (let number = season.first; number <= last; number += 1) {
+          options.push(`<option value="${number}">${episodeCode(number)}  ${escapeHTML(titleOfEpisode(number))}</option>`);
+        }
+        return `<optgroup label="Season ${season.season}">${options.join('')}</optgroup>`;
+      }).join('');
+    }
+    select.value = String(state.viewing);
+    select.title = titleOfEpisode(state.viewing);
     $('#expanded-map-episode').textContent = `${episodeLabel(state.viewing)} · ${titleOfEpisode(state.viewing)}`;
     $('#expanded-gallery-episode').textContent = `${episodeLabel(state.viewing)} · ${titleOfEpisode(state.viewing)}`;
     const numbers = milestones();
@@ -872,6 +876,16 @@
     $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by episode or group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><div class="gallery-actions"><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"><button type="button" id="expand-gallery" class="expand-gallery" aria-label="Expand gallery" title="Expand gallery" aria-haspopup="dialog" aria-controls="expanded-gallery-dialog">${icon('expand')}<span class="expand-gallery-label">Expand gallery</span></button></div></div>${coverage}${sections || `<p class="search-empty">${empty}</p>`}`;
     syncGalleryAction();
   }
+  // Story and People are built only while they are on screen. Every render() empties the other one, so
+  // text from a later episode never lingers in a hidden view, and stepping through episodes on the map
+  // does not pay for the thousands of nodes those two views hold.
+  const SECONDARY_VIEWS = { recap: renderRecap, characters: renderCharacters };
+  function renderSecondaryViews() {
+    for (const [name, build] of Object.entries(SECONDARY_VIEWS)) {
+      if (name === state.view) build(); else $(`#${name}-view`).replaceChildren();
+    }
+    if (state.view !== 'characters') $('#mobile-gallery-action').replaceChildren();
+  }
   function render({ save = true } = {}) {
     if (state.view !== 'characters') closeCharacterDetails({ restoreFocus: false });
     if (state.view !== 'map') closeExpandedMap();
@@ -890,8 +904,7 @@
     renderGeography();
     renderPanel();
     renderTimeline();
-    renderRecap();
-    renderCharacters();
+    renderSecondaryViews();
     syncCharacterDetails();
     // Search results are rebuilt from the current visibility boundary, never retained across it.
     $('#location-search').value = '';
