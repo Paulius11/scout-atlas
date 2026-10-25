@@ -399,6 +399,25 @@ check('status records: known targets and states, visible in time, sourced', bad 
     if (!/^https:\/\//.test(item.sourceUrl || '')) bad(`${item.target} has no https source`);
   });
 });
+// `died` is the episode from which the atlas shows a character as dead. It is not a separate claim: the role or
+// a note written for that same episode has to say so, so the mark can never get ahead of the text beside it, and
+// a role that says someone was killed has to carry the mark.
+const DEATH_WORDS = /\b(?:killed|kills|dies|died|dead|murdered|eaten|devoured|executed|sacrifices)\b/i;
+check('deaths: marked from the episode whose text says so, and never placed on the map afterwards', bad => {
+  d.characters.forEach(c => {
+    if (c.died !== undefined) {
+      if (c.type !== 'person') bad(`${c.id}: only a person is marked as having died`);
+      if (!Number.isInteger(c.died) || c.died < c.firstEpisode || c.died > d.maxEpisode) bad(`${c.id}: died at E${c.died}, outside E${c.firstEpisode}–E${d.maxEpisode}`);
+      const stated = (c.role || []).some(v => v.from === c.died && DEATH_WORDS.test(v.text))
+        || (c.notes || []).some(note => note.episode === c.died && DEATH_WORDS.test(note.text));
+      if (!stated) bad(`${c.id}: no role or note at E${c.died} says they died`);
+      (c.positions || []).filter(position => position.episode > c.died).forEach(position => bad(`${c.id}: placed on the map at E${position.episode}, after dying at E${c.died}`));
+    }
+    (c.role || []).filter(v => /\b(?:killed|fallen)\b/i.test(v.text)).forEach(v => {
+      if (c.died === undefined || c.died > v.from) bad(`${c.id}: the role at E${v.from} says "${v.text}", but they are not marked as having died by then`);
+    });
+  });
+});
 check('the sea: at most one, and its desert within the ceiling', bad => {
   const seas = d.locations.filter(l => l.kind === 'sea');
   if (seas.length > 1) bad(`${seas.length} places of kind sea; the map draws one coast`);

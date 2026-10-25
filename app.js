@@ -60,6 +60,10 @@
     focusCharacter: null,
     characterFilter: '',
     characterFaction: 'all',
+    // How People is ordered and laid out. Cards or a list is null until the viewer chooses, so a phone gets
+    // the list and a wide window the cards without that being remembered as a choice.
+    characterSort: stored.characterSort === 'name' ? 'name' : 'story',
+    characterView: stored.characterView === 'grid' || stored.characterView === 'list' ? stored.characterView : null,
     changesOnly: false,
     panelExpanded: !window.matchMedia('(max-width: 760px)').matches,
     // The trail opens on tall desktop windows and stays shut where the map needs the room, until the viewer chooses.
@@ -78,6 +82,8 @@
       try { current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {}; } catch { current = {}; }
       const saved = { viewing: state.viewing, selected: state.selected, mapExtent: state.mapExtent, mapStyle: state.mapStyle, layers: state.layers };
       if (state.trailChosen) saved.trailOpen = state.trailOpen;
+      if (state.characterSort !== 'story') saved.characterSort = state.characterSort;
+      if (state.characterView) saved.characterView = state.characterView;
       // Preserve legacy notes without exposing a removed feature or erasing existing user data.
       if (Object.prototype.hasOwnProperty.call(current, 'notes')) saved.notes = current.notes;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
@@ -108,6 +114,13 @@
   const roleOf = character => at(character.role, state.viewing)?.text || '';
   const factionOf = character => at(character.faction, state.viewing)?.key || 'civilian';
   const revealOf = character => (character.revealedAs && character.revealedAs.episode <= state.viewing ? getCharacter(character.revealedAs.id) : undefined);
+  // A death shows from the episode the atlas first records it (data.js `died`). Nobody else is marked, so no mark
+  // means "no death recorded", never "alive".
+  const fateOf = character => (character.died !== undefined && character.died <= state.viewing ? { episode: character.died } : null);
+  const fateChip = (character, id = '') => {
+    const fate = fateOf(character);
+    return fate ? `<span class="fate-chip"${id ? ` id="${escapeHTML(id)}"` : ''} title="Recorded in ${episodeLabel(fate.episode).toLowerCase()}">Died · ${episodeCode(fate.episode)}</span>` : '';
+  };
   const lastPosition = character => (character.positions || []).filter(position => position.episode <= state.viewing).sort((a, b) => b.episode - a.episode)[0] || null;
   const peopleAt = locationId => visibleCharacters().flatMap(character => {
     const position = lastPosition(character);
@@ -932,8 +945,11 @@
   }
   function characterCard(character) {
     const involvement = state.characterFaction === 'episode' ? episodeInvolvement(character) : '';
-    return `<article class="character-card faction-${factionOf(character)}${revealOf(character) ? ' revealed' : ''}${state.focusCharacter === character.id ? ' focused' : ''}" id="character-${escapeHTML(character.id)}" data-character="${escapeHTML(character.id)}" tabindex="-1">
-      <h3 class="character-card-heading"><button type="button" class="character-card-button" data-show-character="${escapeHTML(character.id)}" aria-label="Open details for ${escapeHTML(nameOf(character))}"${involvement ? ` aria-describedby="character-involvement-${escapeHTML(character.id)}"` : ''} aria-haspopup="dialog" aria-controls="character-detail-dialog" aria-expanded="false">${avatar(character, 'lg')}<span class="character-card-copy"><span class="character-name">${escapeHTML(nameOf(character))}</span><span class="character-role" title="${escapeHTML(roleOf(character))}">${escapeHTML(roleOf(character))}</span>${involvement ? `<span class="character-involvement" id="character-involvement-${escapeHTML(character.id)}">${escapeHTML(involvement)}</span>` : ''}</span><svg class="icon character-card-chevron" aria-hidden="true"><use href="#i-next"/></svg></button></h3>
+    const fate = fateOf(character);
+    // The button's name is fixed text, so the mark and the episode's involvement are announced as its description.
+    const described = [involvement && `character-involvement-${character.id}`, fate && `character-fate-${character.id}`].filter(Boolean).join(' ');
+    return `<article class="character-card faction-${factionOf(character)}${revealOf(character) ? ' revealed' : ''}${fate ? ' fallen' : ''}${state.focusCharacter === character.id ? ' focused' : ''}" id="character-${escapeHTML(character.id)}" data-character="${escapeHTML(character.id)}" tabindex="-1">
+      <h3 class="character-card-heading"><button type="button" class="character-card-button" data-show-character="${escapeHTML(character.id)}" aria-label="Open details for ${escapeHTML(nameOf(character))}"${described ? ` aria-describedby="${escapeHTML(described)}"` : ''} aria-haspopup="dialog" aria-controls="character-detail-dialog" aria-expanded="false">${avatar(character, 'lg')}<span class="character-card-copy"><span class="character-name">${escapeHTML(nameOf(character))}</span><span class="character-role" title="${escapeHTML(roleOf(character))}">${escapeHTML(roleOf(character))}</span>${fateChip(character, `character-fate-${character.id}`)}${involvement ? `<span class="character-involvement" id="character-involvement-${escapeHTML(character.id)}">${escapeHTML(involvement)}</span>` : ''}</span><svg class="icon character-card-chevron" aria-hidden="true"><use href="#i-next"/></svg></button></h3>
     </article>`;
   }
   function characterDetails(character) {
@@ -942,7 +958,7 @@
     const place = position?.locationId ? getLocation(position.locationId) : null;
     const notes = (character.notes || []).filter(note => note.episode <= state.viewing).sort((a, b) => b.episode - a.episode);
     const noteItem = note => `<li><span class="note-episode">${episodeCode(note.episode)}</span><span>${escapeHTML(note.text)}</span></li>`;
-    return `<div class="character-detail-identity">${avatar(character, 'lg')}<p class="character-description">${escapeHTML(roleOf(character))}</p></div>
+    return `<div class="character-detail-identity">${avatar(character, 'lg')}<div class="character-detail-summary"><p class="character-description">${escapeHTML(roleOf(character))}</p>${fateChip(character)}</div></div>
         ${revealed ? `<p class="reveal-line">Revealed in ${episodeLabel(character.revealedAs.episode).toLowerCase()}: <button class="inline-link" data-open-character="${escapeHTML(revealed.id)}">${escapeHTML(nameOf(revealed))}</button></p>` : ''}
         ${notes.length ? `<section class="character-detail-notes"><h3>Known so far</h3><ol class="character-notes">${notes.slice(0, 3).map(noteItem).join('')}</ol>${notes.length > 3 ? `<details class="more-notes"><summary>Earlier (${notes.length - 3})</summary><ol class="character-notes">${notes.slice(3).map(noteItem).join('')}</ol></details>` : ''}</section>` : ''}
         <footer class="character-detail-footer">${position ? (place
@@ -950,33 +966,60 @@
           : `<span>Last recorded in ${episodeLabel(position.episode).toLowerCase()}, somewhere this map does not place.</span>`) : ''}<span class="since">In the atlas from ${episodeLabel(character.firstEpisode).toLowerCase()}</span></footer>
     `;
   }
+  // The order people appear in: by first appearance (the Died filter: by death), or alphabetically.
+  // Whoever is only a later identity of someone already listed comes last.
+  const nameOrder = new Intl.Collator('en', { sensitivity: 'base' });
+  const CHARACTER_SORTS = [['story', 'Sort: story order'], ['name', 'Sort: A–Z']];
+  function sortedCharacters(list) {
+    if (state.characterSort === 'name') return list.sort((a, b) => nameOrder.compare(nameOf(a), nameOf(b)));
+    if (state.characterFaction === 'died') return list.sort((a, b) => a.died - b.died || a.firstEpisode - b.firstEpisode);
+    return list.sort((a, b) => Boolean(revealOf(a)) - Boolean(revealOf(b)) || a.firstEpisode - b.firstEpisode);
+  }
+  // Phones get the list, which fits a role and a mark on one row, until the viewer picks the cards (or the list).
+  const compactQuery = window.matchMedia('(max-width: 560px)');
+  const characterLayout = () => state.characterView || (compactQuery.matches ? 'list' : 'grid');
   function renderCharacters() {
     const query = state.characterFilter.trim().toLocaleLowerCase();
     const participants = episodeParticipants();
-    const episodeMode = state.characterFaction === 'episode';
+    const filter = state.characterFaction;
+    const episodeMode = filter === 'episode';
+    const diedMode = filter === 'died';
+    const layout = characterLayout();
     const matches = visibleCharacters().filter(character => character.type !== 'group' && (!query
       || [nameOf(character), roleOf(character), ...(character.aliases || [])].join(' ').toLocaleLowerCase().includes(query)));
-    const sortCharacters = (a, b) => Boolean(revealOf(a)) - Boolean(revealOf(b)) || a.firstEpisode - b.firstEpisode;
     const episodeMatches = matches.filter(character => participants.has(character.id));
-    const displayed = episodeMode ? episodeMatches : matches;
-    const sections = state.characterFaction === 'all' || episodeMode
-      ? (displayed.length ? `<h2 class="sr-only">Characters</h2><div class="character-grid${episodeMode ? ' episode-character-grid' : ''}">${displayed.sort(sortCharacters).map(characterCard).join('')}</div>` : '')
-      : CHARACTER_SECTIONS.filter(([title]) => state.characterFaction === title).map(([title, keys]) => {
-      const members = matches.filter(character => keys.includes(factionOf(character)))
-        .sort(sortCharacters);
-      return members.length ? `<section class="character-section"><h2>${title}<span>${members.length}</span></h2><div class="character-grid">${members.map(characterCard).join('')}</div></section>` : '';
-    }).join('');
+    const fallen = matches.filter(fateOf);
+    const displayed = episodeMode ? episodeMatches : diedMode ? fallen : matches;
+    const grid = (members, extra = '') => `<div class="character-grid${extra}${layout === 'list' ? ' is-list' : ''}">${sortedCharacters(members).map(characterCard).join('')}</div>`;
+    const sections = filter === 'all' || episodeMode || diedMode
+      ? (displayed.length ? `<h2 class="sr-only">Characters</h2>${grid(displayed, episodeMode ? ' episode-character-grid' : '')}` : '')
+      : CHARACTER_SECTIONS.filter(([title]) => filter === title).map(([title, keys]) => {
+        const members = matches.filter(character => keys.includes(factionOf(character)));
+        return members.length ? `<section class="character-section"><h2>${title}<span>${members.length}</span></h2>${grid(members)}</section>` : '';
+      }).join('');
     const counts = Object.fromEntries(CHARACTER_SECTIONS.map(([title, keys]) => [title, matches.filter(character => keys.includes(factionOf(character))).length]));
-    const chips = [['all', 'Everyone', matches.length], ['episode', 'This episode', episodeMatches.length], ...CHARACTER_SECTIONS.map(([title]) => [title, title, counts[title]])]
+    const chips = [['all', 'Everyone', matches.length], ['episode', 'This episode', episodeMatches.length], ['died', 'Died', fallen.length], ...CHARACTER_SECTIONS.map(([title]) => [title, title, counts[title]])]
       .filter(([, , count], index) => index < 2 || count)
-      .map(([value, label, count]) => `<button class="filter-chip" data-faction-filter="${escapeHTML(value)}" aria-pressed="${state.characterFaction === value}">${escapeHTML(label)} <span>${count}</span></button>`).join('');
+      .map(([value, label, count]) => `<button class="filter-chip" data-faction-filter="${escapeHTML(value)}" aria-pressed="${filter === value}">${escapeHTML(label)} <span>${count}</span></button>`).join('');
     // The one expansion button lives beside the title on phones, and beside search elsewhere.
     $('#mobile-gallery-action').replaceChildren();
-    const coverage = episodeMode ? `<p class="episode-cast-note" role="status">${episodeCode(state.viewing)} · Characters named in this episode’s recorded events.</p>` : '';
-    const empty = episodeMode ? 'No character in this episode’s recorded events matches that filter.' : 'No character matches that filter at this episode.';
-    $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by episode or group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><div class="gallery-actions"><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off"><button type="button" id="expand-gallery" class="expand-gallery" aria-label="Expand gallery" title="Expand gallery" aria-haspopup="dialog" aria-controls="expanded-gallery-dialog">${icon('expand')}<span class="expand-gallery-label">Expand gallery</span></button></div></div>${coverage}${sections || `<p class="search-empty">${empty}</p>`}`;
+    const coverage = episodeMode ? `<p class="episode-cast-note" role="status">${episodeCode(state.viewing)} · Characters named in this episode’s recorded events.</p>`
+      : diedMode ? `<p class="episode-cast-note" role="status">Deaths this atlas records up to ${episodeCode(state.viewing)}. Someone who is not here has no recorded death, which does not mean they lived.</p>` : '';
+    const empty = episodeMode ? 'No character in this episode’s recorded events matches that filter.'
+      : diedMode ? 'No recorded death matches that filter at this episode.' : 'No character matches that filter at this episode.';
+    const sortControl = `<label class="sr-only" for="character-sort">Sort characters</label><select id="character-sort" class="character-sort">${CHARACTER_SORTS.map(([value, label]) => `<option value="${value}"${state.characterSort === value ? ' selected' : ''}>${label}</option>`).join('')}</select>`;
+    const layoutControl = `<div class="layout-switch" role="group" aria-label="Layout">${[['grid', 'Cards'], ['list', 'List']].map(([value, label]) => `<button type="button" data-character-layout="${value}" aria-pressed="${layout === value}" aria-label="${label}" title="${label}">${icon(value)}</button>`).join('')}</div>`;
+    $('#characters-view').innerHTML = `<div class="character-tools"><div class="filter-chips" role="group" aria-label="Show characters by episode or group">${chips}</div><label class="sr-only" for="character-filter">Filter characters</label><div class="gallery-actions"><input id="character-filter" type="search" placeholder="Filter by name or role" value="${escapeHTML(state.characterFilter)}" autocomplete="off">${sortControl}${layoutControl}<button type="button" id="expand-gallery" class="expand-gallery" aria-label="Expand gallery" title="Expand gallery" aria-haspopup="dialog" aria-controls="expanded-gallery-dialog">${icon('expand')}<span class="expand-gallery-label">Expand gallery</span></button></div></div>${coverage}${sections || `<p class="search-empty">${empty}</p>`}`;
     syncGalleryAction();
   }
+  // Cards and list differ only by a class, so switching needs no rebuild: scroll position and focus stay put.
+  function applyCharacterLayout() {
+    const layout = characterLayout();
+    $$('#characters-view .character-grid').forEach(grid => grid.classList.toggle('is-list', layout === 'list'));
+    $$('#characters-view [data-character-layout]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.characterLayout === layout)));
+  }
+  // A view that starts as the list on a phone follows the window until the viewer has chosen.
+  compactQuery.addEventListener('change', () => { if (!state.characterView) applyCharacterLayout(); });
   // Story and People are built only while they are on screen. Every render() empties the other one, so
   // text from a later episode never lingers in a hidden view, and stepping through episodes on the map
   // does not pay for the thousands of nodes those two views hold.
@@ -1646,6 +1689,13 @@
     input.focus();
     input.setSelectionRange(caret, caret);
   });
+  $('#characters-view').addEventListener('change', event => {
+    if (event.target.id !== 'character-sort') return;
+    state.characterSort = event.target.value === 'name' ? 'name' : 'story';
+    persist();
+    renderCharacters();
+    $('#character-sort').focus();
+  });
   document.addEventListener('keydown', event => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
     const otherDialog = $$('dialog[open]').some(dialog => dialog !== expandedMapDialog);
@@ -1708,6 +1758,13 @@
     if (change) { state.activeEvent = change.dataset.changeEvent || null; selectLocation(change.dataset.changePlace, { focus: true }); return; }
     const factionChip = event.target.closest('[data-faction-filter]');
     if (factionChip) { state.characterFaction = factionChip.dataset.factionFilter; state.focusCharacter = null; renderCharacters(); $(`[data-faction-filter="${CSS.escape(state.characterFaction)}"]`)?.focus(); return; }
+    const layoutButton = event.target.closest('[data-character-layout]');
+    if (layoutButton) {
+      state.characterView = layoutButton.dataset.characterLayout === 'list' ? 'list' : 'grid';
+      persist();
+      applyCharacterLayout();
+      return;
+    }
     const person = event.target.closest('[data-open-character]');
     if (person) { openCharacter(person.dataset.openCharacter); return; }
     const place = event.target.closest('[data-open-place]');

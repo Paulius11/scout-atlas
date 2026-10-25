@@ -329,8 +329,8 @@ async function main() {
           const card = cast.locator(`#character-${id}`);
           assert.equal(await card.locator('.character-name').innerText(), at(character.name, number).text, 'the displayed identity belongs to this special');
           assert.ok((await card.locator('.character-involvement').innerText()).trim(), 'each person has an episode-specific explanation');
-          const descriptionId = await card.locator('.character-card-button').getAttribute('aria-describedby');
-          assert.equal(descriptionId, await card.locator('.character-involvement').getAttribute('id'), 'the explanation describes the clickable card accessibly');
+          const described = (await card.locator('.character-card-button').getAttribute('aria-describedby')).split(/\s+/);
+          assert.ok(described.includes(await card.locator('.character-involvement').getAttribute('id')), 'the explanation describes the clickable card accessibly');
           const updates = (character.notes || []).filter(note => note.episode === number);
           if (!updates.length) continue;
           const body = await characterDetails(cast, id);
@@ -1374,6 +1374,183 @@ async function main() {
         assert.equal(await phone.locator('#expand-gallery').evaluate(element => element === document.activeElement), true, 'moving expansion back to the phone heading retains focus');
         assert.equal(await phone.locator('#expand-gallery').count(), 1, 'breakpoint changes move the existing button');
       }
+    });
+
+    // People: recorded deaths, their order, and cards or a list.
+    const deaths = data.characters.filter(character => character.died !== undefined);
+    const diedBy = number => deaths.filter(character => character.died <= number && character.firstEpisode <= number)
+      .sort((a, b) => a.died - b.died || a.firstEpisode - b.firstEpisode).map(character => character.id);
+    const cardIds = page => page.locator('.character-card').evaluateAll(cards => cards.map(card => card.dataset.character));
+    const savedChoice = (page, key) => page.evaluate(([storage, name]) => JSON.parse(localStorage.getItem(storage) || '{}')[name], [storageKey, key]);
+    // Media-query changes reach the page on the frame after a resize.
+    const settled = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
+    await test('a death is marked from the episode the atlas records it and never before', async () => {
+      assert.ok(deaths.length >= 20, 'the data records its deaths');
+      const gallery = await createPage();
+      await view(gallery, 'characters');
+      const steps = [...new Set(deaths.flatMap(character => [character.died - 1, character.died]))].filter(number => number >= 1).sort((a, b) => a - b);
+      for (const number of steps) {
+        await episode(gallery, number);
+        const cards = await gallery.locator('.character-card').evaluateAll(items => items.map(card => {
+          const chip = card.querySelector('.fate-chip');
+          return {
+            id: card.dataset.character, fallen: card.classList.contains('fallen'), chip: chip?.textContent ?? null, title: chip?.title ?? null,
+            described: Boolean(chip) && (card.querySelector('.character-card-button').getAttribute('aria-describedby') || '').split(/\s+/).includes(chip.id),
+            dimmed: getComputedStyle(card.querySelector('.avatar')).filter !== 'none'
+          };
+        }));
+        const expected = diedBy(number).sort();
+        assert.deepEqual(cards.filter(card => card.fallen).map(card => card.id).sort(), expected, `E${number}: exactly the deaths recorded so far are marked`);
+        for (const card of cards) {
+          if (!card.fallen) { assert.deepEqual([card.chip, card.dimmed], [null, false], `E${number}: ${card.id} carries no mark`); continue; }
+          const died = deaths.find(character => character.id === card.id).died;
+          assert.equal(card.chip, `Died · ${episodeCode(died)}`, `${card.id} names the episode that records it`);
+          assert.equal(card.title, `Recorded in ${episodeLabel(died).toLowerCase()}`);
+          assert.equal(card.described, true, `E${number}: ${card.id} announces its mark as the card's description`);
+          assert.equal(card.dimmed, true, `E${number}: ${card.id} has a dimmed portrait`);
+        }
+        assert.equal(await gallery.locator('[data-faction-filter="died"] span').innerText(), String(expected.length), `E${number}: the Died count agrees`);
+      }
+      // The details agree with the card, and an earlier episode says nothing.
+      await episode(gallery, 55);
+      assert.equal(await (await characterDetails(gallery, 'erwin')).locator('.fate-chip').innerText(), `Died · ${episodeCode(55)}`);
+      await closeCharacterDetails(gallery);
+      await episode(gallery, 54);
+      assert.equal(await (await characterDetails(gallery, 'erwin')).locator('.fate-chip').count(), 0, 'the day before, nothing is said');
+      await closeCharacterDetails(gallery);
+    });
+
+    await test('the Died filter lists the recorded deaths in the order they happened, and says what it leaves out', async () => {
+      const gallery = await createPage();
+      await episode(gallery, MAX);
+      await view(gallery, 'characters');
+      await gallery.locator('[data-faction-filter="died"]').click();
+      assert.equal(await gallery.locator('[data-faction-filter="died"]').getAttribute('aria-pressed'), 'true');
+      assert.deepEqual(await cardIds(gallery), diedBy(MAX), 'the order of death, then of appearance');
+      assert.match(await gallery.locator('.episode-cast-note').innerText(), new RegExp(`up to ${episodeCode(MAX)}.*no recorded death, which does not mean they lived`, 'i'));
+      assert.equal(await gallery.locator('.character-section h2').count(), 0, 'one continuous list');
+      await gallery.locator('#character-filter').fill('Levi');
+      assert.equal(await gallery.locator('.character-card').count(), 0, 'someone without a recorded death is not listed');
+      assert.match(await gallery.locator('.search-empty').innerText(), /No recorded death/);
+      await gallery.locator('#character-filter').fill('Erwin');
+      assert.deepEqual(await cardIds(gallery), ['erwin']);
+      await gallery.locator('#character-filter').fill('');
+      // Stepping back keeps the filter, drops what has not happened yet, and the note follows the episode.
+      await episode(gallery, 55);
+      assert.equal(await gallery.locator('[data-faction-filter="died"]').getAttribute('aria-pressed'), 'true');
+      assert.deepEqual(await cardIds(gallery), diedBy(55));
+      assert.match(await gallery.locator('.episode-cast-note').innerText(), new RegExp(`up to ${episodeCode(55)}`));
+      assert.ok(!(await gallery.locator('.episode-cast-note').innerText()).includes(episodeCode(MAX)), 'the note names only the episode being viewed');
+      await episode(gallery, 1);
+      assert.deepEqual(await cardIds(gallery), diedBy(1));
+      assert.equal(await gallery.locator('[data-faction-filter="died"] span').innerText(), String(diedBy(1).length));
+    });
+
+    await test('People sort by story order or A–Z, in the expanded gallery too, and the choice is remembered', async () => {
+      const sorted = await createPage();
+      await episode(sorted, MAX);
+      await view(sorted, 'characters');
+      const names = () => sorted.locator('.character-name').evaluateAll(items => items.map(item => item.textContent));
+      assert.equal(await sorted.locator('#character-sort').inputValue(), 'story');
+      assert.deepEqual((await sorted.locator('#character-sort option').allInnerTexts()), ['Sort: story order', 'Sort: A–Z']);
+      assert.equal(await sorted.locator('label[for="character-sort"]').innerText(), 'Sort characters');
+      // Story order is the order the people appear in, with anyone who is only another identity of a listed person last.
+      const visible = data.characters.filter(character => character.type !== 'group' && character.firstEpisode <= MAX);
+      const another = character => Boolean(character.revealedAs && character.revealedAs.episode <= MAX && data.characters.some(other => other.id === character.revealedAs.id && other.firstEpisode <= MAX));
+      assert.deepEqual(await cardIds(sorted), visible.slice().sort((a, b) => another(a) - another(b) || a.firstEpisode - b.firstEpisode).map(character => character.id));
+      assert.equal(await savedChoice(sorted, 'characterSort'), undefined, 'the default is not stored');
+      await sorted.locator('#character-sort').selectOption('name');
+      const alphabetical = new Intl.Collator('en', { sensitivity: 'base' });
+      const inOrder = await names();
+      assert.deepEqual(inOrder, inOrder.slice().sort(alphabetical.compare), 'A–Z');
+      assert.equal(inOrder.length, visible.length, 'sorting never drops anyone');
+      assert.equal(await sorted.locator('#character-sort').evaluate(select => select === document.activeElement), true, 'focus stays on the control');
+      // It applies inside a faction and under the Died filter, where story order means the order of death.
+      await sorted.locator('[data-faction-filter="died"]').click();
+      const fallenNames = await names();
+      assert.deepEqual(fallenNames, fallenNames.slice().sort(alphabetical.compare));
+      await sorted.locator('#character-sort').selectOption('story');
+      assert.deepEqual(await cardIds(sorted), diedBy(MAX));
+      await sorted.locator('#character-sort').selectOption('name');
+      await sorted.locator('[data-faction-filter="all"]').click();
+      // Remembered across a reload, and also set from the expanded gallery.
+      await sorted.reload({ waitUntil: 'load' });
+      assert.equal(await sorted.locator('#character-sort').inputValue(), 'name', 'the choice survives a reload');
+      assert.equal(await savedChoice(sorted, 'characterSort'), 'name');
+      await sorted.locator('#expand-gallery').click();
+      assert.equal(await sorted.locator('#expanded-gallery-slot #character-sort').isVisible(), true);
+      await sorted.locator('#expanded-gallery-slot #character-sort').selectOption('story');
+      await sorted.keyboard.press('Escape');
+      assert.equal(await sorted.locator('#character-sort').inputValue(), 'story');
+      assert.equal(await savedChoice(sorted, 'characterSort'), undefined, 'going back to the default stores nothing');
+    });
+
+    await test('People start as a list on a phone and as cards on a wide window; a chosen layout is kept and wins', async () => {
+      const phone = await createPage({ width: 390, height: 844 });
+      await episode(phone, MAX);
+      await view(phone, 'characters');
+      const isList = page => page.locator('.character-grid').evaluate(grid => grid.classList.contains('is-list'));
+      const pressed = page => page.locator('[data-character-layout][aria-pressed="true"]').evaluateAll(buttons => buttons.map(button => button.dataset.characterLayout));
+      assert.equal(await isList(phone), true, 'a phone starts with the list');
+      assert.deepEqual(await pressed(phone), ['list']);
+      assert.equal(await savedChoice(phone, 'characterView'), undefined, 'a default is not remembered as a choice');
+      const rows = await phone.locator('.character-card-button').evaluateAll(buttons => buttons.map(button => Math.round(button.getBoundingClientRect().height)));
+      assert.ok(rows.every(height => height >= 44 && height <= 90), `list rows are touch targets, not cards: ${[...new Set(rows)].join(', ')}px`);
+      assert.equal(await phone.locator('.character-card:not(.fallen) .fate-chip').count(), 0);
+      // A role, a mark and a portrait on one short row.
+      const row = await phone.locator('#character-erwin').evaluate(card => {
+        const box = selector => card.querySelector(selector).getBoundingClientRect();
+        return { chipRight: box('.fate-chip').right, nameBottom: box('.character-name').bottom, chipTop: box('.fate-chip').top, roleTop: box('.character-role').top, card: card.getBoundingClientRect().right };
+      });
+      assert.ok(row.chipTop < row.roleTop && row.chipRight < row.card, 'the mark sits on the name line, inside the row');
+      const listHeight = await phone.evaluate(() => document.documentElement.scrollHeight);
+      const grid = phone.locator('.character-grid');
+      await phone.locator('[data-character-layout="grid"]').click();
+      assert.equal(await grid.evaluate(element => element.isConnected), true, 'switching changes a class; nothing is rebuilt');
+      assert.equal(await phone.locator('[data-character-layout="grid"]').evaluate(button => button === document.activeElement), true, 'focus stays on the control');
+      assert.equal(await isList(phone), false);
+      const cardsHeight = await phone.evaluate(() => document.documentElement.scrollHeight);
+      assert.ok(listHeight <= cardsHeight * .8, `the list is ${listHeight}px tall against ${cardsHeight}px of cards`);
+      assert.equal(await savedChoice(phone, 'characterView'), 'grid');
+      await phone.reload({ waitUntil: 'load' });
+      assert.equal(await isList(phone), false, 'a phone that chose cards keeps them after a reload');
+      await phone.locator('[data-character-layout="list"]').click();
+      await phone.setViewportSize({ width: 1440, height: 1040 });
+      await settled(phone);
+      assert.equal(await isList(phone), true, 'a chosen list is kept on a wide window');
+      await assertNoHorizontalOverflow(phone, 'list at 1440px');
+      // Nothing chosen: the window decides, in both directions, without rebuilding.
+      const roaming = await createPage({ width: 390, height: 844 });
+      await view(roaming, 'characters');
+      assert.equal(await isList(roaming), true);
+      await roaming.setViewportSize({ width: 1440, height: 1040 });
+      await settled(roaming);
+      assert.equal(await isList(roaming), false, 'the same visitor on a wide window gets the cards');
+      assert.deepEqual(await pressed(roaming), ['grid']);
+      await roaming.setViewportSize({ width: 390, height: 844 });
+      await settled(roaming);
+      assert.equal(await isList(roaming), true, 'and the list again on a phone');
+      const wide = await createPage();
+      await episode(wide, MAX);
+      await view(wide, 'characters');
+      assert.equal(await isList(wide), false, 'a wide window starts with the cards');
+      await wide.locator('[data-character-layout="list"]').click();
+      assert.equal(await isList(wide), true);
+      const columns = await wide.locator('.character-grid').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+      assert.ok(columns >= 2 && columns <= 4, `the list is a few columns of full-width rows, not a long strip: ${columns}`);
+      // The smallest phones, with every mark showing: names wrap, nothing spills sideways.
+      const small = await createPage({ width: 320, height: 740 });
+      await episode(small, MAX);
+      await view(small, 'characters');
+      await small.locator('[data-faction-filter="died"]').click();
+      assert.equal(await isList(small), true);
+      await assertNoHorizontalOverflow(small, '320px list of the fallen');
+      const spilled = await small.locator('.character-card').evaluateAll(cards => cards.filter(card => {
+        const outer = card.getBoundingClientRect();
+        return [...card.querySelectorAll('.character-name, .fate-chip, .character-role')].some(item => item.getBoundingClientRect().right > outer.right + 1);
+      }).map(card => card.dataset.character));
+      assert.deepEqual(spilled, [], 'names, marks and roles stay inside their rows');
     });
 
     await test('expanded gallery keeps filters, contains focus, restores the tab and respects episode limits', async () => {
