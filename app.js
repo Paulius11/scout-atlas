@@ -844,14 +844,68 @@
     const track = $('#timeline-track');
     if (active && state.view === 'map') track.scrollLeft += active.getBoundingClientRect().left - track.getBoundingClientRect().left - track.clientWidth / 2 + active.clientWidth / 2;
   }
+  // The Story tab groups moments by episode under season headings. The newest two episodes are open; older
+  // ones are a single scannable row until the viewer opens them, and what they open or close is remembered while
+  // they step through episodes.
+  const RECENT_EPISODES = 2;
+  const recapOpen = new Set();
+  const recapShut = new Set();
+  const recapIsOpen = (number, recent) => recapOpen.has(number) || (recent && !recapShut.has(number));
+  function recapCard(event, location, lead) {
+    return `<article id="recap-${escapeHTML(event.id)}" tabindex="-1" class="recap-card${lead ? ' recap-lead' : ''}">${lead ? '<p class="recap-label">Latest recorded moment</p>' : ''}<p class="recap-meta">${episodeLabel(event.episode)}${location || event.placeName ? `, ${escapeHTML(location?.name || event.placeName)}` : ''}</p><h3>${escapeHTML(event.title)}</h3><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}${knowledgeBadge(event.kind)}${peopleList(event.people, { compact: true })}${location ? `<button class="card-link" data-open-event="${escapeHTML(event.id)}">Find it on the map</button>` : '<p class="unpinned">Not pinned on the map</p>'}</article>`;
+  }
   function renderRecap() {
     const currentEpisode = data.episodes.find(episode => episode.number === state.viewing);
-    const events = visibleEvents().slice().reverse();
-    $('#recap-view').innerHTML = `<div class="recap-intro">${icon('shield')}<div><p class="panel-kicker">Briefing, ${episodeLabel(state.viewing).toLowerCase()}</p><h2>${escapeHTML(titleOfEpisode(state.viewing))}</h2><p>${escapeHTML(currentEpisode?.description || `No new milestone is mapped for ${episodeLabel(state.viewing).toLowerCase()}. Below are the selected events established by this point.`)}</p><p class="coverage-note">A selective recap, newest first. Some events happen in places the atlas cannot pin.</p></div></div><div class="recap-grid">${events.map((event, index) => {
+    // Newest first, as before; events at a place the viewer has not met yet stay out.
+    const groups = [];
+    for (const event of visibleEvents().slice().reverse()) {
       const location = event.locationId ? getLocation(event.locationId) : null;
-      if (event.locationId && !location) return '';
-      return `<article id="recap-${escapeHTML(event.id)}" tabindex="-1" class="recap-card${index === 0 ? ' recap-lead' : ''}">${index === 0 ? '<p class="recap-label">Latest recorded moment</p>' : ''}<p class="recap-meta">${episodeLabel(event.episode)}${location || event.placeName ? `, ${escapeHTML(location?.name || event.placeName)}` : ''}</p><h3>${escapeHTML(event.title)}</h3><p>${escapeHTML(event.summary)}</p>${event.connection ? `<p class="connection-text">${escapeHTML(event.connection)}</p>` : ''}${knowledgeBadge(event.kind)}${peopleList(event.people, { compact: true })}${location ? `<button class="card-link" data-open-event="${escapeHTML(event.id)}">Find it on the map</button>` : '<p class="unpinned">Not pinned on the map</p>'}</article>`;
-    }).join('')}</div>`;
+      if (event.locationId && !location) continue;
+      if (groups.at(-1)?.number !== event.episode) groups.push({ number: event.episode, cards: [] });
+      groups.at(-1).cards.push({ event, location });
+    }
+    const seasons = [];
+    for (const group of groups) {
+      const season = seasonOf(group.number)?.season ?? 0;
+      if (seasons.at(-1)?.season !== season) seasons.push({ season, groups: [] });
+      seasons.at(-1).groups.push(group);
+    }
+    let lead = true;
+    const body = seasons.map(({ season, groups: inSeason }) => {
+      const moments = inSeason.reduce((sum, group) => sum + group.cards.length, 0);
+      const episodes = inSeason.map(group => {
+        const recent = groups.indexOf(group) < RECENT_EPISODES;
+        const open = recapIsOpen(group.number, recent);
+        const teaser = group.cards.slice(0, 2).map(({ event }) => event.title).join(' · ');
+        const cards = group.cards.map(({ event, location }) => { const html = recapCard(event, location, lead); lead = false; return html; }).join('');
+        return `<details class="recap-episode" data-recap-episode="${group.number}" data-recent="${recent}" data-rendered-open="${open}"${open ? ' open' : ''}><summary><span class="recap-ep-code">${episodeCode(group.number)}</span><span class="recap-ep-main"><strong class="recap-ep-title">${escapeHTML(titleOfEpisode(group.number))}</strong><span class="recap-ep-teaser">${escapeHTML(teaser)}</span></span><span class="recap-ep-count">${group.cards.length} ${group.cards.length === 1 ? 'moment' : 'moments'}</span></summary><div class="recap-cards">${cards}</div></details>`;
+      }).join('');
+      return `<section class="recap-season" id="recap-season-${season}" aria-labelledby="recap-season-${season}-title" tabindex="-1"><h2 class="recap-season-title" id="recap-season-${season}-title">Season ${season}<span>${moments} ${moments === 1 ? 'moment' : 'moments'}</span></h2>${episodes}</section>`;
+    }).join('');
+    const jump = seasons.length > 1 ? `<nav class="recap-jump" aria-label="Jump to a season">${seasons.map(({ season }) => `<button type="button" class="filter-chip" data-recap-jump="${season}">Season ${season}</button>`).join('')}</nav>` : '';
+    const bulk = groups.length > RECENT_EPISODES ? '<div class="recap-bulk"><button type="button" class="card-link" data-recap-all="open">Open all</button><button type="button" class="card-link" data-recap-all="close">Close older</button></div>' : '';
+    $('#recap-view').innerHTML = `<div class="recap-intro">${icon('shield')}<div><p class="panel-kicker">Briefing, ${episodeLabel(state.viewing).toLowerCase()}</p><h2>${escapeHTML(titleOfEpisode(state.viewing))}</h2><p>${escapeHTML(currentEpisode?.description || `No new milestone is mapped for ${episodeLabel(state.viewing).toLowerCase()}. Below are the selected events established by this point.`)}</p><p class="coverage-note">A selective recap, newest first, one row per episode. Some events happen in places the atlas cannot pin.</p></div></div>${jump || bulk ? `<div class="recap-tools">${jump}${bulk}</div>` : ''}<div class="recap-grid">${body}</div>`;
+  }
+  // Opening or closing an episode by hand is remembered; the opens and closes render() applies are not.
+  $('#recap-view').addEventListener('toggle', event => {
+    const details = event.target.closest?.('details.recap-episode');
+    if (!details || String(details.open) === details.dataset.renderedOpen) return;
+    const number = Number(details.dataset.recapEpisode);
+    details.dataset.renderedOpen = String(details.open);
+    (details.open ? recapOpen : recapShut).add(number);
+    (details.open ? recapShut : recapOpen).delete(number);
+  }, true);
+  // A choice made by hand: remembered for every episode it names, even one already in that state.
+  function setRecapEpisode(details, open) {
+    const number = Number(details.dataset.recapEpisode);
+    (open ? recapOpen : recapShut).add(number);
+    (open ? recapShut : recapOpen).delete(number);
+    details.dataset.renderedOpen = String(open); // so its toggle event is not taken for a second choice
+    details.open = open;
+  }
+  function revealRecapCard(card) {
+    const details = card?.closest('details.recap-episode');
+    if (details) setRecapEpisode(details, true);
   }
   const CHARACTER_SECTIONS = [
     ['Survey Corps', ['survey']],
@@ -1559,6 +1613,23 @@
     if (state.card && !event.target.closest('#person-card')) closeCard();
     const viewButton = event.target.closest('[data-view]');
     if (viewButton) { showView(viewButton.dataset.view); return; }
+    const seasonJump = event.target.closest('[data-recap-jump]');
+    if (seasonJump) {
+      const section = $(`#recap-season-${CSS.escape(seasonJump.dataset.recapJump)}`);
+      section?.scrollIntoView({ block: 'start' });
+      section?.focus({ preventScroll: true });
+      return;
+    }
+    const recapAll = event.target.closest('[data-recap-all]');
+    if (recapAll) {
+      const openAll = recapAll.dataset.recapAll === 'open';
+      if (!openAll) { recapOpen.clear(); recapShut.clear(); } // back to the defaults: the newest two
+      for (const details of $$('details.recap-episode', $('#recap-view'))) {
+        if (openAll) setRecapEpisode(details, true);
+        else { const recent = details.dataset.recent === 'true'; details.dataset.renderedOpen = String(recent); details.open = recent; }
+      }
+      return;
+    }
     const marker = event.target.closest('[data-location]');
     if (marker) { state.activeEvent = null; selectLocation(marker.dataset.location); return; }
     const result = event.target.closest('[data-search-location]');
@@ -1588,6 +1659,7 @@
         closeExpandedMap();
         showView('recap');
         const card = $(`#recap-${CSS.escape(storyEvent.id)}`);
+        revealRecapCard(card);
         card?.scrollIntoView({ block: 'center' });
         card?.focus({ preventScroll: true });
       }

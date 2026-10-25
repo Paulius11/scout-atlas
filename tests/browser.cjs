@@ -1977,6 +1977,8 @@ async function main() {
     await test('every portrait sits nearer its own pin than any other', async () => {
       try { for (const n of milestones) {
         await episode(page, n);
+        // Portraits take their place in the frame after the render; measure the settled arrangement.
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         const bad = await page.locator('#location-markers').evaluate(root => {
           const centre = el => { const r = el.getBoundingClientRect(); return [(r.left + r.right) / 2, (r.top + r.bottom) / 2]; };
           const rings = [...root.querySelectorAll('.map-marker')].filter(m => m.querySelector('.marker-ring') && m.getBoundingClientRect().width > 0).map(m => [m.dataset.location, centre(m.querySelector('.marker-ring'))]);
@@ -2791,6 +2793,85 @@ async function main() {
         await guide.locator('#about-dialog .primary-button').click();
         assert.equal(await guide.locator('#about-dialog').evaluate(dialog => dialog.open), false);
       }
+    });
+
+    await test('Story groups moments by season and episode: the newest two open, older ones one row each, every card kept', async () => {
+      for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+        const story = await createPage(viewport);
+        await episode(story, 87);
+        await view(story, 'recap');
+        const shown = data.episodes.filter(entry => entry.number <= 87 && entry.events.some(event => !event.locationId || data.locations.find(place => place.id === event.locationId)?.firstEpisode <= 87));
+        const label = `${viewport.width}px`;
+        assert.equal(await story.locator('.recap-grid').count(), 1, 'one recap list');
+        assert.deepEqual(await story.locator('.recap-season-title').evaluateAll(titles => titles.map(title => title.firstChild.textContent)), ['Season 4', 'Season 3', 'Season 2', 'Season 1'], `${label}: newest season first`);
+        assert.equal(await story.locator('details.recap-episode').count(), shown.length, `${label}: one row per episode`);
+        assert.deepEqual(await story.locator('details.recap-episode[open]').evaluateAll(rows => rows.map(row => Number(row.dataset.recapEpisode))), [87, 86], `${label}: the newest two are open`);
+        assert.equal(await story.locator('.recap-card').count(), data.episodes.filter(entry => entry.number <= 87).flatMap(entry => entry.events).filter(event => !event.locationId || data.locations.find(place => place.id === event.locationId)?.firstEpisode <= 87).length, `${label}: every moment is still on the page`);
+        assert.equal(await story.locator('.recap-lead').count(), 1, `${label}: one lead card`);
+        assert.equal(await story.locator('details.recap-episode:first-of-type .recap-lead').count(), 1, `${label}: the lead is in the newest episode`);
+        // Scannable: a row names its episode, what happened, and how many moments, without opening.
+        const row = story.locator('details.recap-episode[data-recap-episode="60"] > summary');
+        assert.match(await row.innerText(), new RegExp(`${episodeCode(60)}[\\s\\S]*${data.episodeTitles[59].title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*\\d+ moments?`));
+        assert.ok((await row.boundingBox()).height <= 100, `${label}: a collapsed row stays compact`);
+        // The page is a fraction of the 36 desktop and 104 phone screens the ungrouped list took.
+        const screens = await story.evaluate(() => document.documentElement.scrollHeight / innerHeight);
+        assert.ok(screens <= (viewport.width > 760 ? 12 : 16), `${label}: the Story is ${screens.toFixed(1)} screens long`);
+        await assertNoHorizontalOverflow(story, `${label} Story`);
+      }
+      // Early in the series there is little to fold, and no season to jump between.
+      const early = await createPage();
+      await episode(early, 10);
+      await view(early, 'recap');
+      assert.equal(await early.locator('[data-recap-jump]').count(), 0);
+      assert.equal(await early.locator('.recap-season').count(), 1);
+    });
+
+    await test('Story remembers the episodes you open or close, with Open all, Close older and season jumps', async () => {
+      const story = await createPage();
+      await episode(story, 40);
+      await view(story, 'recap');
+      const open = () => story.locator('details.recap-episode[open]').evaluateAll(rows => rows.map(row => Number(row.dataset.recapEpisode)));
+      assert.deepEqual(await open(), [40, 39]);
+      // The row is a real disclosure: Enter on it opens it.
+      await story.locator('details.recap-episode[data-recap-episode="38"] > summary').focus();
+      await story.keyboard.press('Enter');
+      await story.waitForFunction(() => document.querySelector('details.recap-episode[data-recap-episode="38"]').open);
+      assert.equal(await story.locator('#recap-' + data.episodes.find(entry => entry.number === 38).events[0].id).isVisible(), true, 'an opened episode shows its cards');
+      await story.locator('details.recap-episode[data-recap-episode="40"] > summary').click();
+      await story.waitForFunction(() => !document.querySelector('details.recap-episode[data-recap-episode="40"]').open);
+      assert.deepEqual(await open(), [39, 38]);
+      // Stepping on keeps what the viewer chose; the newest two follow the story.
+      await episode(story, 41);
+      assert.deepEqual(await open(), [41, 38], 'E38 stays open by choice, E40 stays closed by choice, E41 is new');
+      await story.locator('[data-recap-all="close"]').click();
+      assert.deepEqual(await open(), [41, 40], 'Close older returns to the newest two');
+      await story.locator('[data-recap-all="open"]').click();
+      assert.equal(await story.locator('details.recap-episode:not([open])').count(), 0, 'Open all opens every episode');
+      await episode(story, 42);
+      assert.equal(await story.locator('details.recap-episode:not([open])').count(), 0, 'and keeps them open');
+      await story.locator('[data-recap-all="close"]').click();
+      // A season chip scrolls to and focuses that season.
+      await story.locator('[data-recap-jump="1"]').click();
+      assert.equal(await story.locator('#recap-season-1').evaluate(section => section === document.activeElement), true);
+      const top = (await story.locator('#recap-season-1').boundingBox()).y;
+      assert.ok(top >= -2 && top < 200, `the season starts at the top of the screen (${Math.round(top)}px)`);
+    });
+
+    await test('an unpinned event in a collapsed episode opens its row and takes focus', async () => {
+      const story = await createPage();
+      await episode(story, 87);
+      const old = data.episodes.filter(entry => entry.number <= 30).flatMap(entry => entry.events.map(event => ({ ...event, episode: entry.number })))
+        .find(event => !event.locationId && event.title.length > 6 && !data.episodes.some(other => other.number > event.episode && other.events.some(item => item.title === event.title)));
+      assert.ok(old, 'an early unpinned event exists');
+      await view(story, 'recap');
+      assert.equal(await story.locator(`details.recap-episode[data-recap-episode="${old.episode}"]`).evaluate(row => row.open), false, 'its episode starts collapsed');
+      await view(story, 'map');
+      await story.locator('#location-search').fill(old.title);
+      await story.locator(`#search-results [data-open-event="${old.id}"]`).click();
+      assert.equal(await story.locator('#recap-view').isVisible(), true);
+      assert.equal(await story.locator(`details.recap-episode[data-recap-episode="${old.episode}"]`).evaluate(row => row.open), true, 'the episode opened');
+      assert.equal(await story.locator(`#recap-${old.id}`).evaluate(card => card === document.activeElement), true, 'the card has focus');
+      assert.equal(await story.locator(`#recap-${old.id}`).isVisible(), true);
     });
 
     await test('phone layout fits, keeps every tab reachable, and fills the map', async () => {
