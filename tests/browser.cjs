@@ -2440,6 +2440,10 @@ async function main() {
           }));
           assert.ok(['img', 'image'].includes(actual.tag), `${character.id} uses an HTML or SVG image`);
           assert.equal(actual.source, `portraits/${version.file}`);
+          if (actual.tag === 'img') {
+            assert.equal(await portrait.getAttribute('loading'), 'lazy', `${character.id} loads its picture only as it scrolls near`);
+            assert.equal(await portrait.getAttribute('decoding'), 'async');
+          }
           if (version.crop) {
             assert.equal(actual.framed, true, `${character.id} uses its source framing`);
             assert.deepEqual(actual.viewBox.split(/\s+/).map(Number), version.crop, `${character.id} frame`);
@@ -2487,15 +2491,31 @@ async function main() {
       });
 
       await test('framed map portraits keep the same bounds as their marker disc', async () => {
-        const frameEpisodes = [...new Set(data.characters.flatMap(character => (character.positions || []).map(position => position.episode)))].filter(number =>
-          data.characters.some(character => {
-            const version = at(portraitVersions(character.id), number);
+        // The bundled pictures are already square faces, so give a few mapped people a source frame, as a
+        // hand-added picture would have, to keep the SVG framing path honest.
+        const frameable = data.characters.filter(character => character.type !== 'group'
+          && (character.positions || []).some(position => position.locationId)
+          && portraitVersions(character.id).length && portraitVersions(character.id).every(version => /\.jpg$/.test(version.file))).slice(0, 5);
+        assert.ok(frameable.length >= 3, 'enough mapped people have a bundled 160 px picture to frame');
+        const sizes = await page.evaluate(async files => Promise.all(files.map(async file => {
+          const image = new Image();
+          image.src = new URL(`portraits/${file}`, location.href).href;
+          await image.decode();
+          return [image.naturalWidth, image.naturalHeight];
+        })), frameable.flatMap(character => portraitVersions(character.id).map(version => version.file)));
+        assert.ok(sizes.every(([width, height]) => width === 160 && height === 160), 'the synthetic source frame matches the picture');
+        const framed = { ...portraits, ...Object.fromEntries(frameable.map(character => [character.id,
+          portraitVersions(character.id).map(version => ({ ...version, crop: [12, 12, 136, 136], sourceSize: [160, 160] }))])) };
+        const framedInit = `Object.defineProperty(window, 'ATLAS_PORTRAITS', { configurable: true, get: () => (${JSON.stringify(framed)}), set: () => {} });`;
+        const frameEpisodes = [...new Set(frameable.flatMap(character => (character.positions || []).map(position => position.episode)))].filter(number =>
+          frameable.some(character => {
+            const version = at(framed[character.id], number);
             const position = (character.positions || []).filter(position => position.episode <= number).sort((a, b) => b.episode - a.episode)[0];
             return version?.crop && position?.locationId;
           }));
         assert.ok(frameEpisodes.length > 0, 'a framed portrait has a recorded map position');
         for (const viewport of [{ width: 1440, height: 1040 }, { width: 390, height: 844 }]) {
-          const mapped = await createPage(viewport);
+          const mapped = await createPage(viewport, framedInit);
           let count = 0;
           for (const number of frameEpisodes) {
             await episode(mapped, number);

@@ -437,6 +437,21 @@ check('portraits: known ids, safe file names, ordered versions', bad => {
     });
   }
 });
+// Avatars are shown at 22-88 px, so the gallery should never download a full-size still. Bake large
+// sources with portraits/fetch_portraits.py (it crops the recorded face and writes a small WebP).
+check('portraits: bundled pictures stay small', bad => {
+  const MAX_FILE_KB = 48, MAX_TOTAL_KB = 640;
+  const files = [...new Set(Object.values(portraits).flatMap(entry => (Array.isArray(entry) ? entry : [{ file: entry }]).map(v => v.file)))];
+  let total = 0;
+  for (const file of files) {
+    const target = path.resolve(__dirname, '../portraits', file);
+    if (!fs.existsSync(target)) continue;
+    const kb = fs.statSync(target).size / 1024;
+    total += kb;
+    if (kb > MAX_FILE_KB) bad(`${file} is ${Math.round(kb)} KB; the limit is ${MAX_FILE_KB} KB`);
+  }
+  if (total > MAX_TOTAL_KB) bad(`the bundled portraits total ${Math.round(total)} KB; the limit is ${MAX_TOTAL_KB} KB`);
+});
 check('every person and Titan has a bundled portrait by the edition ceiling', bad => {
   for (const character of d.characters.filter(character => character.type !== 'group')) {
     const entry = portraits[character.id];

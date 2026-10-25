@@ -210,7 +210,8 @@
     const classes = `avatar avatar-${size} faction-${factionOf(character)} type-${character.type}`;
     const frame = src && portraitFrame(character.id);
     if (frame) return `<svg class="${classes} image-portrait" viewBox="${frame.crop.join(' ')}" aria-hidden="true">${framedPortrait(character.id, src, frame)}</svg>`;
-    if (src) return `<img class="${classes}" src="${escapeHTML(src)}" alt="" data-portrait="${escapeHTML(`${character.id}/${src.slice(10)}`)}">`;
+    // Faces further down the gallery are fetched as they scroll near; the bundled files are small squares.
+    if (src) return `<img class="${classes}" src="${escapeHTML(src)}" alt="" loading="lazy" decoding="async" data-portrait="${escapeHTML(`${character.id}/${src.slice(10)}`)}">`;
     return `<svg class="${classes}" viewBox="0 0 40 40" aria-hidden="true"><circle class="avatar-disc" cx="20" cy="20" r="18"/><g clip-path="url(#avatar-glyph-clip)">${GLYPHS[character.type] || GLYPHS.person}</g></svg>`;
   }
   function mapAvatar(character, x, y, entering = false) {
